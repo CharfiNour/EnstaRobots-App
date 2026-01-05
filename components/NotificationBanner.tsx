@@ -20,7 +20,9 @@ export default function NotificationBanner() {
 
     useEffect(() => {
         const session = getSession();
-        if (!session || session.role !== 'team') return;
+        if (!session) return;
+
+        const role = session.role;
 
         // Subscribe to announcements
         const announcementsChannel = supabase
@@ -31,7 +33,7 @@ export default function NotificationBanner() {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'announcements',
-                    filter: `visible_to=in.(all,teams)`,
+                    filter: `visible_to=in.(all,${role}s)`,
                 },
                 (payload) => {
                     const announcement = payload.new;
@@ -139,7 +141,7 @@ function NotificationCard({
             initial={{ opacity: 0, x: 100, scale: 0.8 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 100, scale: 0.8 }}
-            className={`p-4 rounded-xl border backdrop-blur-lg bg-gradient-to-br ${getColors()} shadow-lg max-w-sm`}
+            className={`p-4 rounded-xl border backdrop-blur-lg bg-gradient-to-br ${getColors()} shadow-md max-w-sm`}
         >
             <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 mt-0.5">{getIcon()}</div>

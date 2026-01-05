@@ -68,7 +68,7 @@ export default function TeamMatchesPage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+                <Loader2 className="w-8 h-8 text-accent animate-spin" />
             </div>
         );
     }
@@ -86,25 +86,25 @@ export default function TeamMatchesPage() {
                     className="mb-8"
                 >
                     <div className="flex items-center gap-3 mb-2">
-                        <Calendar className="w-8 h-8 text-[var(--color-accent)]" />
-                        <h1 className="text-3xl md:text-4xl font-bold text-white">
+                        <Calendar className="w-8 h-8 text-accent" />
+                        <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                             My Matches
                         </h1>
                     </div>
-                    <p className="text-gray-400">Schedule and results for {session?.teamName}</p>
+                    <p className="text-muted-foreground">Schedule and results for {session?.teamName}</p>
                 </motion.div>
 
                 {/* Upcoming Matches */}
                 <section className="mb-12">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-[var(--color-accent)]" />
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+                        <Clock className="w-5 h-5 text-accent" />
                         Upcoming Matches
                     </h2>
 
                     {upcomingMatches.length === 0 ? (
-                        <div className="p-8 bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl text-center">
-                            <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                            <p className="text-gray-400">No upcoming matches scheduled yet</p>
+                        <div className="p-8 bg-card border border-card-border rounded-xl text-center shadow-md shadow-black/[0.02]">
+                            <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                            <p className="text-muted-foreground">No upcoming matches scheduled yet</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -117,15 +117,15 @@ export default function TeamMatchesPage() {
 
                 {/* Past Results */}
                 <section>
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-gray-400" />
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+                        <Trophy className="w-5 h-5 text-muted-foreground" />
                         Past Results
                     </h2>
 
                     {completedMatches.length === 0 ? (
-                        <div className="p-8 bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl text-center">
-                            <Trophy className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                            <p className="text-gray-400">No completed matches yet</p>
+                        <div className="p-8 bg-card border border-card-border rounded-xl text-center shadow-md shadow-black/[0.02]">
+                            <Trophy className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                            <p className="text-muted-foreground">No completed matches yet</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -175,40 +175,40 @@ function UpcomingMatchCard({ match, index, teamName }: { match: any; index: numb
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="p-6 bg-gradient-to-br from-[var(--color-accent)]/10 to-[var(--color-card)] border border-[var(--color-accent)]/30 rounded-xl"
+            className="p-6 bg-gradient-to-br from-accent/5 to-card border border-accent/20 rounded-xl shadow-md shadow-black/[0.02]"
         >
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <div className="text-sm text-gray-400 mb-1">{match.competition}</div>
-                    <h3 className="text-lg font-bold text-white">{match.round}</h3>
+                    <div className="text-sm text-muted-foreground mb-1">{match.competition}</div>
+                    <h3 className="text-lg font-bold text-foreground">{match.round}</h3>
                 </div>
                 <div className="text-right">
-                    <div className="text-2xl font-bold text-[var(--color-accent)]">{timeLeft}</div>
-                    <div className="text-xs text-gray-400">until match</div>
+                    <div className="text-2xl font-bold text-accent">{timeLeft}</div>
+                    <div className="text-xs text-muted-foreground">until match</div>
                 </div>
             </div>
 
             {/* Matchup */}
-            <div className="flex items-center justify-between mb-4 p-4 bg-white/5 rounded-lg">
+            <div className="flex items-center justify-between mb-4 p-4 bg-muted/50 rounded-lg border border-card-border/30">
                 <div className="text-center flex-1">
-                    <div className="text-sm text-gray-400 mb-1">You</div>
-                    <div className="font-bold text-white">{teamName}</div>
+                    <div className="text-sm text-muted-foreground mb-1">You</div>
+                    <div className="font-bold text-foreground">{teamName}</div>
                 </div>
-                <div className="px-4 text-gray-500 font-bold">VS</div>
+                <div className="px-4 text-muted-foreground/30 font-bold">VS</div>
                 <div className="text-center flex-1">
-                    <div className="text-sm text-gray-400 mb-1">Opponent</div>
-                    <div className="font-bold text-white">{match.opponent}</div>
+                    <div className="text-sm text-muted-foreground mb-1">Opponent</div>
+                    <div className="font-bold text-foreground">{match.opponent}</div>
                 </div>
             </div>
 
             {/* Details */}
             <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="w-4 h-4" />
                     <span>{match.arena}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="w-4 h-4" />
                     <span>{new Date(match.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
@@ -225,50 +225,50 @@ function CompletedMatchCard({ match, index, teamName }: { match: any; index: num
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="p-6 bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl hover:border-[var(--color-card-border)]/50 transition-all"
+            className="p-6 bg-card border border-card-border rounded-xl hover:border-accent/50 transition-all shadow-md shadow-black/[0.02]"
         >
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <div className="text-sm text-gray-400 mb-1">{match.competition}</div>
-                    <h3 className="text-lg font-bold text-white">{match.round}</h3>
+                    <div className="text-sm text-muted-foreground mb-1">{match.competition}</div>
+                    <h3 className="text-lg font-bold text-foreground">{match.round}</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     {isWin ? (
                         <>
-                            <CheckCircle className="w-6 h-6 text-green-400" />
-                            <span className="font-bold text-green-400">Win</span>
+                            <CheckCircle className="w-6 h-6 text-success" />
+                            <span className="font-bold text-success">Win</span>
                         </>
                     ) : (
                         <>
-                            <XCircle className="w-6 h-6 text-red-400" />
-                            <span className="font-bold text-red-400">Loss</span>
+                            <XCircle className="w-6 h-6 text-danger" />
+                            <span className="font-bold text-danger">Loss</span>
                         </>
                     )}
                 </div>
             </div>
 
             {/* Scores */}
-            <div className="flex items-center justify-between mb-4 p-4 bg-white/5 rounded-lg">
+            <div className="flex items-center justify-between mb-4 p-4 bg-muted/50 rounded-lg border border-card-border/30">
                 <div className="text-center flex-1">
-                    <div className="text-sm text-gray-400 mb-1">You</div>
-                    <div className="font-bold text-white mb-1">{teamName}</div>
-                    <div className={`text-3xl font-bold ${isWin ? 'text-green-400' : 'text-gray-400'}`}>
+                    <div className="text-sm text-muted-foreground mb-1">You</div>
+                    <div className="font-bold text-foreground mb-1">{teamName}</div>
+                    <div className={`text-3xl font-bold ${isWin ? 'text-success' : 'text-muted-foreground'}`}>
                         {match.yourScore}
                     </div>
                 </div>
-                <div className="px-4 text-gray-500 font-bold">-</div>
+                <div className="px-4 text-muted-foreground/30 font-bold">-</div>
                 <div className="text-center flex-1">
-                    <div className="text-sm text-gray-400 mb-1">Opponent</div>
-                    <div className="font-bold text-white mb-1">{match.opponent}</div>
-                    <div className={`text-3xl font-bold ${!isWin ? 'text-red-400' : 'text-gray-400'}`}>
+                    <div className="text-sm text-muted-foreground mb-1">Opponent</div>
+                    <div className="font-bold text-foreground mb-1">{match.opponent}</div>
+                    <div className={`text-3xl font-bold ${!isWin ? 'text-danger' : 'text-muted-foreground'}`}>
                         {match.opponentScore}
                     </div>
                 </div>
             </div>
 
             {/* Arena */}
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4" />
                 <span>{match.arena}</span>
             </div>

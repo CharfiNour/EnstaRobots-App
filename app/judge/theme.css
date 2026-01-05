@@ -1,0 +1,20 @@
+/* ================================
+   JUDGE DESIGN SYSTEM
+   Ambre/Yellow accents for focus and accuracy
+   ================================ */
+
+:root {
+    --color-role-primary: #f59e0b;
+    --color-role-secondary: #92400e;
+    --color-role-accent: #f59e0b;
+    --color-role-muted: rgba(245, 158, 11, 0.05);
+    --color-role-border: rgba(245, 158, 11, 0.2);
+}
+
+.dark {
+    --color-role-primary: #fbbf24;
+    --color-role-secondary: #451a03;
+    --color-role-accent: #fbbf24;
+    --color-role-muted: rgba(251, 191, 36, 0.1);
+    --color-role-border: rgba(251, 191, 36, 0.3);
+}

@@ -40,11 +40,11 @@ export default function RankingsPage() {
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <Trophy className="w-10 h-10 text-[var(--color-accent)]" />
-                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
                             Rankings
                         </h1>
                     </div>
-                    <p className="text-gray-400 text-lg">Current standings across all competitions</p>
+                    <p className="text-muted-foreground text-lg">Current standings across all competitions</p>
                 </motion.div>
 
                 {/* Category Tabs */}
@@ -53,9 +53,9 @@ export default function RankingsPage() {
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-6 py-3 rounded-lg font-semibold whitespace-nowrap transition-all ${selectedCategory === cat
-                                    ? 'bg-[var(--color-accent)] text-[var(--background)] shadow-lg shadow-[var(--color-accent)]/50'
-                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            className={`px-6 py-2 rounded-full font-semibold whitespace-nowrap transition-all ${selectedCategory === cat
+                                ? 'bg-accent text-background shadow-md shadow-accent/25'
+                                : 'bg-muted text-muted-foreground hover:bg-card-foreground/10'
                                 }`}
                         >
                             {cat}
@@ -71,7 +71,7 @@ export default function RankingsPage() {
                     className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl overflow-hidden"
                 >
                     {/* Table Header */}
-                    <div className="hidden md:grid md:grid-cols-6 gap-4 p-4 bg-white/5 border-b border-[var(--color-card-border)] text-sm font-semibold text-gray-400 uppercase">
+                    <div className="hidden md:grid md:grid-cols-6 gap-4 p-4 bg-muted border-b border-card-border text-sm font-semibold text-muted-foreground uppercase">
                         <div className="col-span-1">Rank</div>
                         <div className="col-span-2">Team</div>
                         <div className="col-span-1 text-center">Points</div>
@@ -104,42 +104,41 @@ function RankingRow({ team, index }: { team: any; index: number }) {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.05 }}
-            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
-            className="grid grid-cols-3 md:grid-cols-6 gap-4 p-4 items-center transition-colors"
+            className="grid grid-cols-3 md:grid-cols-6 gap-4 p-4 items-center transition-colors hover:bg-muted/50"
         >
             {/* Rank */}
             <div className="col-span-1 flex items-center gap-3">
                 {team.rank <= 3 ? (
                     <Medal className={`w-6 h-6 ${getMedalColor(team.rank)}`} />
                 ) : (
-                    <span className="text-2xl font-bold text-gray-500 w-6 text-center">{team.rank}</span>
+                    <span className="text-2xl font-bold text-muted-foreground/50 w-6 text-center">{team.rank}</span>
                 )}
             </div>
 
             {/* Team Name */}
-            <div className="col-span-2 font-bold text-white text-lg">{team.team}</div>
+            <div className="col-span-2 font-bold text-foreground text-lg">{team.team}</div>
 
             {/* Points */}
             <div className="col-span-1 text-center">
-                <div className="text-2xl font-bold text-[var(--color-accent)]">{team.points}</div>
-                <div className="text-xs text-gray-500 md:hidden">pts</div>
+                <div className="text-2xl font-bold text-accent">{team.points}</div>
+                <div className="text-xs text-muted-foreground md:hidden">pts</div>
             </div>
 
             {/* W/L - Hidden on mobile, shown on desktop */}
             <div className="hidden md:block col-span-1 text-center">
-                <span className="text-green-400 font-semibold">{team.wins}</span>
-                <span className="text-gray-500"> / </span>
-                <span className="text-red-400 font-semibold">{team.losses}</span>
+                <span className="text-success font-semibold">{team.wins}</span>
+                <span className="text-muted-foreground/30"> / </span>
+                <span className="text-danger font-semibold">{team.losses}</span>
             </div>
 
             {/* Trend */}
             <div className="hidden md:flex col-span-1 justify-center">
                 <TrendingUp
                     className={`w-5 h-5 ${team.trend === 'up'
-                            ? 'text-green-400 rotate-0'
-                            : team.trend === 'down'
-                                ? 'text-red-400 rotate-180'
-                                : 'text-gray-500 rotate-90'
+                        ? 'text-success rotate-0'
+                        : team.trend === 'down'
+                            ? 'text-danger rotate-180'
+                            : 'text-muted-foreground/50 rotate-90'
                         }`}
                 />
             </div>

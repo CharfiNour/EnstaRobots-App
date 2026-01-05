@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Loader2, Shield } from 'lucide-react';
-import { loginWithEmail } from '@/lib/auth';
+import { loginWithEmail, getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -13,6 +13,13 @@ export default function JudgeLoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
+
+    useEffect(() => {
+        const session = getSession();
+        if (session) {
+            router.push(session.role === 'admin' ? '/admin' : session.role === 'judge' ? '/judge' : '/team');
+        }
+    }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,13 +47,13 @@ export default function JudgeLoginPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-8"
                 >
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-500/20 rounded-full mb-4">
-                        <Shield className="w-8 h-8 text-purple-400" />
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-accent/20 rounded-full mb-4">
+                        <Shield className="w-8 h-8 text-accent" />
                     </div>
-                    <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
                         Judge & Admin Login
                     </h1>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                         Sign in with your credentials
                     </p>
                 </motion.div>
@@ -56,11 +63,11 @@ export default function JudgeLoginPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl p-8"
+                    className="bg-card border border-card-border rounded-xl p-8 shadow-md shadow-black/[0.03]"
                 >
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                            <label htmlFor="email" className="block text-sm font-medium text-foreground/80 mb-2">
                                 Email Address
                             </label>
                             <input
@@ -69,7 +76,7 @@ export default function JudgeLoginPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="judge@enstarobots.com"
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                                 required
                                 disabled={loading}
                                 autoComplete="email"
@@ -78,7 +85,7 @@ export default function JudgeLoginPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                            <label htmlFor="password" className="block text-sm font-medium text-foreground/80 mb-2">
                                 Password
                             </label>
                             <input
@@ -87,7 +94,7 @@ export default function JudgeLoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                                 required
                                 disabled={loading}
                                 autoComplete="current-password"
@@ -107,7 +114,7 @@ export default function JudgeLoginPage() {
                         <button
                             type="submit"
                             disabled={loading || !email.trim() || !password.trim()}
-                            className="w-full px-6 py-3 bg-purple-500 text-white rounded-lg font-bold text-lg shadow-lg shadow-purple-500/50 hover:shadow-purple-500/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full px-6 py-3 bg-accent text-background rounded-lg font-bold text-lg shadow-md shadow-accent/20 hover:shadow-lg hover:shadow-accent/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? (
                                 <>
@@ -123,12 +130,34 @@ export default function JudgeLoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-[var(--color-card-border)]">
+                    <div className="mt-8 pt-6 border-t border-card-border space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => {
+                                    const session = { userId: 'demo-admin', role: 'admin', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+                                    localStorage.setItem('enstarobots_session', JSON.stringify(session));
+                                    router.push('/admin');
+                                }}
+                                className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg text-sm font-bold hover:bg-red-500/20 transition-all"
+                            >
+                                Demo Admin
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const session = { userId: 'demo-judge', role: 'judge', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+                                    localStorage.setItem('enstarobots_session', JSON.stringify(session));
+                                    router.push('/judge');
+                                }}
+                                className="px-4 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 rounded-lg text-sm font-bold hover:bg-yellow-500/20 transition-all"
+                            >
+                                Demo Judge
+                            </button>
+                        </div>
                         <div className="flex items-center justify-between text-sm">
-                            <Link href="/auth/team" className="text-[var(--color-accent)] hover:underline">
+                            <Link href="/auth/team" className="text-accent hover:underline">
                                 Team Login
                             </Link>
-                            <Link href="/" className="text-gray-400 hover:text-gray-300">
+                            <Link href="/" className="text-muted-foreground hover:text-foreground">
                                 Back to Home
                             </Link>
                         </div>
@@ -140,10 +169,10 @@ export default function JudgeLoginPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="mt-6 p-4 bg-white/5 border border-white/10 rounded-lg"
+                    className="mt-6 p-4 bg-muted border border-card-border/50 rounded-lg shadow-sm"
                 >
-                    <p className="text-sm text-gray-400 text-center">
-                        <strong className="text-white">Note:</strong> Judge and Admin credentials are provided by event organizers.
+                    <p className="text-sm text-muted-foreground text-center">
+                        <strong className="text-foreground">Note:</strong> Judge and Admin credentials are provided by event organizers.
                         Contact support if you need assistance.
                     </p>
                 </motion.div>

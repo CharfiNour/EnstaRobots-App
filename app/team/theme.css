@@ -1,0 +1,20 @@
+/* ================================
+   TEAM DESIGN SYSTEM
+   Blue/Cyan accents for competitive technology
+   ================================ */
+
+:root {
+    --color-role-primary: #3b82f6;
+    --color-role-secondary: #1e40af;
+    --color-role-accent: #00bcd4;
+    --color-role-muted: rgba(59, 130, 246, 0.05);
+    --color-role-border: rgba(59, 130, 246, 0.2);
+}
+
+.dark {
+    --color-role-primary: #60a5fa;
+    --color-role-secondary: #1e3a8a;
+    --color-role-accent: #00e5ff;
+    --color-role-muted: rgba(96, 165, 250, 0.1);
+    --color-role-border: rgba(96, 165, 250, 0.3);
+}

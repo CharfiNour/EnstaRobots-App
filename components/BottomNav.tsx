@@ -27,7 +27,7 @@ export default function BottomNav() {
 
     useEffect(() => {
         setRole(getUserRole());
-    }, []);
+    }, [pathname]);
 
     const navItems = navConfig[role];
 
@@ -35,7 +35,9 @@ export default function BottomNav() {
         <div className="fixed bottom-0 z-50 w-full border-t border-[var(--color-card-border)] bg-[var(--background)]/90 backdrop-blur-lg md:hidden pb-safe">
             <div className="flex h-16 items-center justify-around px-2">
                 {navItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = item.href === '/'
+                        ? pathname === '/'
+                        : pathname.startsWith(item.href);
                     const Icon = iconMap[item.icon];
 
                     return (
@@ -46,7 +48,7 @@ export default function BottomNav() {
                                 "flex flex-col items-center justify-center p-2 w-full transition-colors",
                                 isActive
                                     ? "text-[var(--color-accent)]"
-                                    : "text-gray-400 hover:text-gray-200"
+                                    : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />

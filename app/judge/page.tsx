@@ -26,8 +26,8 @@ export default function JudgeDashboard() {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-400">Loading...</p>
+                    <div className="w-16 h-16 border-4 border-role-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading...</p>
                 </div>
             </div>
         );
@@ -44,12 +44,12 @@ export default function JudgeDashboard() {
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <ClipboardCheck className="w-10 h-10 text-purple-400" />
+                            <ClipboardCheck className="w-10 h-10 text-role-primary" />
                             <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-white">
+                                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                                     Judge Dashboard
                                 </h1>
-                                <p className="text-gray-400">Score matches and manage competitions</p>
+                                <p className="text-muted-foreground">Score matches and manage competitions</p>
                             </div>
                         </div>
 
@@ -71,18 +71,18 @@ export default function JudgeDashboard() {
                     className="grid md:grid-cols-2 gap-4 mb-8"
                 >
                     <Link href="/judge/score">
-                        <div className="p-6 bg-gradient-to-br from-purple-500/20 to-[var(--color-card)] border border-purple-500/50 rounded-xl hover:scale-105 transition-transform cursor-pointer">
-                            <ClipboardCheck className="w-8 h-8 text-purple-400 mb-3" />
-                            <h3 className="text-xl font-bold text-white mb-1">Score Match</h3>
-                            <p className="text-gray-400 text-sm">Enter scores for a match</p>
+                        <div className="p-6 bg-gradient-to-br from-role-primary/10 to-card border border-role-primary/20 rounded-xl hover:scale-105 transition-transform cursor-pointer">
+                            <ClipboardCheck className="w-8 h-8 text-role-primary mb-3" />
+                            <h3 className="text-xl font-bold text-foreground mb-1">Score Match</h3>
+                            <p className="text-muted-foreground text-sm">Enter scores for a match</p>
                         </div>
                     </Link>
 
                     <Link href="/judge/history">
-                        <div className="p-6 bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl hover:scale-105 transition-transform cursor-pointer">
-                            <History className="w-8 h-8 text-gray-400 mb-3" />
-                            <h3 className="text-xl font-bold text-white mb-1">Scoring History</h3>
-                            <p className="text-gray-400 text-sm">View your past scores</p>
+                        <div className="p-6 bg-card border border-card-border rounded-xl hover:scale-105 transition-transform cursor-pointer">
+                            <History className="w-8 h-8 text-muted-foreground mb-3" />
+                            <h3 className="text-xl font-bold text-foreground mb-1">Scoring History</h3>
+                            <p className="text-muted-foreground text-sm">View your past scores</p>
                         </div>
                     </Link>
                 </motion.div>
@@ -95,14 +95,14 @@ export default function JudgeDashboard() {
                     className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl p-6"
                 >
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-[var(--color-accent)]" />
+                        <Trophy className="w-5 h-5 text-role-primary" />
                         Active Matches
                     </h2>
 
                     <div className="text-center py-8">
-                        <Trophy className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                        <p className="text-gray-400">No matches ready for scoring</p>
-                        <p className="text-sm text-gray-500 mt-2">Matches will appear here when they're ready</p>
+                        <Trophy className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                        <p className="text-muted-foreground">No matches ready for scoring</p>
+                        <p className="text-sm text-muted-foreground/50 mt-2">Matches will appear here when they're ready</p>
                     </div>
                 </motion.div>
 
@@ -111,10 +111,10 @@ export default function JudgeDashboard() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="mt-8 p-6 bg-white/5 border border-white/10 rounded-xl"
+                    className="mt-8 p-6 bg-muted border border-card-border rounded-xl"
                 >
-                    <h3 className="text-lg font-bold text-white mb-3">Judge Guidelines 📋</h3>
-                    <ul className="space-y-2 text-gray-300 text-sm">
+                    <h3 className="text-lg font-bold text-foreground mb-3">Judge Guidelines 📋</h3>
+                    <ul className="space-y-2 text-muted-foreground text-sm">
                         <li>• Scores are saved locally first and synced when online</li>
                         <li>• Double-check team names before submitting scores</li>
                         <li>• Each competition has different scoring criteria</li>

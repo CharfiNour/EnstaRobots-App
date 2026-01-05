@@ -35,7 +35,7 @@ export default function AdminDashboard() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-16 h-16 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
@@ -51,12 +51,12 @@ export default function AdminDashboard() {
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <LayoutDashboard className="w-10 h-10 text-[var(--color-accent)]" />
+                            <LayoutDashboard className="w-10 h-10 text-role-primary" />
                             <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-white">
+                                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                                     Admin Dashboard
                                 </h1>
-                                <p className="text-gray-400">Manage EnstaRobots World Cup</p>
+                                <p className="text-muted-foreground">Manage EnstaRobots World Cup</p>
                             </div>
                         </div>
 
@@ -71,7 +71,7 @@ export default function AdminDashboard() {
                 </motion.div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
                     <StatCard
                         icon={Trophy}
                         label="Competitions"
@@ -93,14 +93,7 @@ export default function AdminDashboard() {
                         color="text-purple-400"
                         delay={0.1}
                     />
-                    <StatCard
-                        icon={TrendingUp}
-                        label="Live Matches"
-                        value={stats.liveMatches.toString()}
-                        color="text-red-400"
-                        delay={0.15}
-                        highlight
-                    />
+
                     <StatCard
                         icon={Calendar}
                         label="Upcoming"
@@ -124,7 +117,7 @@ export default function AdminDashboard() {
                     transition={{ delay: 0.3 }}
                     className="mb-8"
                 >
-                    <h2 className="text-xl font-bold mb-4 text-white">Quick Actions</h2>
+                    <h2 className="text-xl font-bold mb-4 text-foreground">Quick Actions</h2>
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <ActionCard
                             href="/admin/competitions"
@@ -162,9 +155,9 @@ export default function AdminDashboard() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl p-6"
+                    className="bg-card border border-card-border rounded-xl p-6"
                 >
-                    <h2 className="text-xl font-bold mb-4 text-white">Recent Activity</h2>
+                    <h2 className="text-xl font-bold mb-4 text-foreground">Recent Activity</h2>
                     <div className="space-y-3">
                         <ActivityItem
                             icon={Trophy}
@@ -214,13 +207,13 @@ function StatCard({
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay }}
             className={`p-4 rounded-xl border backdrop-blur-sm ${highlight
-                    ? 'bg-gradient-to-br from-red-500/20 to-[var(--color-card)] border-red-500/50'
-                    : 'bg-[var(--color-card)] border-[var(--color-card-border)]'
+                ? 'bg-gradient-to-br from-red-500/20 to-[var(--color-card)] border-red-500/50'
+                : 'bg-[var(--color-card)] border-[var(--color-card-border)]'
                 }`}
         >
             <Icon className={`w-6 h-6 mb-2 ${color}`} />
-            <div className="text-2xl font-bold text-white mb-1">{value}</div>
-            <div className="text-xs text-gray-400 uppercase tracking-wide">{label}</div>
+            <div className="text-2xl font-bold text-foreground mb-1">{value}</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
         </motion.div>
     );
 }
@@ -240,10 +233,10 @@ function ActionCard({
 }) {
     return (
         <Link href={href}>
-            <div className={`p-6 bg-gradient-to-br ${color} to-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl hover:scale-105 transition-transform cursor-pointer`}>
-                <Icon className="w-8 h-8 text-white mb-3" />
-                <h3 className="text-lg font-bold text-white mb-1">{title}</h3>
-                <p className="text-sm text-gray-400">{description}</p>
+            <div className={`p-6 bg-gradient-to-br ${color} to-card border border-card-border rounded-xl hover:scale-105 transition-transform cursor-pointer shadow-md shadow-black/[0.02]`}>
+                <Icon className="w-8 h-8 text-foreground mb-3" />
+                <h3 className="text-lg font-bold text-foreground mb-1">{title}</h3>
+                <p className="text-sm text-muted-foreground">{description}</p>
             </div>
         </Link>
     );
@@ -251,11 +244,11 @@ function ActionCard({
 
 function ActivityItem({ icon: Icon, text, time }: { icon: any; text: string; time: string }) {
     return (
-        <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
-            <Icon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-card-border/30">
+            <Icon className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-                <p className="text-sm text-white">{text}</p>
-                <p className="text-xs text-gray-500 mt-1">{time}</p>
+                <p className="text-sm text-foreground">{text}</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">{time}</p>
             </div>
         </div>
     );

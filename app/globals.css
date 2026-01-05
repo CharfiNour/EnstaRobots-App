@@ -1,33 +1,161 @@
 @import "tailwindcss";
 
+/* 
+  ================================================================
+  THEME DESIGN SYSTEM
+  Centralized color management for Light and Dark modes.
+  ================================================================ 
+*/
+
+/* ================================
+   BRAND COLORS
+   ================================ */
 :root {
-  /* Brand Colors */
-  --color-brand-primary : #051560;
+  --color-brand-primary: #051560;
+  /* Deep tech blue */
   --color-brand-secondary: #0f34a8;
-  --color-brand-accent: #00e5ff;
-  
-  /* Semantic Colors */
-  --background: #020617;
-  --foreground: #ffffff;
-  --color-card: #0f172a;
-  --color-card-border: #1e293b;
+  /* Gradient-friendly blue */
+  --color-brand-accent: #00bcd4;
+  /* Electric teal accent for light mode highlights */
+
+  /* ================================
+     LIGHT MODE (Default)
+     ================================ */
+  --background: #f8fafc;
+  /* Very light azure background */
+  --foreground: #0f172a;
+  /* Deep navy text for better readability */
+
+  --color-muted: #d4d7e07a;
+  /* Light indigo-tinted background for muted areas */
+  --color-muted-foreground: #475569;
+  /* Slate blue-gray for muted text */
+
+  --color-card: #ffffff;
+  /* White cards */
+  --color-card-foreground: #0f172a;
+  /* Card text color */
+  --color-card-border: #e2e8f0;
+  /* Soft blue-border for cards */
+  --color-shadow: rgba(0, 0, 0, 0.05);
+  /* Subtle shadow for elevation */
+
+  --color-input: #ffffff;
+  /* Input backgrounds */
+  --color-input-border: #d1d5db;
+  /* Input borders */
+  --color-input-focus: #0f34a8;
+  /* Focus color for inputs */
+
+  /* Semantic colors for notifications / badges */
+  --color-success: #10b981;
+  /* Green for positive */
+  --color-warning: #f59e0b;
+  /* Yellow for warnings */
+  --color-danger: #ef4444;
+  /* Red for errors */
+  --color-info: #3b82f6;
+  /* Blue for info messages */
+
+  /* Navbar / header */
+  --color-navbar: rgba(248, 250, 252, 0.8);
+  /* Matches background with blur */
+  --color-navbar-border: #e2e8f0;
+  /* Clean border */
 }
 
+/* ================================
+   DARK MODE OVERRIDES
+   ================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --foreground: #f8fafc;
+
+    --color-muted: #1e293b;
+    --color-muted-foreground: #94a3b8;
+
+    --color-card: #0f172a;
+    --color-card-foreground: #f8fafc;
+    --color-card-border: #1e293b;
+
+    --color-brand-accent: #00e5ff;
+
+    --color-input: rgba(255, 255, 255, 0.05);
+    --color-input-border: #1e293b;
+    --color-input-focus: #00e5ff;
+
+    --color-navbar: rgba(2, 6, 23, 0.8);
+    --color-navbar-border: #1e293b;
+  }
+}
+
+/* ================================
+   DARK CLASS (Toggleable)
+   ================================ */
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+
+  --color-card: #0f172a;
+  --color-card-foreground: #f8fafc;
+  --color-card-border: #1e293b;
+
+  --color-brand-accent: #00e5ff;
+
+  --color-input: rgba(255, 255, 255, 0.05);
+  --color-input-border: #1e293b;
+  --color-input-focus: #00e5ff;
+
+  --color-navbar: rgba(2, 6, 23, 0.8);
+  --color-navbar-border: #1e293b;
+}
+
+/* ================================
+   MAP TO TAILWIND / THEME
+   ================================ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --color-primary: var(--color-brand-primary);
   --color-secondary: var(--color-brand-secondary);
   --color-accent: var(--color-brand-accent);
+
+  --color-muted: var(--color-muted);
+  --color-muted-foreground: var(--color-muted-foreground);
+
   --color-card: var(--color-card);
+  --color-card-foreground: var(--color-card-foreground);
   --color-card-border: var(--color-card-border);
-  
+
+  --color-input: var(--color-input);
+  --color-input-border: var(--color-input-border);
+  --color-input-focus: var(--color-input-focus);
+
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+
+  --color-role-primary: var(--color-role-primary);
+  --color-role-secondary: var(--color-role-secondary);
+  --color-role-accent: var(--color-role-accent);
+  --color-role-muted: var(--color-role-muted);
+  --color-role-border: var(--color-role-border);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* ================================
+   BODY STYLING
+   ================================ */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }

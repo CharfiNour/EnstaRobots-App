@@ -21,6 +21,15 @@ const VISIBILITY_OPTIONS = [
     { value: 'admins', label: 'Admins Only' },
 ];
 
+const COMPETITIONS = [
+    { id: 'all', title: 'Global (All Competitions)' },
+    { id: '1', title: 'Junior Line Follower' },
+    { id: '2', title: 'Junior All Terrain' },
+    { id: '3', title: 'Line Follower' },
+    { id: '4', title: 'All Terrain' },
+    { id: '5', title: 'Fight (Battle Robots)' },
+];
+
 export default function AnnouncementsPage() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -32,6 +41,7 @@ export default function AnnouncementsPage() {
         message: '',
         type: 'info',
         visibleTo: 'all',
+        competitionId: 'all',
     });
 
     useEffect(() => {
@@ -54,6 +64,7 @@ export default function AnnouncementsPage() {
                 message: formData.message,
                 type: formData.type,
                 visible_to: formData.visibleTo,
+                competition_id: formData.competitionId === 'all' ? null : parseInt(formData.competitionId),
             });
 
             if (error) throw error;
@@ -64,6 +75,7 @@ export default function AnnouncementsPage() {
                 message: '',
                 type: 'info',
                 visibleTo: 'all',
+                competitionId: 'all',
             });
         } catch (err) {
             console.error('Failed to publish announcement:', err);
@@ -174,6 +186,27 @@ export default function AnnouncementsPage() {
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                    Target Competition
+                                </label>
+                                <select
+                                    value={formData.competitionId}
+                                    onChange={(e) => setFormData({ ...formData, competitionId: e.target.value })}
+                                    className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
+                                    required
+                                >
+                                    {COMPETITIONS.map((comp) => (
+                                        <option key={comp.id} value={comp.id}>
+                                            {comp.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Choose "Global" to show this to everyone, or a specific category to tag it.
+                                </p>
                             </div>
                         </div>
 

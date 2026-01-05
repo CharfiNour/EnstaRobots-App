@@ -1,0 +1,20 @@
+/* ================================
+   ADMIN DESIGN SYSTEM
+   Red/Maroon accents for authority
+   ================================ */
+
+:root {
+    --color-role-primary: #ef4444;
+    --color-role-secondary: #991b1b;
+    --color-role-accent: #ef4444;
+    --color-role-muted: rgba(239, 68, 68, 0.05);
+    --color-role-border: rgba(239, 68, 68, 0.2);
+}
+
+.dark {
+    --color-role-primary: #f87171;
+    --color-role-secondary: #450a0a;
+    --color-role-accent: #f87171;
+    --color-role-muted: rgba(248, 113, 113, 0.1);
+    --color-role-border: rgba(248, 113, 113, 0.3);
+}

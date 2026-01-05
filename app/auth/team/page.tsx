@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Loader2, Shield } from 'lucide-react';
-import { loginWithTeamCode } from '@/lib/auth';
+import { loginWithTeamCode, getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -12,6 +12,13 @@ export default function TeamLoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
+
+    useEffect(() => {
+        const session = getSession();
+        if (session) {
+            router.push(session.role === 'admin' ? '/admin' : session.role === 'judge' ? '/judge' : '/team');
+        }
+    }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,13 +44,13 @@ export default function TeamLoginPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-8"
                 >
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-[var(--color-accent)]/20 rounded-full mb-4">
-                        <Shield className="w-8 h-8 text-[var(--color-accent)]" />
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-accent/20 rounded-full mb-4">
+                        <Shield className="w-8 h-8 text-accent" />
                     </div>
-                    <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
                         Team Login
                     </h1>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                         Enter your team code provided by organizers
                     </p>
                 </motion.div>
@@ -53,11 +60,11 @@ export default function TeamLoginPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl p-8"
+                    className="bg-card border border-card-border rounded-xl p-8 shadow-md shadow-black/[0.03]"
                 >
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
-                            <label htmlFor="teamCode" className="block text-sm font-medium text-gray-300 mb-2">
+                            <label htmlFor="teamCode" className="block text-sm font-medium text-foreground/80 mb-2">
                                 Team Code
                             </label>
                             <input
@@ -66,7 +73,7 @@ export default function TeamLoginPage() {
                                 value={teamCode}
                                 onChange={(e) => setTeamCode(e.target.value.toUpperCase())}
                                 placeholder="TEAM-XXXX-XXXX"
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-all font-mono text-center text-lg tracking-wider"
+                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all font-mono text-center text-lg tracking-wider"
                                 required
                                 disabled={loading}
                                 autoComplete="off"
@@ -87,7 +94,7 @@ export default function TeamLoginPage() {
                         <button
                             type="submit"
                             disabled={loading || !teamCode.trim()}
-                            className="w-full px-6 py-3 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-bold text-lg shadow-lg shadow-[var(--color-accent)]/50 hover:shadow-[var(--color-accent)]/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full px-6 py-3 bg-accent text-background rounded-lg font-bold text-lg shadow-md shadow-accent/20 hover:shadow-lg hover:shadow-accent/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? (
                                 <>
@@ -103,10 +110,26 @@ export default function TeamLoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-[var(--color-card-border)]">
-                        <p className="text-center text-sm text-gray-400">
+                    <div className="mt-6 pt-6 border-t border-card-border space-y-4">
+                        <button
+                            onClick={() => {
+                                const session = {
+                                    userId: 'demo-team',
+                                    role: 'team',
+                                    teamName: 'Demo Team Alpha',
+                                    teamCode: 'DEMO-1234',
+                                    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000
+                                };
+                                localStorage.setItem('enstarobots_session', JSON.stringify(session));
+                                router.push('/team');
+                            }}
+                            className="w-full px-4 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg text-sm font-bold hover:bg-blue-500/20 transition-all"
+                        >
+                            Demo Team Access
+                        </button>
+                        <p className="text-center text-sm text-muted-foreground">
                             Don't have a team code?{' '}
-                            <Link href="/" className="text-[var(--color-accent)] hover:underline">
+                            <Link href="/" className="text-accent hover:underline">
                                 Back to Home
                             </Link>
                         </p>
@@ -118,10 +141,10 @@ export default function TeamLoginPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="mt-6 p-4 bg-white/5 border border-white/10 rounded-lg"
+                    className="mt-6 p-4 bg-muted border border-card-border/50 rounded-lg shadow-sm"
                 >
-                    <p className="text-sm text-gray-400 text-center">
-                        <strong className="text-white">Note:</strong> Team codes are provided by event organizers.
+                    <p className="text-sm text-muted-foreground text-center">
+                        <strong className="text-foreground">Note:</strong> Team codes are provided by event organizers.
                         Contact support if you haven't received yours.
                     </p>
                 </motion.div>

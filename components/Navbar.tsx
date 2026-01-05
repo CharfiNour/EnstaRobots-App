@@ -5,19 +5,23 @@ import Link from 'next/link';
 import { LogOut } from 'lucide-react';
 import { getUserRole, logout } from '@/lib/auth';
 import { desktopNavConfig, UserRole } from '@/lib/navConfig';
+import { ThemeToggle } from './ThemeToggle';
+import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
     const [role, setRole] = useState<UserRole>('visitor');
 
+    const pathname = usePathname();
+
     useEffect(() => {
         setRole(getUserRole());
-    }, []);
+    }, [pathname]);
 
     const navItems = desktopNavConfig[role];
     const isAuthenticated = role !== 'visitor';
 
     return (
-        <header className="sticky top-0 z-50 w-full border-b border-[var(--color-card-border)] bg-[var(--background)]/80 backdrop-blur-md">
+        <header className="sticky top-0 z-50 w-full border-b border-[var(--color-navbar-border)] bg-[var(--color-navbar)] backdrop-blur-md">
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-2">
@@ -38,6 +42,8 @@ export default function Navbar() {
                         </Link>
                     ))}
 
+                    <ThemeToggle />
+
                     {isAuthenticated && (
                         <button
                             onClick={logout}
@@ -49,21 +55,37 @@ export default function Navbar() {
                     )}
 
                     {!isAuthenticated && (
-                        <Link
-                            href="/auth/team"
-                            className="px-4 py-2 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-semibold text-sm hover:bg-[var(--color-accent)]/90 transition-all"
-                        >
-                            Team Login
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            <Link
+                                href="/auth/judge"
+                                className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mr-2"
+                            >
+                                Judge Login
+                            </Link>
+                            <Link
+                                href="/auth/team"
+                                className="px-4 py-2 bg-accent text-background rounded-lg font-bold text-sm hover:opacity-90 shadow-md shadow-accent/20 transition-all"
+                            >
+                                Team Access
+                            </Link>
+                        </div>
                     )}
                 </nav>
 
-                {/* Mobile Auth Button */}
-                <div className="md:hidden">
-                    {!isAuthenticated && (
+                {/* Mobile Icons */}
+                <div className="md:hidden flex items-center gap-4">
+                    <ThemeToggle />
+                    {isAuthenticated ? (
+                        <button
+                            onClick={logout}
+                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    ) : (
                         <Link
                             href="/auth/team"
-                            className="px-3 py-1.5 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-semibold text-xs"
+                            className="px-3 py-1.5 bg-accent text-background rounded-lg font-bold text-xs shadow-sm shadow-accent/20"
                         >
                             Login
                         </Link>
@@ -73,3 +95,4 @@ export default function Navbar() {
         </header>
     );
 }
+
