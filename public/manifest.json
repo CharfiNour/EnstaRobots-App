@@ -1,0 +1,17 @@
+{
+    "name": "EnstaRobots World Cup",
+    "short_name": "EnstaRobots",
+    "theme_color": "#051560",
+    "background_color": "#020617",
+    "display": "standalone",
+    "orientation": "portrait",
+    "scope": "/",
+    "start_url": "/",
+    "icons": [
+        {
+            "src": "/icon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
