@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Calendar, User, LogOut, Camera, Plus, Trash2, Crown, CheckCircle, AlertCircle } from 'lucide-react';
+import { Trophy, Calendar, User, LogOut, Camera, Plus, Trash2, Crown, CheckCircle, AlertCircle, ClipboardCheck } from 'lucide-react';
 import { getSession, logout } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -277,11 +277,19 @@ export default function TeamDashboard() {
                     transition={{ delay: 0.1 }}
                     className="grid md:grid-cols-2 gap-4 mb-8"
                 >
-                    <Link href="/team/matches" className="md:col-span-2">
+                    <Link href="/team/matches">
                         <div className="p-6 bg-gradient-to-br from-role-primary/10 to-card border border-role-primary/20 rounded-xl hover:scale-105 transition-transform cursor-pointer shadow-md shadow-black/[0.02]">
                             <Calendar className="w-8 h-8 text-role-primary mb-3" />
                             <h3 className="text-xl font-bold text-foreground mb-1">My Matches</h3>
                             <p className="text-muted-foreground text-sm">View schedule and results</p>
+                        </div>
+                    </Link>
+
+                    <Link href="/team/score-card">
+                        <div className="p-6 bg-gradient-to-br from-accent/10 to-card border border-accent/20 rounded-xl hover:scale-105 transition-transform cursor-pointer shadow-md shadow-black/[0.02]">
+                            <ClipboardCheck className="w-8 h-8 text-accent mb-3" />
+                            <h3 className="text-xl font-bold text-foreground mb-1">Score History</h3>
+                            <p className="text-muted-foreground text-sm">View official results and performance</p>
                         </div>
                     </Link>
                 </motion.div>

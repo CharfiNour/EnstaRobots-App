@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ClipboardCheck, Trophy, History, LogOut } from 'lucide-react';
-import { getSession, logout } from '@/lib/auth';
+import { ClipboardCheck, Trophy, History } from 'lucide-react';
+import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -42,24 +42,14 @@ export default function JudgeDashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-8"
                 >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <ClipboardCheck className="w-10 h-10 text-role-primary" />
-                            <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                                    Judge Dashboard
-                                </h1>
-                                <p className="text-muted-foreground">Score matches and manage competitions</p>
-                            </div>
+                    <div className="flex items-center gap-3 mb-4">
+                        <ClipboardCheck className="w-10 h-10 text-role-primary" />
+                        <div>
+                            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+                                Judge Dashboard
+                            </h1>
+                            <p className="text-muted-foreground">Score matches and manage competitions</p>
                         </div>
-
-                        <button
-                            onClick={logout}
-                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
-                        >
-                            <LogOut size={18} />
-                            Logout
-                        </button>
                     </div>
                 </motion.div>
 
@@ -73,16 +63,16 @@ export default function JudgeDashboard() {
                     <Link href="/judge/score">
                         <div className="p-6 bg-gradient-to-br from-role-primary/10 to-card border border-role-primary/20 rounded-xl hover:scale-105 transition-transform cursor-pointer">
                             <ClipboardCheck className="w-8 h-8 text-role-primary mb-3" />
-                            <h3 className="text-xl font-bold text-foreground mb-1">Score Match</h3>
-                            <p className="text-muted-foreground text-sm">Enter scores for a match</p>
+                            <h3 className="text-xl font-bold text-foreground mb-1">Competition</h3>
+                            <p className="text-muted-foreground text-sm">Submit official results for categories</p>
                         </div>
                     </Link>
 
                     <Link href="/judge/history">
                         <div className="p-6 bg-card border border-card-border rounded-xl hover:scale-105 transition-transform cursor-pointer">
                             <History className="w-8 h-8 text-muted-foreground mb-3" />
-                            <h3 className="text-xl font-bold text-foreground mb-1">Scoring History</h3>
-                            <p className="text-muted-foreground text-sm">View your past scores</p>
+                            <h3 className="text-xl font-bold text-foreground mb-1">Score History</h3>
+                            <p className="text-muted-foreground text-sm">View and send score cards to teams</p>
                         </div>
                     </Link>
                 </motion.div>

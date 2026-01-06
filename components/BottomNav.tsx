@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, LayoutDashboard, PlayCircle, Trophy, BarChart2, Calendar, ClipboardCheck, History, Users } from 'lucide-react';
+import { Home, LayoutDashboard, PlayCircle, Trophy, BarChart2, Calendar, ClipboardCheck, History, Users, Bell } from 'lucide-react';
 import clsx from 'clsx';
 import { getUserRole } from '@/lib/auth';
 import { navConfig, UserRole } from '@/lib/navConfig';
@@ -19,6 +19,7 @@ const iconMap: Record<string, any> = {
     ClipboardCheck,
     History,
     Users,
+    Bell,
 };
 
 export default function BottomNav() {

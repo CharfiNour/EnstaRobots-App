@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Trophy, Users, Bell, Calendar, ChevronLeft,
+    Trophy, Users, Calendar, ChevronLeft,
     ChevronRight, MapPin, ExternalLink, Shield,
     User, School, Building2, Crown
 } from 'lucide-react';
-import Link from 'next/link';
+import { getTeams, Team, TeamMember } from '@/lib/teams';
+import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
 
 // Mock data for the demonstration
 const COMPETITIONS = {
@@ -18,51 +19,6 @@ const COMPETITIONS = {
     '4': { title: 'All Terrain', color: 'text-orange-400', banner: 'bg-orange-500/10' },
     '5': { title: 'Fight (Battle Robots)', color: 'text-red-400', banner: 'bg-red-500/10' },
 };
-
-const TEAMS = [
-    {
-        id: '1',
-        name: 'RoboKnights',
-        club: 'Robotics Club A',
-        university: 'Science University',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=RoboKnights',
-        photo: 'https://images.unsplash.com/photo-1581092334651-ddf26d9a1930?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'Alice Smith', role: 'Leader' },
-            { name: 'Bob Johnson', role: 'Engineer' },
-            { name: 'Charlie Brown', role: 'Programmer' },
-        ]
-    },
-    {
-        id: '2',
-        name: 'CyberDragons',
-        club: 'Tech Hub',
-        university: 'Institute of Technology',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=CyberDragons',
-        photo: 'https://images.unsplash.com/photo-1581092120527-df75275e7443?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'David Wilson', role: 'Leader' },
-            { name: 'Eva Green', role: 'Designer' },
-        ]
-    },
-    {
-        id: '3',
-        name: 'Steel Panthers',
-        club: 'Future Makers',
-        university: 'Global University',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=SteelPanthers',
-        photo: 'https://images.unsplash.com/photo-1551033406-611cf9a28f67?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'Frank Castle', role: 'Leader' },
-            { name: 'Grace Hopper', role: 'Strategist' },
-        ]
-    }
-];
-
-const ANNOUNCEMENTS = [
-    { title: 'Arena Change', message: 'The qualifiers will now take place in Arena 2.', date: '2 hours ago', tag: 'Junior Line Follower' },
-    { title: 'Check-in Reminder', message: 'All teams must check in by 09:00 AM tomorrow.', date: '5 hours ago', tag: 'All' },
-];
 
 const MATCHES = [
     {
@@ -77,62 +33,91 @@ export default function CompetitionDetailPage() {
     const params = useParams();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('teams');
-    const [selectedTeam, setSelectedTeam] = useState(TEAMS[0]);
+
+    // Data State
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+    const [compState, setCompState] = useState<CompetitionState>({ activeTeamId: null, isLive: false, currentPhase: null, startTime: null });
+
+    useEffect(() => {
+        // Load teams
+        const loadedTeams = getTeams();
+        setTeams(loadedTeams);
+        if (loadedTeams.length > 0) {
+            setSelectedTeam(loadedTeams[0]);
+        }
+
+        // Load and Listen for Competition State
+        setCompState(getCompetitionState());
+
+        const handleStateUpdate = () => {
+            setCompState(getCompetitionState());
+        };
+
+        window.addEventListener('competition-state-updated', handleStateUpdate);
+        window.addEventListener('storage', handleStateUpdate); // Cross-tab support
+
+        return () => {
+            window.removeEventListener('competition-state-updated', handleStateUpdate);
+            window.removeEventListener('storage', handleStateUpdate);
+        };
+    }, []);
 
     const compId = params.id as string;
     const competition = COMPETITIONS[compId as keyof typeof COMPETITIONS] || { title: 'Competition Details', color: 'text-accent', banner: 'bg-accent/5' };
 
     return (
         <div className="min-h-screen">
-            {/* Header / Shortened Banner */}
-            <div className={`relative ${competition.banner} border-b border-card-border py-4 md:py-6 overflow-hidden mb-0`}>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                <div className="container mx-auto px-4 relative">
-                    {/* Header */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-8"
-                    >
-                        <div className="flex items-center gap-3 mb-4">
-                            <Trophy className={`w-10 h-10 md:w-12 md:h-12 ${competition.color}`} />
-                            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+            {/* Minimal Header */}
+            <div className="container mx-auto px-4 pt-8 pb-4">
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="relative">
+                            <Trophy className={`w-10 h-10 md:w-12 md:h-12 ${competition.color} mt-1`} />
+                            {compState.isLive && (
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]" />
+                            )}
+                        </div>
+                        <div>
+                            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent mb-1">
                                 {competition.title}
                             </h1>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground text-lg">
-                            <div className="flex items-center gap-2">
-                                <MapPin size={18} className="text-accent" />
+                            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                                <MapPin size={14} className="text-accent" />
                                 <span>Main Science Arena</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Users size={18} className="text-accent" />
-                                <span>{TEAMS.length} Teams Registered</span>
+                                {compState.isLive && (
+                                    <span className="ml-2 px-2 py-0.5 bg-red-500/10 text-red-500 text-[10px] font-bold uppercase rounded border border-red-500/20 animate-pulse">
+                                        LIVE NOW
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    </motion.div>
-
-                    {/* Navigation Tabs - Pill Style (Matches Rankings) */}
-                    <div className="flex gap-3 mb-8 overflow-x-auto pb-2 no-scrollbar">
-                        {['teams', 'announcements', 'matches'].map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-6 py-2 rounded-full font-semibold whitespace-nowrap transition-all uppercase text-sm ${activeTab === tab
-                                    ? 'bg-accent text-background shadow-md shadow-accent/25'
-                                    : 'bg-muted text-muted-foreground hover:bg-card-foreground/10'
-                                    }`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
                     </div>
+                </motion.div>
+
+                {/* Navigation Tabs */}
+                <div className="flex gap-2 border-b border-card-border">
+                    {['teams', 'matches'].map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-6 py-3 font-semibold whitespace-nowrap transition-all uppercase text-xs tracking-widest border-b-2 ${activeTab === tab
+                                ? 'border-accent text-accent'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-4">
                 <AnimatePresence mode="wait">
                     {activeTab === 'teams' && (
                         <motion.div
@@ -146,17 +131,22 @@ export default function CompetitionDetailPage() {
                             <div className="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 no-scrollbar">
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                     <Shield className="w-5 h-5 text-accent" />
-                                    Registered Teams
+                                    <span className="text-accent">{teams.length}</span> Registered Teams
                                 </h3>
-                                {TEAMS.map((team) => (
+                                {teams.map((team) => (
                                     <button
                                         key={team.id}
                                         onClick={() => setSelectedTeam(team)}
-                                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 group ${selectedTeam?.id === team.id
+                                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 group relative ${selectedTeam?.id === team.id
                                             ? 'bg-accent/10 border-accent shadow-md shadow-accent/5'
                                             : 'bg-card border-card-border hover:border-accent/30'
                                             }`}
                                     >
+                                        {/* RED DOT INDICATOR */}
+                                        {compState.isLive && compState.activeTeamId === team.id && (
+                                            <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)] z-10" />
+                                        )}
+
                                         <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0 overflow-hidden border border-card-border group-hover:scale-110 transition-transform">
                                             <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
                                         </div>
@@ -238,36 +228,7 @@ export default function CompetitionDetailPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'announcements' && (
-                        <motion.div
-                            key="announcements"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="max-w-3xl mx-auto space-y-6"
-                        >
-                            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 border-b border-card-border pb-4">
-                                <Bell className="w-6 h-6 text-accent" />
-                                Competition Broadcasts
-                            </h3>
-                            {ANNOUNCEMENTS.map((ann, i) => (
-                                <div key={i} className="p-6 rounded-2xl bg-card border border-card-border shadow-md shadow-black/[0.02] relative overflow-hidden group">
-                                    <div className={`absolute top-0 left-0 w-1.5 h-full ${ann.tag === 'All' ? 'bg-accent' : 'bg-role-primary'}`}></div>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <h4 className="font-bold text-lg text-foreground group-hover:text-accent transition-colors">{ann.title}</h4>
-                                        <span className="text-xs text-muted-foreground">{ann.date}</span>
-                                    </div>
-                                    <p className="text-muted-foreground leading-relaxed mb-4">{ann.message}</p>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${ann.tag === 'All' ? 'bg-accent/10 text-accent' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                            }`}>
-                                            {ann.tag}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </motion.div>
-                    )}
+
 
                     {activeTab === 'matches' && (
                         <motion.div
@@ -321,6 +282,6 @@ export default function CompetitionDetailPage() {
                     )}
                 </AnimatePresence>
             </div>
-        </div>
+        </div >
     );
 }

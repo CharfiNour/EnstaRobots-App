@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { History, CheckCircle, Clock, Trophy } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    History, CheckCircle, Clock, Trophy, Send,
+    ChevronRight, Shield, Timer, Info, User, Loader2
+} from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { getOfflineScores } from '@/lib/offlineScores';
+import ScoreCard from '@/components/judge/ScoreCard';
 
 export default function JudgeHistoryPage() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [scores, setScores] = useState<any[]>([]);
+    const [groupedScores, setGroupedScores] = useState<any[]>([]);
+    const [selectedGroup, setSelectedGroup] = useState<any>(null);
+    const [activePhase, setActivePhase] = useState<string>('');
     const router = useRouter();
 
     useEffect(() => {
@@ -20,139 +26,136 @@ export default function JudgeHistoryPage() {
             return;
         }
         setSession(currentSession);
-
-        // Load offline scores
-        const offlineScores = getOfflineScores();
-        setScores(offlineScores.reverse()); // Most recent first
-
-        setLoading(false);
+        loadScores();
     }, [router]);
+
+    const loadScores = () => {
+        const offlineScores = getOfflineScores();
+
+        // Group by Team ID only (not by competition type)
+        const groups: Record<string, any> = {};
+        offlineScores.forEach(score => {
+            const key = score.teamId;
+            if (!groups[key]) {
+                groups[key] = {
+                    teamId: score.teamId,
+                    competitionType: score.competitionType,
+                    submissions: [],
+                    latestTimestamp: 0
+                };
+            }
+            groups[key].submissions.push(score);
+            if (score.timestamp > groups[key].latestTimestamp) {
+                groups[key].latestTimestamp = score.timestamp;
+            }
+        });
+
+        const sortedGroups = Object.values(groups).sort((a: any, b: any) => b.latestTimestamp - a.latestTimestamp);
+        setGroupedScores(sortedGroups);
+
+        if (sortedGroups.length > 0 && !selectedGroup) {
+            setSelectedGroup(sortedGroups[0]);
+            setActivePhase(sortedGroups[0].submissions[0].phase);
+        } else if (selectedGroup) {
+            const updatedGroup = sortedGroups.find(g => g.teamId === selectedGroup.teamId);
+            if (updatedGroup) {
+                setSelectedGroup(updatedGroup);
+                if (!updatedGroup.submissions.find((s: any) => s.phase === activePhase)) {
+                    setActivePhase(updatedGroup.submissions[0].phase);
+                }
+            }
+        }
+        setLoading(false);
+    };
+
+    const currentScore = selectedGroup?.submissions.find((s: any) => s.phase === activePhase) || selectedGroup?.submissions[0];
+    const isLineFollower = currentScore?.competitionType.includes('line_follower') || currentScore?.competitionType === 'homologation';
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen py-8">
-            <div className="container mx-auto px-4 max-w-4xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <History className="w-8 h-8 text-purple-400" />
-                        <h1 className="text-3xl md:text-4xl font-bold text-white">
-                            Scoring History
-                        </h1>
+        <div className="min-h-screen bg-background">
+            <div className="flex h-screen overflow-hidden">
+                {/* Left Sidebar: Team List */}
+                <div className="w-full md:w-80 lg:w-96 border-r border-card-border bg-card flex flex-col">
+                    <div className="p-6 border-b border-card-border">
+                        <div className="flex items-center gap-3 mb-2">
+                            <History className="w-6 h-6 text-accent" />
+                            <h1 className="text-xl font-bold text-foreground">Score History</h1>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest pl-1">Grouped by Team</p>
                     </div>
-                    <p className="text-gray-400">Your submitted scores</p>
-                </motion.div>
 
-                {/* Scores List */}
-                {scores.length === 0 ? (
-                    <div className="p-8 bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl text-center">
-                        <History className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                        <p className="text-gray-400">No scores submitted yet</p>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {scores.map((score, index) => (
-                            <motion.div
-                                key={score.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                className={`p-6 rounded-xl border ${score.synced
-                                        ? 'bg-[var(--color-card)] border-[var(--color-card-border)]'
-                                        : 'bg-yellow-500/10 border-yellow-500/30'
-                                    }`}
-                            >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div>
-                                        <div className="text-sm text-gray-400 mb-1">
-                                            {score.competitionType.replace('_', ' ').toUpperCase()}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Trophy className="w-5 h-5 text-[var(--color-accent)]" />
-                                            <span className="font-bold text-white">
-                                                Team {score.teamId}
+                    <div className="flex-1 overflow-y-auto no-scrollbar">
+                        {groupedScores.length === 0 ? (
+                            <div className="p-12 text-center">
+                                <History className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+                                <p className="text-muted-foreground text-sm">No scores submitted yet.</p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-card-border">
+                                {groupedScores.map((group) => (
+                                    <button
+                                        key={`${group.teamId}-${group.competitionType}`}
+                                        onClick={() => {
+                                            setSelectedGroup(group);
+                                            setActivePhase(group.submissions[0].phase);
+                                        }}
+                                        className={`w-full p-6 text-left transition-all hover:bg-muted/30 relative group ${selectedGroup?.teamId === group.teamId ? 'bg-accent/10 border-r-4 border-accent' : ''}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-black uppercase text-accent tracking-widest">
+                                                {group.competitionType.replace(/_/g, ' ')}
                                             </span>
+                                            <div className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-[8px] font-black text-muted-foreground">
+                                                {group.submissions.length} {group.submissions.length > 1 ? 'RECORDS' : 'RECORD'}
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {score.synced ? (
-                                            <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 rounded-full text-green-400 text-sm">
-                                                <CheckCircle size={14} />
-                                                Synced
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2 px-3 py-1 bg-yellow-500/20 rounded-full text-yellow-400 text-sm">
-                                                <Clock size={14} />
-                                                Pending
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white/5 rounded-lg">
-                                    {score.competitionType !== 'fight' && (
-                                        <>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">Time</div>
-                                                <div className="font-bold text-white">
-                                                    {score.timeMs ? `${(score.timeMs / 1000).toFixed(2)}s` : '-'}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-black text-xl border border-card-border group-hover:scale-110 transition-transform text-foreground">
+                                                    {group.teamId.slice(-2).toUpperCase() || '??'}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-foreground leading-tight">Team {group.teamId}</div>
+                                                    <div className="text-xs text-muted-foreground font-medium">
+                                                        {group.submissions.map((s: any) => s.phase.replace('essay_', 'E').replace('qualifications', 'Quals').replace('quarter_final', 'QF').replace('semi_final', 'SF').replace('final', 'F')).join(' / ')}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">Penalties</div>
-                                                <div className="font-bold text-red-400">{score.penalties || 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">Bonus</div>
-                                                <div className="font-bold text-green-400">{score.bonusPoints || 0}</div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {score.competitionType === 'fight' && (
-                                        <>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">KOs</div>
-                                                <div className="font-bold text-white">{score.knockouts || 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">Judge Pts</div>
-                                                <div className="font-bold text-white">{score.judgePoints || 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-400 mb-1">Damage</div>
-                                                <div className="font-bold text-white">{score.damageScore || 0}</div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    <div>
-                                        <div className="text-xs text-gray-400 mb-1">Total</div>
-                                        <div className="text-2xl font-bold text-[var(--color-accent)]">
-                                            {score.totalPoints}
+                                            <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedGroup?.teamId === group.teamId ? 'translate-x-1 text-accent' : ''}`} />
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-3 text-xs text-gray-500">
-                                    {new Date(score.timestamp).toLocaleString()}
-                                </div>
-                            </motion.div>
-                        ))}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+
+                {/* Right Panel: Card Preview */}
+                <div className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-10 lg:p-16">
+                    <AnimatePresence mode="wait">
+                        {selectedGroup && currentScore ? (
+                            <ScoreCard
+                                group={selectedGroup}
+                                activePhase={activePhase}
+                                onPhaseChange={setActivePhase}
+                            />
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                                <History className="w-24 h-24 mb-6 text-muted-foreground" />
+                                <h3 className="text-3xl font-black uppercase italic tracking-tighter text-foreground">Select a record to view</h3>
+                                <p className="text-sm font-bold mt-2">History of all official submissions</p>
+                            </div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

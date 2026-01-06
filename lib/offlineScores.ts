@@ -1,16 +1,20 @@
 // Offline score storage for judges
 // Scores are buffered locally and synced when connectivity is restored
 
-interface OfflineScore {
+export interface OfflineScore {
     id: string;
     matchId: string;
     teamId: string;
-    competitionType: 'line_follower' | 'all_terrain' | 'fight';
+    competitionType: 'junior_line_follower' | 'line_follower' | 'junior_all_terrain' | 'all_terrain' | 'fight' | 'homologation' | string;
+
+    // Common fields
+    phase?: string;
+    judgeNames?: string[];
 
     // Line Follower / All Terrain
     timeMs?: number;
-    penalties?: number;
     bonusPoints?: number;
+    completedRoad?: boolean;
 
     // Fight
     knockouts?: number;
@@ -21,9 +25,11 @@ interface OfflineScore {
     judgeId: string;
     timestamp: number;
     synced: boolean;
+    isSentToTeam?: boolean;
+    status?: string;
 }
 
-const OFFLINE_SCORES_KEY = 'enstarobots_offline_scores';
+const OFFLINE_SCORES_KEY = 'enstarobots_offline_scores_v2';
 
 // Save score offline
 export function saveScoreOffline(score: Omit<OfflineScore, 'id' | 'timestamp' | 'synced'>): void {
@@ -47,7 +53,77 @@ export function getOfflineScores(): OfflineScore[] {
     if (typeof window === 'undefined') return [];
 
     const scoresStr = localStorage.getItem(OFFLINE_SCORES_KEY);
-    if (!scoresStr) return [];
+    if (!scoresStr) {
+        // Initialize with default mock data for testing
+        const mockScores: OfflineScore[] = [
+            // Line Follower Team with multiple phases
+            {
+                id: 'mock-1',
+                matchId: 'match_lf_1',
+                teamId: 'team-42',
+                competitionType: 'line_follower',
+                phase: 'essay_1',
+                totalPoints: 250,
+                timestamp: Date.now() - 10000000,
+                judgeId: 'judge-1',
+                synced: false,
+                isSentToTeam: true,
+                timeMs: 45000,
+                bonusPoints: 20,
+                completedRoad: true
+            },
+            {
+                id: 'mock-2',
+                matchId: 'match_lf_2',
+                teamId: 'team-42',
+                competitionType: 'line_follower',
+                phase: 'essay_2',
+                totalPoints: 280,
+                timestamp: Date.now() - 5000000,
+                judgeId: 'judge-1',
+                synced: false,
+                isSentToTeam: true,
+                timeMs: 42000,
+                bonusPoints: 25,
+                completedRoad: true
+            },
+            // Fight Team with multiple phases
+            {
+                id: 'mock-3',
+                matchId: 'match_fight_1',
+                teamId: 'team-07',
+                competitionType: 'fight',
+                phase: 'qualifications',
+                status: 'qualified',
+                totalPoints: 50,
+                timestamp: Date.now() - 20000000,
+                judgeId: 'judge-2',
+                synced: false,
+                isSentToTeam: true,
+                knockouts: 2,
+                judgePoints: 15,
+                damageScore: 10
+            },
+            {
+                id: 'mock-4',
+                matchId: 'match_fight_2',
+                teamId: 'team-07',
+                competitionType: 'fight',
+                phase: 'quarter_final',
+                status: 'winner',
+                totalPoints: 80,
+                timestamp: Date.now() - 1000000,
+                judgeId: 'judge-2',
+                synced: false,
+                isSentToTeam: true,
+                knockouts: 3,
+                judgePoints: 20,
+                damageScore: 15
+            }
+        ];
+        localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(mockScores));
+        return mockScores;
+    }
 
     try {
         return JSON.parse(scoresStr);
@@ -73,6 +149,18 @@ export function markScoreAsSynced(scoreId: string): void {
     localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
 }
 
+// Mark score as sent to team
+export function sendScoreToTeam(scoreId: string): void {
+    if (typeof window === 'undefined') return;
+
+    const scores = getOfflineScores();
+    const updatedScores = scores.map((s) =>
+        s.id === scoreId ? { ...s, isSentToTeam: true } : s
+    );
+
+    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
+}
+
 // Clear synced scores (optional cleanup)
 export function clearSyncedScores(): void {
     if (typeof window === 'undefined') return;
@@ -83,7 +171,7 @@ export function clearSyncedScores(): void {
 
 // Calculate total points based on competition type
 export function calculateTotalPoints(
-    competitionType: 'line_follower' | 'all_terrain' | 'fight',
+    competitionType: string,
     data: Partial<OfflineScore>
 ): number {
     if (competitionType === 'fight') {
@@ -92,16 +180,18 @@ export function calculateTotalPoints(
         const judgePoints = data.judgePoints || 0;
         const damageScore = data.damageScore || 0;
         return knockouts * 10 + judgePoints + damageScore;
-    } else {
-        // Line Follower / All Terrain: Base points - penalties + bonus
-        // For time-based: lower time = more points (inverse calculation)
+    } else if (competitionType.includes('line_follower') || competitionType === 'homologation') {
         const timeMs = data.timeMs || 0;
-        const penalties = data.penalties || 0;
         const bonusPoints = data.bonusPoints || 0;
 
-        // Base points: 100 - (time in seconds)
-        // This is a simplified formula; adjust based on actual rules
+        // Base points logic for line followers
+        const basePoints = timeMs > 0 ? Math.max(0, 300 - Math.floor(timeMs / 1000)) : 0;
+        return Math.max(0, basePoints + bonusPoints);
+    } else {
+        // All Terrain etc.
+        const timeMs = data.timeMs || 0;
+        const bonusPoints = data.bonusPoints || 0;
         const basePoints = timeMs > 0 ? Math.max(0, 100 - Math.floor(timeMs / 1000)) : 0;
-        return Math.max(0, basePoints - penalties + bonusPoints);
+        return Math.max(0, basePoints + bonusPoints);
     }
 }

@@ -13,17 +13,18 @@ export const navConfig: Record<UserRole, NavItem[]> = {
     visitor: [
         { name: 'Home', href: '/', icon: 'Home' },
         { name: 'Compete', href: '/competitions', icon: 'Trophy' },
+        { name: 'Announcements', href: '/announcements', icon: 'Bell' },
         { name: 'Rankings', href: '/rankings', icon: 'BarChart2' },
     ],
     team: [
         { name: 'Dashboard', href: '/team', icon: 'LayoutDashboard' },
         { name: 'Matches', href: '/team/matches', icon: 'Calendar' },
-        { name: 'Rankings', href: '/rankings', icon: 'BarChart2' },
+        { name: 'Score History', href: '/team/score-card', icon: 'History' },
     ],
     judge: [
         { name: 'Dashboard', href: '/judge', icon: 'LayoutDashboard' },
-        { name: 'Score', href: '/judge/score', icon: 'ClipboardCheck' },
-        { name: 'Rankings', href: '/rankings', icon: 'BarChart2' },
+        { name: 'Competition', href: '/judge/score', icon: 'ClipboardCheck' },
+        { name: 'Score History', href: '/judge/history', icon: 'History' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin', icon: 'LayoutDashboard' },
@@ -37,17 +38,18 @@ export const navConfig: Record<UserRole, NavItem[]> = {
 export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]> = {
     visitor: [
         { name: 'Competitions', href: '/competitions' },
+        { name: 'Announcements', href: '/announcements' },
         { name: 'Rankings', href: '/rankings' },
     ],
     team: [
         { name: 'Dashboard', href: '/team' },
         { name: 'My Matches', href: '/team/matches' },
-        { name: 'Rankings', href: '/rankings' },
+        { name: 'Score History', href: '/team/score-card' },
     ],
     judge: [
         { name: 'Dashboard', href: '/judge' },
-        { name: 'Score Match', href: '/judge/score' },
-        { name: 'Rankings', href: '/rankings' },
+        { name: 'Competition', href: '/judge/score' },
+        { name: 'Score History', href: '/judge/history' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin' },
