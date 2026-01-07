@@ -14,30 +14,49 @@ export interface AuthSession {
 const SESSION_KEY = 'enstarobots_session';
 
 // Team Auth: Login with team code
+import { getTeams } from './teams';
+
 export async function loginWithTeamCode(teamCode: string): Promise<{ success: boolean; error?: string; session?: AuthSession }> {
     try {
-        // Query teams table for matching team code
+        const trimmedCode = teamCode.trim().toUpperCase();
+
+        // 1. Check local storage teams (Primary for this demo/local setup)
+        const localTeams = getTeams();
+        const localMatch = localTeams.find(t => t.code?.toUpperCase() === trimmedCode);
+
+        if (localMatch) {
+            const session: AuthSession = {
+                userId: localMatch.id,
+                role: 'team',
+                teamId: localMatch.id,
+                teamCode: localMatch.code,
+                teamName: localMatch.name,
+                expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            };
+            if (typeof window !== 'undefined') localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            return { success: true, session };
+        }
+
+        // 2. Fallback to Supabase if not found locally
         const { data: team, error } = await supabase
             .from('teams')
             .select('id, name, team_code, competition_id')
-            .eq('team_code', teamCode.trim())
+            .eq('team_code', trimmedCode)
             .single();
 
         if (error || !team) {
             return { success: false, error: 'Invalid team code' };
         }
 
-        // Create session
         const session: AuthSession = {
             userId: team.id,
             role: 'team',
             teamId: team.id,
             teamCode: team.team_code,
             teamName: team.name,
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
 
-        // Store in localStorage
         if (typeof window !== 'undefined') {
             localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         }

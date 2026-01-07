@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import NotificationBanner from "@/components/NotificationBanner";
 import DevTools from "@/components/DevTools";
 import { ThemeProvider } from "@/components/Providers";
@@ -40,11 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <div className="relative min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
-            <Navbar />
-            <main className="flex-1 pb-20 md:pb-0">
-              {children}
-            </main>
-            <BottomNav />
+            {children}
             <NotificationBanner />
             <DevTools />
           </div>

@@ -10,7 +10,6 @@ import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
     const [role, setRole] = useState<UserRole>('visitor');
-
     const pathname = usePathname();
 
     useEffect(() => {
@@ -57,16 +56,10 @@ export default function Navbar() {
                     {!isAuthenticated && (
                         <div className="flex items-center gap-3">
                             <Link
-                                href="/auth/judge"
-                                className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mr-2"
+                                href="/auth"
+                                className="px-5 py-2 bg-accent text-background rounded-lg font-bold text-sm hover:shadow-lg hover:shadow-accent/20 transition-all active:scale-95"
                             >
-                                Judge Login
-                            </Link>
-                            <Link
-                                href="/auth/team"
-                                className="px-4 py-2 bg-accent text-background rounded-lg font-bold text-sm hover:opacity-90 shadow-md shadow-accent/20 transition-all"
-                            >
-                                Team Access
+                                Login Portal
                             </Link>
                         </div>
                     )}
@@ -84,7 +77,7 @@ export default function Navbar() {
                         </button>
                     ) : (
                         <Link
-                            href="/auth/team"
+                            href="/auth"
                             className="px-3 py-1.5 bg-accent text-background rounded-lg font-bold text-xs shadow-sm shadow-accent/20"
                         >
                             Login

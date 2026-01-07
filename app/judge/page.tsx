@@ -36,24 +36,7 @@ export default function JudgeDashboard() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-4xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center gap-3 mb-4">
-                        <ClipboardCheck className="w-10 h-10 text-role-primary" />
-                        <div>
-                            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                                Judge Dashboard
-                            </h1>
-                            <p className="text-muted-foreground">Score matches and manage competitions</p>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Quick Actions */}
+                {/* Content */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}

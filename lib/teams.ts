@@ -10,6 +10,8 @@ export interface Team {
     university: string;
     logo: string;
     photo?: string;
+    code?: string;
+    competition?: string;
     members: TeamMember[];
 }
 
@@ -20,6 +22,8 @@ const INITIAL_TEAMS: Team[] = [
         club: 'Robotics Club A',
         university: 'Science University',
         logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=RoboKnights',
+        code: 'RK-2024-X1',
+        competition: 'line_follower',
         photo: 'https://images.unsplash.com/photo-1581092334651-ddf26d9a1930?auto=format&fit=crop&q=80&w=800',
         members: [
             { name: 'Alice Smith', role: 'Leader' },
@@ -33,6 +37,8 @@ const INITIAL_TEAMS: Team[] = [
         club: 'Tech Hub',
         university: 'Institute of Technology',
         logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=CyberDragons',
+        code: 'CD-2024-Y2',
+        competition: 'all_terrain',
         photo: 'https://images.unsplash.com/photo-1581092120527-df75275e7443?auto=format&fit=crop&q=80&w=800',
         members: [
             { name: 'David Wilson', role: 'Leader' },
@@ -45,11 +51,23 @@ const INITIAL_TEAMS: Team[] = [
         club: 'Future Makers',
         university: 'Global University',
         logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=SteelPanthers',
+        code: 'SP-2024-Z3',
+        competition: 'fight',
         photo: 'https://images.unsplash.com/photo-1551033406-611cf9a28f67?auto=format&fit=crop&q=80&w=800',
         members: [
             { name: 'Frank Castle', role: 'Leader' },
             { name: 'Grace Hopper', role: 'Strategist' },
         ]
+    },
+    {
+        id: '4',
+        name: 'Line Masters',
+        club: 'Speed Club',
+        university: 'Tech University',
+        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=LineMasters',
+        code: 'LM-2024-Q4',
+        competition: 'line_follower',
+        members: [{ name: 'John Doe', role: 'Leader' }]
     }
 ];
 

@@ -59,28 +59,15 @@ export default function CompetitionsPage() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-6xl">
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <Trophy className="w-8 h-8 text-[var(--color-accent)]" />
-                            <h1 className="text-3xl md:text-4xl font-bold text-white">
-                                Competitions
-                            </h1>
-                        </div>
-
-                        <Link href="/admin/competitions/create">
-                            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-semibold hover:bg-[var(--color-accent)]/90 transition-all">
-                                <Plus size={18} />
-                                Add Competition
-                            </button>
-                        </Link>
-                    </div>
-                    <p className="text-gray-400">Manage competition categories and phases</p>
-                </motion.div>
+                {/* Content */}
+                <div className="flex justify-end mb-8">
+                    <Link href="/admin/competitions/create">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-semibold hover:bg-[var(--color-accent)]/90 transition-all">
+                            <Plus size={18} />
+                            Add Competition
+                        </button>
+                    </Link>
+                </div>
 
                 <div className="space-y-4">
                     {mockCompetitions.map((comp, index) => (
@@ -102,8 +89,8 @@ export default function CompetitionsPage() {
                                 </div>
 
                                 <div className={`px-3 py-1 rounded-lg font-semibold text-sm ${comp.status === 'finals' ? 'bg-red-500/20 text-red-400' :
-                                        comp.status === 'knockout' ? 'bg-orange-500/20 text-orange-400' :
-                                            'bg-blue-500/20 text-blue-400'
+                                    comp.status === 'knockout' ? 'bg-orange-500/20 text-orange-400' :
+                                        'bg-blue-500/20 text-blue-400'
                                     }`}>
                                     {comp.status.replace('_', ' ').toUpperCase()}
                                 </div>

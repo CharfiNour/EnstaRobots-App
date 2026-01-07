@@ -72,20 +72,7 @@ export default function CompetitionsPage() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-12"
-                >
-                    <div className="flex items-center gap-3 mb-4">
-                        <Trophy className="w-10 h-10 text-[var(--color-accent)]" />
-                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-                            Competitions
-                        </h1>
-                    </div>
-                    <p className="text-muted-foreground text-lg">Five categories, one champion in each. Who will rise to the top?</p>
-                </motion.div>
+                {/* Content */}
 
                 {/* Competition Cards */}
                 <div className="space-y-6">

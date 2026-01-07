@@ -100,42 +100,16 @@ export default function TeamDashboard() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-4xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <Trophy className="w-10 h-10 text-role-primary" />
-                            <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                                    {session?.teamName}
-                                </h1>
-                                <p className="text-muted-foreground">Team Dashboard</p>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={logout}
-                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
-                        >
-                            <LogOut size={18} />
-                            Logout
-                        </button>
+                {/* Content */}
+                <div className="p-4 bg-card border border-card-border rounded-lg shadow-md shadow-black/[0.02]">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                        <User size={16} />
+                        Team Code
                     </div>
-
-                    <div className="p-4 bg-card border border-card-border rounded-lg shadow-md shadow-black/[0.02]">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <User size={16} />
-                            Team Code
-                        </div>
-                        <div className="font-mono text-xl text-role-primary font-bold">
-                            {session?.teamCode}
-                        </div>
+                    <div className="font-mono text-xl text-role-primary font-bold">
+                        {session?.teamCode}
                     </div>
-                </motion.div>
+                </div>
 
                 {/* Profile Status Alert */}
                 {!profileComplete && !showForm && (
@@ -327,6 +301,6 @@ export default function TeamDashboard() {
                     )}
                 </motion.div>
             </div>
-        </div>
+        </div >
     );
 }

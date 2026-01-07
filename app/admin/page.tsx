@@ -43,34 +43,7 @@ export default function AdminDashboard() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-7xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <LayoutDashboard className="w-10 h-10 text-role-primary" />
-                            <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                                    Admin Dashboard
-                                </h1>
-                                <p className="text-muted-foreground">Manage EnstaRobots World Cup</p>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={logout}
-                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
-                        >
-                            <LogOut size={18} />
-                            Logout
-                        </button>
-                    </div>
-                </motion.div>
-
-                {/* Stats Grid */}
+                {/* Content */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
                     <StatCard
                         icon={Trophy}

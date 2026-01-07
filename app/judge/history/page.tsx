@@ -19,16 +19,6 @@ export default function JudgeHistoryPage() {
     const [activePhase, setActivePhase] = useState<string>('');
     const router = useRouter();
 
-    useEffect(() => {
-        const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'judge') {
-            router.push('/auth/judge');
-            return;
-        }
-        setSession(currentSession);
-        loadScores();
-    }, [router]);
-
     const loadScores = () => {
         const offlineScores = getOfflineScores();
 
@@ -68,6 +58,16 @@ export default function JudgeHistoryPage() {
         setLoading(false);
     };
 
+    useEffect(() => {
+        const currentSession = getSession();
+        if (!currentSession || currentSession.role !== 'judge') {
+            router.push('/auth/judge');
+            return;
+        }
+        setSession(currentSession);
+        loadScores();
+    }, [router]);
+
     const currentScore = selectedGroup?.submissions.find((s: any) => s.phase === activePhase) || selectedGroup?.submissions[0];
     const isLineFollower = currentScore?.competitionType.includes('line_follower') || currentScore?.competitionType === 'homologation';
 
@@ -80,8 +80,8 @@ export default function JudgeHistoryPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <div className="flex h-screen overflow-hidden">
+        <div className="bg-background">
+            <div className="flex h-[calc(100vh-64px)] overflow-hidden">
                 {/* Left Sidebar: Team List */}
                 <div className="w-full md:w-80 lg:w-96 border-r border-card-border bg-card flex flex-col">
                     <div className="p-6 border-b border-card-border">

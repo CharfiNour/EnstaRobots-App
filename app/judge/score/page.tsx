@@ -367,40 +367,25 @@ export default function ScoreCardPage() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-2xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-6"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <ClipboardCheck className={`w-7 h-7 ${competition.color}`} />
-                            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                                Competition
-                            </h1>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            {isLive ? (
-                                <button
-                                    onClick={handleEndMatch}
-                                    className="flex items-center gap-3 px-6 py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 font-black uppercase tracking-widest transition-all active:scale-95"
-                                >
-                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                    <span>Finish</span>
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleStartMatch}
-                                    className="px-6 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black uppercase tracking-widest shadow-lg shadow-green-500/20 transition-all active:scale-95"
-                                >
-                                    Start Match
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </motion.div>
+                {/* Header Actions */}
+                <div className="flex justify-end mb-6">
+                    {isLive ? (
+                        <button
+                            onClick={handleEndMatch}
+                            className="flex items-center gap-3 px-6 py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 font-black uppercase tracking-widest transition-all active:scale-95"
+                        >
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span>Finish Match</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleStartMatch}
+                            className="px-6 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black uppercase tracking-widest shadow-lg shadow-green-500/20 transition-all active:scale-95"
+                        >
+                            Start Match
+                        </button>
+                    )}
+                </div>
 
                 {/* Competition Selector Button */}
                 <div className="mb-6 relative">

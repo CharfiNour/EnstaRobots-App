@@ -18,17 +18,7 @@ export default function TeamScoreHistoryPage() {
     const [activePhase, setActivePhase] = useState<string>('');
     const router = useRouter();
 
-    useEffect(() => {
-        const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'team') {
-            router.push('/auth/team');
-            return;
-        }
-        setSession(currentSession);
-        loadScores(currentSession.userId);
-    }, [router]);
-
-    const loadScores = (teamId: string) => {
+    const loadScores = () => {
         // Show all scores sent to teams (removed teamId filter for testing)
         const offlineScores = getOfflineScores().filter(s => s.isSentToTeam);
 
@@ -67,6 +57,16 @@ export default function TeamScoreHistoryPage() {
         }
         setLoading(false);
     };
+
+    useEffect(() => {
+        const currentSession = getSession();
+        if (!currentSession || currentSession.role !== 'team') {
+            router.push('/auth/team');
+            return;
+        }
+        setSession(currentSession);
+        loadScores();
+    }, [router]);
 
     const currentScore = selectedGroup?.submissions.find((s: any) => s.phase === activePhase) || selectedGroup?.submissions[0];
 

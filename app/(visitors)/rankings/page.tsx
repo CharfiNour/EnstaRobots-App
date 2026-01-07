@@ -32,20 +32,7 @@ export default function RankingsPage() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center gap-3 mb-4">
-                        <Trophy className="w-10 h-10 text-[var(--color-accent)]" />
-                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-                            Rankings
-                        </h1>
-                    </div>
-                    <p className="text-muted-foreground text-lg">Current standings across all competitions</p>
-                </motion.div>
+                {/* Content */}
 
                 {/* Category Tabs */}
                 <div className="flex gap-3 mb-8 overflow-x-auto pb-2">
