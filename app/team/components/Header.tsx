@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Trophy, LogOut, Calendar, ClipboardCheck } from "lucide-react";
+import { Trophy, LogOut, Calendar, ClipboardCheck, Bell, User } from "lucide-react";
 import { logout, getSession } from "@/lib/auth";
 
 export default function Header() {
@@ -68,6 +68,18 @@ export default function Header() {
                             </div>
                         </Link>
 
+                        <Link href="/team/announcements">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/team/announcements')
+                                ? 'bg-role-muted text-role-primary shadow-sm'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                }`}>
+                                <span className="flex items-center gap-2">
+                                    <Bell className="w-4 h-4" />
+                                    <span className="hidden sm:block">Announcements</span>
+                                </span>
+                            </div>
+                        </Link>
+
                         <Link href="/team/score-card">
                             <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/team/score-card')
                                 ? 'bg-role-muted text-role-primary shadow-sm'
@@ -76,6 +88,18 @@ export default function Header() {
                                 <span className="flex items-center gap-2">
                                     <ClipboardCheck className="w-4 h-4" />
                                     <span className="hidden sm:block">Scores</span>
+                                </span>
+                            </div>
+                        </Link>
+
+                        <Link href="/team/profile">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/team/profile')
+                                ? 'bg-role-muted text-role-primary shadow-sm'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                }`}>
+                                <span className="flex items-center gap-2">
+                                    <User className="w-4 h-4" />
+                                    <span className="hidden sm:block">Profile</span>
                                 </span>
                             </div>
                         </Link>

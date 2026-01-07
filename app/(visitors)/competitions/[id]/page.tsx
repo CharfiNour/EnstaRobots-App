@@ -162,64 +162,82 @@ export default function CompetitionDetailPage() {
                             </div>
 
                             {/* Team Detail Pane */}
-                            <div className="space-y-6">
+                            <div className="flex justify-center">
                                 <AnimatePresence mode="wait">
                                     <motion.div
                                         key={selectedTeam?.id}
-                                        initial={{ opacity: 0, scale: 0.98 }}
+                                        initial={{ opacity: 0, scale: 0.9 }}
                                         animate={{ opacity: 1, scale: 1 }}
-                                        className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-xl shadow-black/[0.02]"
+                                        className="w-full max-w-md bg-card border border-card-border rounded-[2.5rem] overflow-hidden shadow-2xl shadow-black/20"
                                     >
-                                        {/* Profile Header Card */}
-                                        <div className="relative h-48 md:h-64 bg-muted">
-                                            <img src={selectedTeam?.photo} alt="Team" className="w-full h-full object-cover opacity-60" />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                                            <div className="absolute bottom-6 left-6 flex items-end gap-6 text-white w-full pr-12">
-                                                <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-card p-2 border-4 border-accent shadow-2xl overflow-hidden">
-                                                    <img src={selectedTeam?.logo} alt="Logo" className="w-full h-full object-cover" />
-                                                </div>
-                                                <div className="flex-1 mb-2">
-                                                    <h2 className="text-3xl md:text-5xl font-bold mb-2">{selectedTeam?.name}</h2>
-                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm md:text-base opacity-90">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Building2 size={16} className="text-accent" />
-                                                            {selectedTeam?.club}
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <School size={16} className="text-accent" />
-                                                            {selectedTeam?.university}
-                                                        </div>
+                                        {/* ID Card Top Section */}
+                                        <div className="relative p-6 pt-12 pb-8 bg-gradient-to-br from-accent/20 via-card to-card border-b border-card-border overflow-hidden">
+                                            {/* Decorative Elements */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/5 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+
+                                            {/* Centered Profile Identity */}
+                                            <div className="relative flex flex-col items-center text-center">
+                                                <div className="relative group mb-6">
+                                                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] bg-card p-3 border-4 border-accent shadow-xl overflow-hidden transform group-hover:rotate-3 transition-transform">
+                                                        <img src={selectedTeam?.logo} alt="Logo" className="w-full h-full object-contain" />
                                                     </div>
+                                                    {compState.isLive && compState.activeTeamId === selectedTeam?.id && (
+                                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full border-4 border-card animate-pulse shadow-lg" />
+                                                    )}
+                                                </div>
+
+                                                <h2 className="text-3xl font-black text-foreground tracking-tighter mb-1 uppercase">
+                                                    {selectedTeam?.robotName || selectedTeam?.name}
+                                                </h2>
+                                                <div className="px-3 py-1 bg-accent/10 rounded-full text-[10px] font-black text-accent uppercase tracking-[0.2em] border border-accent/20 mb-4">
+                                                    Official Entry
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <p className="font-bold text-foreground text-sm flex items-center justify-center gap-2">
+                                                        <Building2 size={14} className="text-muted-foreground" />
+                                                        {selectedTeam?.club}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-2">
+                                                        <School size={14} className="opacity-50" />
+                                                        {selectedTeam?.university}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Profile Content */}
+                                        {/* Unit Crew List */}
                                         <div className="p-8">
-                                            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                                <Users className="w-5 h-5 text-accent" />
-                                                Team Members
-                                            </h3>
-                                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Unit Personnel</h3>
+                                                <div className="h-px bg-card-border grow mx-4 opacity-50"></div>
+                                                <Users size={14} className="text-accent opacity-50" />
+                                            </div>
+
+                                            <div className="space-y-3">
                                                 {selectedTeam?.members.map((member, i) => (
-                                                    <div key={i} className="p-4 rounded-xl bg-muted/50 border border-card-border flex items-center justify-between">
+                                                    <div key={i} className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-card-border/50 group hover:border-accent/30 transition-all">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                                                                <User size={20} />
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${member.role === 'Leader' ? 'bg-yellow-500 text-slate-900' : 'bg-card border border-card-border text-muted-foreground'}`}>
+                                                                {member.role === 'Leader' ? <Crown size={14} /> : member.name.charAt(0)}
                                                             </div>
-                                                            <div>
-                                                                <div className="font-bold text-foreground">{member.name}</div>
-                                                                <div className="text-xs text-muted-foreground">{member.role}</div>
-                                                            </div>
+                                                            <div className="font-bold text-sm text-foreground group-hover:text-accent transition-colors">{member.name}</div>
                                                         </div>
-                                                        {member.role === 'Leader' && (
-                                                            <div className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-[10px] font-bold uppercase flex items-center gap-1">
-                                                                <Crown size={12} />
-                                                                Leader
-                                                            </div>
-                                                        )}
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground bg-card px-2 py-0.5 rounded border border-card-border">
+                                                            {member.role === 'Leader' ? 'Lead' : 'Member'}
+                                                        </span>
                                                     </div>
                                                 ))}
+                                            </div>
+
+                                            {/* Hardware Spec footer */}
+                                            <div className="mt-8 pt-6 border-t border-card-border flex items-center justify-between opacity-50">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest">Systems Clear</span>
+                                                </div>
+                                                <span className="text-[9px] font-mono">T-ID: {selectedTeam?.id.slice(0, 8).toUpperCase()}</span>
                                             </div>
                                         </div>
                                     </motion.div>

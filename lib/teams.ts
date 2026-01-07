@@ -16,6 +16,7 @@ export interface Team {
     competition?: string;
     members: TeamMember[];
     isPlaceholder?: boolean;
+    visualsLocked?: boolean;
 }
 
 const INITIAL_TEAMS: Team[] = [
@@ -185,6 +186,18 @@ export function updateTeam(id: string, data: Partial<Team>): void {
         teams[index] = { ...teams[index], ...data, isPlaceholder: false };
         saveTeams(teams);
     }
+}
+
+// Update logo for all teams in a club
+export function updateClubLogo(clubName: string, logoUrl: string): void {
+    const teams = getTeams();
+    const updatedTeams = teams.map(t => {
+        if (t.club === clubName) {
+            return { ...t, logo: logoUrl };
+        }
+        return t;
+    });
+    saveTeams(updatedTeams);
 }
 
 // Check if a team is complete

@@ -77,21 +77,26 @@ export default function TeamMatchesPage() {
     const completedMatches = mockMatches.filter(m => m.status === 'completed');
 
     return (
-        <div className="min-h-screen py-8">
-            <div className="container mx-auto px-4 max-w-4xl">
+        <div className="min-h-screen py-6 sm:py-8 relative">
+            {/* Subtle background rhythm */}
+            <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-20 pointer-events-none" />
+
+            <div className="container mx-auto px-3 sm:px-6 max-w-5xl relative z-10">
                 {/* Content */}
 
                 {/* Upcoming Matches */}
-                <section className="mb-12">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
-                        <Clock className="w-5 h-5 text-accent" />
-                        Upcoming Matches
-                    </h2>
+                <section className="mb-8 sm:mb-10">
+                    <div className="flex items-center gap-3 mb-4">
+                        <Clock className="w-4 h-4 opacity-70 text-accent" />
+                        <h2 className="text-xs sm:text-sm uppercase tracking-[0.2em] sm:tracking-widest font-bold text-muted-foreground">
+                            Upcoming Matches
+                        </h2>
+                    </div>
 
                     {upcomingMatches.length === 0 ? (
-                        <div className="p-8 bg-card border border-card-border rounded-xl text-center shadow-md shadow-black/[0.02]">
-                            <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                            <p className="text-muted-foreground">No upcoming matches scheduled yet</p>
+                        <div className="p-5 bg-muted/30 border border-card-border/40 rounded-lg text-center">
+                            <Calendar className="w-8 h-8 text-muted-foreground opacity-30 mx-auto mb-3" />
+                            <p className="text-sm text-muted-foreground">No upcoming matches scheduled yet</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -102,17 +107,22 @@ export default function TeamMatchesPage() {
                     )}
                 </section>
 
+                {/* Section Divider */}
+                <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent mb-8 sm:mb-10" />
+
                 {/* Past Results */}
                 <section>
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
-                        <Trophy className="w-5 h-5 text-muted-foreground" />
-                        Past Results
-                    </h2>
+                    <div className="flex items-center gap-3 mb-4">
+                        <Trophy className="w-4 h-4 opacity-70 text-muted-foreground" />
+                        <h2 className="text-xs sm:text-sm uppercase tracking-[0.2em] sm:tracking-widest font-bold text-muted-foreground">
+                            Past Results
+                        </h2>
+                    </div>
 
                     {completedMatches.length === 0 ? (
-                        <div className="p-8 bg-card border border-card-border rounded-xl text-center shadow-md shadow-black/[0.02]">
-                            <Trophy className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                            <p className="text-muted-foreground">No completed matches yet</p>
+                        <div className="p-5 bg-muted/30 border border-card-border/40 rounded-lg text-center">
+                            <Trophy className="w-8 h-8 text-muted-foreground opacity-30 mx-auto mb-3" />
+                            <p className="text-sm text-muted-foreground">No completed matches yet</p>
                         </div>
                     ) : (
                         <div className="space-y-4">

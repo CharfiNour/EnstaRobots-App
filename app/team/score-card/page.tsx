@@ -82,15 +82,15 @@ export default function TeamScoreHistoryPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col md:flex-row">
+        <div className="min-h-screen flex flex-col md:flex-row bg-background">
             {/* Left Sidebar: Score List */}
-            <div className="w-full md:w-80 bg-card border-r border-card-border overflow-y-auto">
-                <div className="p-6 border-b border-card-border sticky top-0 bg-card z-10">
-                    <div className="flex items-center gap-3 mb-2">
-                        <History className="w-6 h-6 text-accent" />
-                        <h1 className="text-xl font-black text-foreground uppercase tracking-tight">Score History</h1>
+            <div className="w-full md:w-80 bg-card border-r border-card-border overflow-y-auto max-h-screen md:sticky md:top-0">
+                <div className="p-6 border-b border-card-border sticky top-0 bg-card z-10 flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                        <History className="w-5 h-5 sm:w-6 sm:h-6 text-accent" />
+                        <h1 className="text-lg sm:text-xl font-black text-foreground uppercase tracking-tight">Score History</h1>
                     </div>
-                    <p className="text-xs text-muted-foreground">Your official competition results</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Your official competition results</p>
                 </div>
 
                 <div className="divide-y divide-card-border">
@@ -107,7 +107,7 @@ export default function TeamScoreHistoryPage() {
                                     setSelectedGroup(group);
                                     setActivePhase(group.submissions[0].phase);
                                 }}
-                                className={`w-full p-6 text-left transition-all hover:bg-muted/30 relative group ${selectedGroup?.teamId === group.teamId ? 'bg-accent/10 border-r-4 border-accent' : ''}`}
+                                className={`w-full p-4 sm:p-6 text-left transition-all hover:bg-muted/20 relative group ${selectedGroup?.teamId === group.teamId ? 'bg-accent/10 border-r-4 border-accent' : ''}`}
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-[10px] font-black uppercase text-accent tracking-widest">
@@ -119,17 +119,17 @@ export default function TeamScoreHistoryPage() {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-black text-xl border border-card-border group-hover:scale-110 transition-transform text-foreground">
+                                        <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center font-black text-base sm:text-lg border border-card-border group-hover:scale-110 transition-transform text-foreground shrink-0">
                                             {group.teamId.slice(-2).toUpperCase() || '??'}
                                         </div>
-                                        <div>
-                                            <div className="font-bold text-foreground leading-tight">Team {group.teamId}</div>
-                                            <div className="text-xs text-muted-foreground font-medium">
+                                        <div className="min-w-0">
+                                            <div className="font-bold text-foreground leading-tight truncate">Team {group.teamId}</div>
+                                            <div className="text-xs sm:text-sm text-muted-foreground font-medium truncate">
                                                 {group.submissions.map((s: any) => (s.phase || '').replace('essay_', 'E').replace('qualifications', 'Quals').replace('quarter_final', 'QF').replace('semi_final', 'SF').replace('final', 'F')).join(' / ')}
                                             </div>
                                         </div>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedGroup?.teamId === group.teamId ? 'translate-x-1 text-accent' : ''}`} />
+                                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-all duration-150 shrink-0 ${selectedGroup?.teamId === group.teamId ? 'rotate-90 text-accent' : ''}`} />
                                 </div>
                             </button>
                         ))
@@ -138,7 +138,7 @@ export default function TeamScoreHistoryPage() {
             </div>
 
             {/* Right Panel: Card Preview (Using Reusable ScoreCard) */}
-            <div className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-10 lg:p-16">
+            <div className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-8 lg:p-12">
                 <AnimatePresence mode="wait">
                     {selectedGroup && currentScore ? (
                         <ScoreCard
@@ -147,9 +147,9 @@ export default function TeamScoreHistoryPage() {
                             onPhaseChange={setActivePhase}
                         />
                     ) : (
-                        <div className="text-center py-20">
-                            <ClipboardCheck className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-                            <p className="text-muted-foreground">No score selected</p>
+                        <div className="text-center py-12 bg-card/50 rounded-2xl border border-card-border/40 max-w-sm mx-auto">
+                            <ClipboardCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+                            <p className="text-sm text-muted-foreground font-medium">No score record selected</p>
                         </div>
                     )}
                 </AnimatePresence>
