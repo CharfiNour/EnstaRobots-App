@@ -1,11 +1,13 @@
 export interface TeamMember {
     name: string;
     role: string;
+    isLeader?: boolean;
 }
 
 export interface Team {
     id: string;
-    name: string;
+    name: string; // This will now effectively be the Robot Name
+    robotName?: string;
     club: string;
     university: string;
     logo: string;
@@ -13,6 +15,7 @@ export interface Team {
     code?: string;
     competition?: string;
     members: TeamMember[];
+    isPlaceholder?: boolean;
 }
 
 const INITIAL_TEAMS: Team[] = [
@@ -77,17 +80,29 @@ export function getTeams(): Team[] {
     if (typeof window === 'undefined') return INITIAL_TEAMS;
 
     const stored = localStorage.getItem(TEAMS_STORAGE_KEY);
-    if (!stored) {
-        // Initialize if empty
-        localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(INITIAL_TEAMS));
-        return INITIAL_TEAMS;
+    let teams = INITIAL_TEAMS;
+
+    if (stored) {
+        try {
+            teams = JSON.parse(stored);
+        } catch {
+            teams = INITIAL_TEAMS;
+        }
     }
 
-    try {
-        return JSON.parse(stored);
-    } catch {
-        return INITIAL_TEAMS;
+    // Deduplicate by ID to prevent React key errors
+    const seen = new Set();
+    const uniqueTeams = teams.filter(team => {
+        if (seen.has(team.id)) return false;
+        seen.add(team.id);
+        return true;
+    });
+
+    if (uniqueTeams.length !== teams.length) {
+        saveTeams(uniqueTeams);
     }
+
+    return uniqueTeams;
 }
 
 export function saveTeams(teams: Team[]): void {
@@ -103,4 +118,79 @@ export function reorderTeams(startIndex: number, endIndex: number): Team[] {
     result.splice(endIndex, 0, removed);
     saveTeams(result);
     return result;
+}
+
+// Generate a specific number of team slots
+export function generateEmptyTeams(count: number): Team[] {
+    const currentTeams = getTeams();
+    const newTeams: Team[] = [...currentTeams];
+
+    for (let i = 0; i < count; i++) {
+        const id = `slot-${Math.random().toString(36).substring(2, 7)}`;
+        newTeams.push({
+            id,
+            name: `Slot`,
+            robotName: '',
+            club: '',
+            university: '',
+            logo: `https://api.dicebear.com/7.x/identicon/svg?seed=team-${id}`,
+            code: `ENSTA-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+            members: [],
+            isPlaceholder: true
+        });
+    }
+
+    saveTeams(newTeams);
+    return newTeams;
+}
+
+/**
+ * Adds a specific number of team slots for a given club.
+ * The codes will have the club name (first 3-4 chars) as a prefix.
+ */
+export function addClubSlots(clubName: string, count: number): Team[] {
+    const currentTeams = getTeams();
+    const newTeams: Team[] = [...currentTeams];
+
+    // Create a clean prefix from club name (e.g. "RoboKnights" -> "ROBO")
+    const prefix = clubName.trim().toUpperCase().replace(/\s+/g, '').substring(0, 4) || 'TEAM';
+
+    for (let i = 0; i < count; i++) {
+        const id = `club-${prefix.toLowerCase()}-${Math.random().toString(36).substring(2, 7)}`;
+        // Generate a 4-char unique suffix
+        const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+        newTeams.push({
+            id,
+            name: `Slot`,
+            robotName: '',
+            club: clubName,
+            university: '',
+            logo: `https://api.dicebear.com/7.x/identicon/svg?seed=team-${id}`,
+            code: `${prefix}-${suffix}`,
+            members: [],
+            isPlaceholder: true
+        });
+    }
+
+    saveTeams(newTeams);
+    return newTeams;
+}
+
+// Update a specific team
+export function updateTeam(id: string, data: Partial<Team>): void {
+    const teams = getTeams();
+    const index = teams.findIndex(t => t.id === id);
+    if (index !== -1) {
+        teams[index] = { ...teams[index], ...data, isPlaceholder: false };
+        saveTeams(teams);
+    }
+}
+
+// Check if a team is complete
+export function isTeamProfileComplete(teamId: string): boolean {
+    const teams = getTeams();
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return false;
+    return !team.isPlaceholder && !!team.name && !!team.university && team.members.length > 0;
 }

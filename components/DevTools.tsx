@@ -29,7 +29,16 @@ export default function DevTools() {
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        window.location.reload();
+
+        // Navigate to the role's base page to ensure the UI updates correctly
+        const rolePaths: Record<UserRole, string> = {
+            admin: '/admin',
+            judge: '/judge',
+            team: '/team',
+            visitor: '/'
+        };
+
+        window.location.href = rolePaths[role] || '/';
     };
 
     const roles = [

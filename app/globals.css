@@ -23,8 +23,8 @@
      ================================ */
   --background: #f8fafc;
   /* Very light azure background */
-  --foreground: #0f172a;
-  /* Deep navy text for better readability */
+  --foreground: #1e293b;
+  /* Calmer slate-black for better contrast without harshness */
 
   --color-muted: #d4d7e07a;
   /* Light indigo-tinted background for muted areas */
@@ -37,8 +37,8 @@
   /* Card text color */
   --color-card-border: #e2e8f0;
   /* Soft blue-border for cards */
-  --color-shadow: rgba(0, 0, 0, 0.05);
-  /* Subtle shadow for elevation */
+  --color-shadow: rgba(0, 0, 0, 0.03);
+  /* Even subtler shadow for elevation */
 
   --color-input: #ffffff;
   /* Input backgrounds */
@@ -69,14 +69,14 @@
    ================================ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #020617;
-    --foreground: #f8fafc;
+    --background: #0a0a0c;
+    --foreground: #f1f5f9;
 
     --color-muted: #1e293b;
     --color-muted-foreground: #94a3b8;
 
-    --color-card: #0f172a;
-    --color-card-foreground: #f8fafc;
+    --color-card: #111113;
+    --color-card-foreground: #f1f5f9;
     --color-card-border: #1e293b;
 
     --color-brand-accent: #00e5ff;
@@ -94,14 +94,14 @@
    DARK CLASS (Toggleable)
    ================================ */
 .dark {
-  --background: #020617;
-  --foreground: #f8fafc;
+  --background: #0a0a0c;
+  --foreground: #f1f5f9;
 
   --color-muted: #1e293b;
   --color-muted-foreground: #94a3b8;
 
-  --color-card: #0f172a;
-  --color-card-foreground: #f8fafc;
+  --color-card: #111113;
+  --color-card-foreground: #f1f5f9;
   --color-card-border: #1e293b;
 
   --color-brand-accent: #00e5ff;
