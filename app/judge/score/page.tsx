@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ClipboardCheck, Loader2, CheckCircle, WifiOff, Wifi,
-    ChevronDown, User, Shield, Info, Timer, Trophy
+    ChevronDown, User, Shield, Info, Timer, Trophy, ChevronRight
 } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -67,6 +67,7 @@ export default function ScoreCardPage() {
 
     // New Team Ordering & Live Logic
     const [allTeams, setAllTeams] = useState<Team[]>([]);
+    const [competitionTeams, setCompetitionTeams] = useState<Team[]>([]);
     const [currentTeamIndex, setCurrentTeamIndex] = useState(0);
     const [isLive, setIsLive] = useState(false);
 
@@ -98,17 +99,66 @@ export default function ScoreCardPage() {
         };
     }, []);
 
+    // Filter teams when competition or allTeams changes
+    useEffect(() => {
+        const filtered = allTeams.filter(t => t.competition === competition.value);
+        setCompetitionTeams(filtered);
+        // If we have teams and the current input is empty, pre-fill with the first team
+        if (filtered.length > 0 && !teams[0].id && !isLive) {
+            setCurrentTeamIndex(0);
+            const newTeams = [...teams];
+            newTeams[0].id = filtered[0].id;
+
+            // Check for phase too for the first team
+            if (isLineFollower) {
+                const existingScores = getOfflineScores();
+                const hasEssay1 = existingScores.some(s =>
+                    s.teamId === filtered[0].id &&
+                    s.competitionType === competition.value &&
+                    s.phase === 'essay_1'
+                );
+                newTeams[0].phase = hasEssay1 ? 'essay_2' : 'essay_1';
+            }
+            setTeams(newTeams);
+        }
+    }, [competition, allTeams]);
+
+    const handleNextCard = () => {
+        if (competitionTeams.length === 0) return;
+
+        let nextIndex = currentTeamIndex + 1;
+        if (nextIndex >= competitionTeams.length) nextIndex = 0; // Wrap around or stop? User implied list order. Let's wrap for convenience or just stop. 
+        // User said "next card will have the next team name by the list order".
+        // Let's safe guard overflow
+        if (nextIndex >= competitionTeams.length) {
+            alert("End of team list reached.");
+            return;
+        }
+
+        setCurrentTeamIndex(nextIndex);
+        const nextTeam = competitionTeams[nextIndex];
+
+        const newTeams = [...teams];
+        newTeams[0].id = nextTeam.id;
+
+        // Auto update phase if line follower
+        if (isLineFollower) {
+            const existingScores = getOfflineScores();
+            const hasEssay1 = existingScores.some(s =>
+                s.teamId === nextTeam.id &&
+                s.competitionType === competition.value &&
+                s.phase === 'essay_1'
+            );
+            newTeams[0].phase = hasEssay1 ? 'essay_2' : 'essay_1';
+        }
+
+        setTeams(newTeams);
+    };
+
     const handleStartMatch = () => {
         // Find current team ID being scored (first input team)
-        const activeTeamId = teams[0].id || (allTeams[currentTeamIndex] ? allTeams[currentTeamIndex].id : '');
+        const activeTeamId = teams[0].id;
         if (activeTeamId) {
-            // Update team input if empty
-            if (!teams[0].id && allTeams[currentTeamIndex]) {
-                const newTeams = [...teams];
-                newTeams[0].id = allTeams[currentTeamIndex].id;
-                setTeams(newTeams);
-            }
-
             setIsLive(true);
             const phase = isLineFollower ? (teams[0].phase || 'essay_1') : globalPhase;
             startLiveSession(activeTeamId, phase);
@@ -328,13 +378,25 @@ export default function ScoreCardPage() {
 
             // Advance to next team
             const nextIndex = currentTeamIndex + 1;
-            if (nextIndex < allTeams.length) {
+            if (nextIndex < competitionTeams.length) {
                 setCurrentTeamIndex(nextIndex);
+                const nextTeam = competitionTeams[nextIndex];
                 const newTeams = [...teams];
-                newTeams[0].id = allTeams[nextIndex].id;
+                newTeams[0].id = nextTeam.id;
+
+                // Auto update phase if line follower
+                if (isLineFollower) {
+                    const existingScores = getOfflineScores();
+                    const hasEssay1 = existingScores.some(s =>
+                        s.teamId === nextTeam.id &&
+                        s.competitionType === competition.value &&
+                        s.phase === 'essay_1'
+                    );
+                    newTeams[0].phase = hasEssay1 ? 'essay_2' : 'essay_1';
+                }
                 setTeams(newTeams);
             } else {
-                setTeams(teams.map(t => ({ ...t, id: '' })));
+                setTeams(teams.map(t => ({ ...t, id: '', phase: isLineFollower ? 'essay_1' : undefined })));
             }
 
             setTimeout(() => setSuccess(false), 3000);
@@ -368,21 +430,44 @@ export default function ScoreCardPage() {
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-2xl">
                 {/* Header Actions */}
-                <div className="flex justify-end mb-6">
+                {/* Header Actions */}
+                <div className="flex justify-between items-center mb-6">
+                    <button
+                        onClick={handleNextCard}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground font-black uppercase tracking-widest text-xs transition-all active:scale-95 border border-card-border"
+                    >
+                        <span>Next Card</span>
+                        <ChevronRight size={16} />
+                    </button>
+
                     {isLive ? (
                         <button
                             onClick={handleEndMatch}
                             className="flex items-center gap-3 px-6 py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 font-black uppercase tracking-widest transition-all active:scale-95"
                         >
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span>Finish Match</span>
+                            <span>
+                                {isLineFollower
+                                    ? `Finish ${teams[0].phase === 'essay_1' ? 'Phase 1' : 'Phase 2'}`
+                                    : `Finish ${globalPhase === 'qualifications' ? 'Quals'
+                                        : globalPhase === 'quarter_final' ? 'Quarter F'
+                                            : globalPhase === 'semi_final' ? 'Semi F'
+                                                : globalPhase === 'final' ? 'Final' : 'Match'}`
+                                }
+                            </span>
                         </button>
                     ) : (
                         <button
                             onClick={handleStartMatch}
                             className="px-6 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black uppercase tracking-widest shadow-lg shadow-green-500/20 transition-all active:scale-95"
                         >
-                            Start Match
+                            {isLineFollower
+                                ? `Start ${teams[0].phase === 'essay_1' ? 'Phase 1' : 'Phase 2'}`
+                                : `Start ${globalPhase === 'qualifications' ? 'Quals'
+                                    : globalPhase === 'quarter_final' ? 'Quarter F'
+                                        : globalPhase === 'semi_final' ? 'Semi F'
+                                            : globalPhase === 'final' ? 'Final' : 'Match'}`
+                            }
                         </button>
                     )}
                 </div>
@@ -520,26 +605,29 @@ export default function ScoreCardPage() {
                                         <div key={index} className="flex flex-col md:flex-row gap-3 p-4 rounded-xl bg-muted/20 border border-card-border group transition-all hover:bg-muted/40 shadow-sm">
                                             <div className="flex-1">
                                                 <label className="text-[10px] font-black text-muted-foreground uppercase mb-1.5 block tracking-wider">
-                                                    {isLineFollower ? 'Unique Team Identifier' : `Team ${index + 1} Identifier`}
+                                                    {isLineFollower ? 'Robot Name' : `Team ${index + 1} Robot`}
                                                 </label>
                                                 <div className="relative">
-                                                    <input
-                                                        type="text"
+                                                    <select
                                                         value={team.id}
                                                         onChange={(e) => handleTeamChange(index, 'id', e.target.value)}
-                                                        placeholder="e.g. team-42"
-                                                        className={`w-full px-3 py-2.5 bg-background border rounded-lg focus:ring-2 focus:ring-accent outline-none text-sm font-bold text-foreground ${hasSubmitted ? 'border-red-500 dark:border-red-400' : 'border-card-border'}`}
+                                                        className={`w-full px-3 py-2.5 bg-background border rounded-lg focus:ring-2 focus:ring-accent outline-none text-sm font-bold text-foreground appearance-none cursor-pointer ${hasSubmitted ? 'border-red-500 dark:border-red-400' : 'border-card-border'}`}
                                                         required
-                                                    />
-                                                    {hasSubmitted && (
-                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 dark:text-red-400 text-xs font-black">
-                                                            ⚠
-                                                        </div>
-                                                    )}
+                                                    >
+                                                        <option value="">Select Robot...</option>
+                                                        {competitionTeams.map((t) => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
+                                                        <ChevronDown size={14} />
+                                                    </div>
                                                 </div>
                                                 {hasSubmitted && (
-                                                    <div className="text-[9px] font-bold text-red-500 dark:text-red-400 mt-1">
-                                                        Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
+                                                    <div className="text-[9px] font-bold text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                                                        <Info size={8} /> Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
                                                     </div>
                                                 )}
                                             </div>

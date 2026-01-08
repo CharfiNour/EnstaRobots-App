@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Trophy, Users, Calendar, Bell, FileDown, LogOut, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, Calendar, Bell, FileDown, LogOut, TrendingUp, Shield } from 'lucide-react';
 import { getSession, logout } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -43,6 +43,21 @@ export default function AdminDashboard() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-7xl">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div>
+                        <h1 className="text-3xl font-black text-foreground tracking-tighter uppercase italic flex items-center gap-4">
+                            <Shield className="w-10 h-10 text-role-primary" />
+                            Admin Console
+                        </h1>
+                        <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.2em] mt-2 opacity-60">
+                            Global Competition Control & Systems Monitoring
+                        </p>
+                    </div>
+
+                </div>
+
+
                 {/* Content */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
                     <StatCard

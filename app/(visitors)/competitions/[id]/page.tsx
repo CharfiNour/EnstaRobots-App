@@ -6,10 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Trophy, Users, Calendar, ChevronLeft,
     ChevronRight, MapPin, ExternalLink, Shield,
-    User, School, Building2, Crown
+    User, School, Building2, Crown, Cpu
 } from 'lucide-react';
 import { getTeams, Team, TeamMember } from '@/lib/teams';
-import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, CompetitionState, INITIAL_STATE } from '@/lib/competitionState';
+import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 
 // Mock data for the demonstration
 const COMPETITIONS = {
@@ -37,7 +38,7 @@ export default function CompetitionDetailPage() {
     // Data State
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const [compState, setCompState] = useState<CompetitionState>({ activeTeamId: null, isLive: false, currentPhase: null, startTime: null });
+    const [compState, setCompState] = useState<CompetitionState>(INITIAL_STATE);
 
     useEffect(() => {
         // Load teams
@@ -179,8 +180,22 @@ export default function CompetitionDetailPage() {
                                             {/* Centered Profile Identity */}
                                             <div className="relative flex flex-col items-center text-center">
                                                 <div className="relative group mb-6">
-                                                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] bg-card p-3 border-4 border-accent shadow-xl overflow-hidden transform group-hover:rotate-3 transition-transform">
-                                                        <img src={selectedTeam?.logo} alt="Logo" className="w-full h-full object-contain" />
+                                                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] bg-card border-4 border-accent shadow-xl overflow-hidden transform group-hover:rotate-3 transition-transform relative">
+                                                        {selectedTeam?.photo ? (
+                                                            <img src={selectedTeam.photo} alt="Robot" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30 opacity-40">
+                                                                <Cpu size={40} className="text-muted-foreground mb-2" />
+                                                                <span className="text-[10px] font-black uppercase">No Image</span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Secondary Logo Overlay */}
+                                                        {selectedTeam?.logo && (
+                                                            <div className="absolute bottom-2 right-2 w-8 h-8 bg-card rounded-lg border border-accent/30 p-1 shadow-md">
+                                                                <img src={selectedTeam.logo} alt="Club" className="w-full h-full object-contain" />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {compState.isLive && compState.activeTeamId === selectedTeam?.id && (
                                                         <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full border-4 border-card animate-pulse shadow-lg" />
@@ -190,20 +205,15 @@ export default function CompetitionDetailPage() {
                                                 <h2 className="text-3xl font-black text-foreground tracking-tighter mb-1 uppercase">
                                                     {selectedTeam?.robotName || selectedTeam?.name}
                                                 </h2>
-                                                <div className="px-3 py-1 bg-accent/10 rounded-full text-[10px] font-black text-accent uppercase tracking-[0.2em] border border-accent/20 mb-4">
-                                                    Official Entry
+
+                                                <div className="px-3 py-1 bg-accent/10 rounded-full text-[10px] font-black text-accent uppercase tracking-[0.2em] border border-accent/20 mb-3">
+                                                    {selectedTeam?.club || 'Independent Unit'}
                                                 </div>
 
-                                                <div className="space-y-1">
-                                                    <p className="font-bold text-foreground text-sm flex items-center justify-center gap-2">
-                                                        <Building2 size={14} className="text-muted-foreground" />
-                                                        {selectedTeam?.club}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-2">
-                                                        <School size={14} className="opacity-50" />
-                                                        {selectedTeam?.university}
-                                                    </p>
-                                                </div>
+                                                <p className="font-bold text-muted-foreground text-sm flex items-center justify-center gap-2">
+                                                    <Building2 size={14} className="opacity-50" />
+                                                    {selectedTeam?.university}
+                                                </p>
                                             </div>
                                         </div>
 
@@ -219,14 +229,21 @@ export default function CompetitionDetailPage() {
                                                 {selectedTeam?.members.map((member, i) => (
                                                     <div key={i} className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-card-border/50 group hover:border-accent/30 transition-all">
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${member.role === 'Leader' ? 'bg-yellow-500 text-slate-900' : 'bg-card border border-card-border text-muted-foreground'}`}>
-                                                                {member.role === 'Leader' ? <Crown size={14} /> : member.name.charAt(0)}
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${member.role === 'Leader' || member.isLeader ? 'bg-yellow-500 text-slate-900' : 'bg-card border border-card-border text-muted-foreground'}`}>
+                                                                {member.role === 'Leader' || member.isLeader ? <Crown size={14} /> : member.name.charAt(0)}
                                                             </div>
                                                             <div className="font-bold text-sm text-foreground group-hover:text-accent transition-colors">{member.name}</div>
                                                         </div>
-                                                        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground bg-card px-2 py-0.5 rounded border border-card-border">
-                                                            {member.role === 'Leader' ? 'Lead' : 'Member'}
-                                                        </span>
+                                                        {(member.role === 'Leader' || member.isLeader) && (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 bg-yellow-500 px-2 py-0.5 rounded-full border border-yellow-600 shadow-sm animate-pulse">
+                                                                Leader
+                                                            </span>
+                                                        )}
+                                                        {!(member.role === 'Leader' || member.isLeader) && (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground bg-card px-2 py-0.5 rounded border border-card-border">
+                                                                {member.role || 'Member'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -248,54 +265,26 @@ export default function CompetitionDetailPage() {
 
 
 
+
+
                     {activeTab === 'matches' && (
                         <motion.div
                             key="matches"
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="space-y-8"
+                            className="w-full"
                         >
-                            {MATCHES.map((group, groupIdx) => (
-                                <div key={groupIdx}>
-                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 border-b border-card-border pb-4">
-                                        <Calendar className="w-6 h-6 text-accent" />
-                                        {group.phase}
-                                    </h3>
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {group.matches.map((match) => (
-                                            <div key={match.id} className="p-6 rounded-2xl bg-card border border-card-border shadow-md shadow-black/[0.02]">
-                                                <div className="flex items-center justify-between mb-6">
-                                                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${match.status === 'Completed' ? 'bg-green-500/10 text-green-500' : 'bg-accent/10 text-accent'
-                                                        }`}>
-                                                        {match.status}
-                                                    </span>
-                                                    <ExternalLink size={14} className="text-muted-foreground hover:text-accent cursor-pointer" />
-                                                </div>
-
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <div className="text-center flex-1">
-                                                        <div className="w-12 h-12 rounded-lg bg-muted mx-auto mb-2 flex items-center justify-center font-bold text-xs">A</div>
-                                                        <div className="font-bold text-sm truncate">{match.teamA}</div>
-                                                    </div>
-
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="text-2xl font-black text-foreground">
-                                                            {match.scoreA !== null ? `${match.scoreA} : ${match.scoreB}` : 'VS'}
-                                                        </div>
-                                                        <div className="text-[10px] font-bold text-muted-foreground uppercase opacity-50">Score</div>
-                                                    </div>
-
-                                                    <div className="text-center flex-1">
-                                                        <div className="w-12 h-12 rounded-lg bg-muted mx-auto mb-2 flex items-center justify-center font-bold text-xs">B</div>
-                                                        <div className="font-bold text-sm truncate">{match.teamB}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                            <ScoreHistoryView
+                                initialCompetition={
+                                    compId === '1' ? 'junior_line_follower' :
+                                        compId === '2' ? 'junior_all_terrain' :
+                                            compId === '3' ? 'line_follower' :
+                                                compId === '4' ? 'all_terrain' :
+                                                    compId === '5' ? 'fight' : 'all'
+                                }
+                                showFilter={false}
+                            />
                         </motion.div>
                     )}
                 </AnimatePresence>

@@ -31,23 +31,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
             exit={{ opacity: 0, scale: 1.02 }}
             className="max-w-lg mx-auto"
         >
-            {/* Phase/Qualification Selector Tabs */}
-            {group.submissions.length > 1 && (
-                <div className="flex gap-2 mb-6 bg-card p-1.5 rounded-xl border border-card-border w-fit mx-auto shadow-xl">
-                    {group.submissions.map((sub) => (
-                        <button
-                            key={sub.id}
-                            onClick={() => onPhaseChange(sub.phase || '')}
-                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activePhase === sub.phase
-                                ? 'bg-accent text-white shadow-lg shadow-accent/30'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                }`}
-                        >
-                            {isLineFollower ? (sub.phase || '').replace(/_/g, ' ') : (sub.phase || '').replace('qualifications', 'Quals').replace('quarter_final', 'Quarter').replace('semi_final', 'Semi').replace('final', 'Final').replace(/_/g, ' ')}
-                        </button>
-                    ))}
-                </div>
-            )}
 
             {/* Main Record Card */}
             <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-[0_20px_40px_-8px_rgba(0,0,0,0.15)] relative">
@@ -59,10 +42,27 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Official Record</span>
                         </div>
                         <h2 className="text-xl md:text-2xl font-black text-foreground uppercase italic leading-none">
-                            {currentScore.competitionType.replace(/_/g, ' ')}
+                            {(currentScore.competitionType || '').replace(/_/g, ' ')}
                         </h2>
                     </div>
 
+                    {/* Phase Switcher Integrated */}
+                    {group.submissions.length > 1 && (
+                        <div className="flex gap-1 bg-muted p-1 rounded-xl border border-card-border/50">
+                            {group.submissions.map((sub: any) => (
+                                <button
+                                    key={sub.id}
+                                    onClick={() => onPhaseChange(sub.phase)}
+                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activePhase === sub.phase
+                                        ? 'bg-accent text-slate-900 shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                        }`}
+                                >
+                                    {(sub.phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-4 md:p-5 space-y-4">

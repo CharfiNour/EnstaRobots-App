@@ -207,3 +207,17 @@ export function isTeamProfileComplete(teamId: string): boolean {
     if (!team) return false;
     return !team.isPlaceholder && !!team.name && !!team.university && team.members.length > 0;
 }
+
+export function deleteTeam(id: string): Team[] {
+    const teams = getTeams();
+    const updatedTeams = teams.filter(t => t.id !== id);
+    saveTeams(updatedTeams);
+    return updatedTeams;
+}
+
+export function deleteClub(clubName: string): Team[] {
+    const teams = getTeams();
+    const updatedTeams = teams.filter(t => t.club !== clubName);
+    saveTeams(updatedTeams);
+    return updatedTeams;
+}

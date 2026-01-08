@@ -8,6 +8,7 @@ import {
     Cpu, Info, Users, Settings, Zap, Globe, Box, Target, ChevronRight
 } from 'lucide-react';
 import { updateTeam, updateClubLogo, Team } from '@/lib/teams';
+import { getCompetitionState } from '@/lib/competitionState';
 
 const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: any }> = {
     junior_line_follower: { name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: Zap },
@@ -29,8 +30,18 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     const [saved, setSaved] = useState(false);
     const [activeTab, setActiveTab] = useState<'info' | 'crew'>('info');
     const [visualsLocked, setVisualsLocked] = useState(false);
+    const [profilesLocked, setProfilesLocked] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
     const robotInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const checkLock = () => {
+            setProfilesLocked(getCompetitionState().profilesLocked);
+        };
+        checkLock();
+        window.addEventListener('competition-state-updated', checkLock);
+        return () => window.removeEventListener('competition-state-updated', checkLock);
+    }, []);
 
     const [formData, setFormData] = useState({
         robotName: '',
@@ -68,14 +79,6 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         reader.onloadend = () => {
             const base64String = reader.result as string;
             setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo' : 'photo']: base64String }));
-
-            if (type === 'logo') {
-                updateClubLogo(formData.club, base64String);
-            } else {
-                updateTeam(team!.id, { photo: base64String });
-            }
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
         };
         reader.readAsDataURL(file);
     };
@@ -99,6 +102,11 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         setLoading(true);
 
         try {
+            // Update club logo if it changed
+            if (formData.logo !== team.logo) {
+                updateClubLogo(formData.club, formData.logo);
+            }
+
             updateTeam(team.id, {
                 robotName: formData.robotName,
                 club: formData.club,
@@ -106,7 +114,9 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                 competition: formData.competition,
                 members: formData.members,
                 name: formData.robotName || `Team ${team.id}`,
-                isPlaceholder: false
+                isPlaceholder: false,
+                photo: formData.photo,
+                logo: formData.logo
             });
             setIsEditing(false);
             setSaved(true);
@@ -121,7 +131,9 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                 competition: formData.competition,
                 members: formData.members,
                 name: formData.robotName || `Team ${team.id}`,
-                isPlaceholder: false
+                isPlaceholder: false,
+                photo: formData.photo,
+                logo: formData.logo
             });
         } catch (err) {
             console.error(err);
@@ -167,7 +179,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     return (
         <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-6">
                     <div className="relative">
                         <div className="w-16 h-16 md:w-20 md:h-20 rounded-[1.5rem] md:rounded-[2.5rem] bg-gradient-to-br from-role-primary to-role-secondary p-[2px] shadow-2xl">
@@ -182,20 +194,33 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                     </div>
                 </div>
 
-                {isAdmin && (
-                    <button
-                        onClick={() => {
-                            if (isEditing) handleSaveProfile();
-                            else setIsEditing(true);
-                        }}
-                        className={`min-h-[44px] flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg ${isEditing
-                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                            : 'bg-role-primary text-white shadow-role-primary/20 hover:scale-105 active:scale-95'}`}
-                    >
-                        {isEditing ? <CheckCircle size={14} /> : <Settings size={14} />}
-                        {isEditing ? 'Save Changes' : 'Edit Specs'}
-                    </button>
-                )}
+                {(() => {
+                    const canEdit = isAdmin || !profilesLocked;
+
+                    if (!canEdit && !isAdmin) {
+                        return (
+                            <div className="flex items-center gap-3 px-6 py-3 bg-muted/40 border border-card-border rounded-2xl text-muted-foreground">
+                                <Lock size={14} className="opacity-50" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Profiles Locked by Admin</span>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <button
+                            onClick={() => {
+                                if (isEditing) handleSaveProfile();
+                                else setIsEditing(true);
+                            }}
+                            className={`min-h-[44px] flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg ${isEditing
+                                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20'
+                                : 'bg-gradient-to-r from-role-primary to-role-secondary text-white shadow-role-primary/20 hover:scale-105 active:scale-95'}`}
+                        >
+                            {isEditing ? <CheckCircle size={14} /> : <Settings size={14} />}
+                            {isEditing ? 'Save Changes' : 'Edit Specs'}
+                        </button>
+                    );
+                })()}
             </div>
 
             {/* Content Grid */}
@@ -290,15 +315,17 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                         ))}
                     </div>
 
-                    <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-3xl p-8 min-h-[400px] shadow-2xl">
+                    <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-3xl p-8 h-[400px] overflow-hidden shadow-2xl">
                         {activeTab === 'info' && (
-                            <div className="space-y-8">
-                                <h3 className="text-sm font-black uppercase tracking-[0.2em] text-role-primary flex items-center gap-3">
-                                    <div className="w-1.5 h-6 bg-role-primary rounded-full"></div>
-                                    Technical Specs
-                                </h3>
+                            <div className="flex flex-col gap-6 h-full">
+                                <div className="flex items-center justify-between h-10 shrink-0">
+                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-role-primary flex items-center gap-3">
+                                        <div className="w-1.5 h-6 bg-role-primary rounded-full"></div>
+                                        Technical Specs
+                                    </h3>
+                                </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 overflow-y-auto custom-scrollbar pr-2">
                                     <div className="md:col-span-2 space-y-2">
                                         <label className="text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-60 ml-1">Robot Model</label>
                                         <input
@@ -353,8 +380,8 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                         )}
 
                         {activeTab === 'crew' && (
-                            <div className="space-y-8">
-                                <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-6 h-full">
+                                <div className="flex items-center justify-between h-10 shrink-0">
                                     <h3 className="text-sm font-black uppercase tracking-[0.2em] text-role-primary flex items-center gap-3">
                                         <div className="w-1.5 h-6 bg-role-primary rounded-full"></div>
                                         Unit Crew
@@ -362,47 +389,96 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                     {isEditing && (
                                         <button
                                             onClick={addMember}
-                                            className="px-4 py-2 bg-role-primary text-white rounded-lg shadow-lg text-[10px] font-black uppercase tracking-widest"
+                                            className="px-4 py-2 bg-gradient-to-r from-role-primary to-role-secondary text-white rounded-lg shadow-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                                         >
                                             <Plus size={14} /> Add Unit
                                         </button>
                                     )}
                                 </div>
 
-                                <div className="grid gap-4">
-                                    {formData.members.map((member, index) => (
-                                        <div key={index} className="px-4 py-3 rounded-2xl bg-muted/20 border border-card-border flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${member.isLeader ? 'bg-yellow-400 text-slate-900' : 'bg-card text-muted-foreground'}`}>
-                                                {member.isLeader ? <Crown size={15} /> : <span className="text-xs font-bold uppercase">{member.name.charAt(0) || '?'}</span>}
-                                            </div>
-                                            <div className="flex-1 flex items-center gap-4">
-                                                <input
-                                                    className="flex-1 bg-transparent border-none outline-none font-bold text-sm text-foreground"
-                                                    value={member.name}
-                                                    placeholder="Member Name"
-                                                    readOnly={!isEditing}
-                                                    onChange={(e) => updateMember(index, 'name', e.target.value)}
-                                                />
-                                                <input
-                                                    className="bg-transparent border-none outline-none text-[10px] uppercase font-bold tracking-widest text-muted-foreground"
-                                                    value={member.isLeader ? 'LEADER' : member.role}
-                                                    placeholder="Role"
-                                                    readOnly={!isEditing}
-                                                    onChange={(e) => updateMember(index, 'role', e.target.value)}
-                                                />
-                                            </div>
-                                            {isEditing && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <button onClick={() => updateMember(index, 'isLeader', !member.isLeader)} className="p-1.5 rounded-lg hover:bg-yellow-400/20 text-yellow-400">
-                                                        <Crown size={14} />
-                                                    </button>
-                                                    <button onClick={() => removeMember(index)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg">
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar grid gap-3 pr-1">
+                                    {[...formData.members]
+                                        .sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
+                                        .map((member, index) => {
+                                            const originalIndex = formData.members.indexOf(member);
+
+                                            return (
+                                                <div
+                                                    key={originalIndex}
+                                                    className="flex items-center gap-4 h-14 px-4 rounded-2xl border border-card-border bg-muted/30 shrink-0 transition-all hover:bg-muted/40"
+                                                >
+                                                    {/* Icon */}
+                                                    <div
+                                                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm
+                                                            ${member.isLeader
+                                                                ? 'bg-yellow-400 text-slate-900'
+                                                                : 'bg-card text-muted-foreground'
+                                                            }`}
+                                                    >
+                                                        {member.isLeader ? (
+                                                            <Crown size={14} />
+                                                        ) : (
+                                                            <span className="text-xs font-bold uppercase">
+                                                                {member.name.charAt(0) || '?'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Text */}
+                                                    <div className="flex-1 flex items-center justify-between min-w-0 gap-4">
+                                                        {isEditing ? (
+                                                            <input
+                                                                className="h-8 py-0 bg-transparent border-none outline-none font-bold text-sm text-foreground truncate min-w-0 w-full"
+                                                                value={member.name}
+                                                                placeholder="Member Name"
+                                                                onChange={(e) =>
+                                                                    updateMember(originalIndex, 'name', e.target.value)
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            <span className="text-sm font-bold truncate leading-none">
+                                                                {member.name}
+                                                            </span>
+                                                        )}
+
+                                                        {isEditing ? (
+                                                            <input
+                                                                className="h-8 py-0 bg-transparent border-none outline-none text-[10px] uppercase font-black tracking-widest text-muted-foreground/70 w-24 text-right shrink-0"
+                                                                value={member.isLeader ? 'LEADER' : member.role}
+                                                                placeholder="Role"
+                                                                onChange={(e) =>
+                                                                    updateMember(originalIndex, 'role', e.target.value)
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            <span className="text-[10px] font-black uppercase text-muted-foreground/70 shrink-0 leading-none tracking-widest">
+                                                                {member.isLeader ? 'LEADER' : member.role}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    {isEditing && (
+                                                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                            <button
+                                                                onClick={() =>
+                                                                    updateMember(originalIndex, 'isLeader', !member.isLeader)
+                                                                }
+                                                                className="p-1.5 rounded-lg hover:bg-yellow-400/20 text-yellow-400 flex items-center justify-center transition-colors"
+                                                            >
+                                                                <Crown size={14} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => removeMember(originalIndex)}
+                                                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg flex items-center justify-center transition-colors"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                            );
+                                        })}
                                 </div>
                             </div>
                         )}
@@ -414,16 +490,18 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
             <input type="file" ref={robotInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'robot')} />
             <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'logo')} />
 
-            {saved && (
-                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 p-2 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl z-[100] pr-8 pl-2 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
-                    <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white">
-                        <CheckCircle size={20} />
+            {
+                saved && (
+                    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 p-2 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl z-[100] pr-8 pl-2 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
+                        <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white">
+                            <CheckCircle size={20} />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white">System Updated</p>
+                        </div>
                     </div>
-                    <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-white">System Updated</p>
-                    </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

@@ -4,15 +4,19 @@ export interface CompetitionState {
     isLive: boolean; // True when judge pressed Start
     currentPhase: string | null;
     startTime: number | null;
+    orderedCompetitions: string[]; // List of competition IDs that are finalized
+    profilesLocked: boolean; // Global lock for team profile editing
 }
 
 const STATE_STORAGE_KEY = 'enstarobots_competition_state_v1';
 
-const INITIAL_STATE: CompetitionState = {
+export const INITIAL_STATE: CompetitionState = {
     activeTeamId: null,
     isLive: false,
     currentPhase: null,
     startTime: null,
+    orderedCompetitions: [],
+    profilesLocked: false,
 };
 
 export function getCompetitionState(): CompetitionState {
@@ -22,7 +26,12 @@ export function getCompetitionState(): CompetitionState {
     if (!stored) return INITIAL_STATE;
 
     try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        return {
+            ...INITIAL_STATE,
+            ...parsed,
+            orderedCompetitions: parsed.orderedCompetitions || []
+        };
     } catch {
         return INITIAL_STATE;
     }
@@ -38,6 +47,25 @@ export function updateCompetitionState(updates: Partial<CompetitionState>): Comp
     // Dispatch event for local updates
     window.dispatchEvent(new Event('competition-state-updated'));
     return newState;
+}
+
+export function toggleCompetitionOrdered(compId: string) {
+    const state = getCompetitionState();
+    const isOrdered = state.orderedCompetitions.includes(compId);
+
+    let newOrdered = [...state.orderedCompetitions];
+    if (isOrdered) {
+        newOrdered = newOrdered.filter(id => id !== compId);
+    } else {
+        newOrdered.push(compId);
+    }
+
+    updateCompetitionState({ orderedCompetitions: newOrdered });
+}
+
+export function toggleProfilesLock() {
+    const state = getCompetitionState();
+    updateCompetitionState({ profilesLocked: !state.profilesLocked });
 }
 
 export function startLiveSession(teamId: string, phase: string) {
