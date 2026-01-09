@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import {
-    History
-} from 'lucide-react';
+import { History, Activity } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
@@ -24,46 +21,40 @@ export default function JudgeHistoryPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Initializing Archive...</p>
-                </div>
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground selection:bg-accent/30 flex flex-col pb-6">
-            {/* Background Decorations */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-10">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]" />
+        <div className="min-h-screen relative bg-transparent">
+            {/* Background Decorative Element */}
+            <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-20">
+                <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-role-primary/10 blur-[120px] rounded-full" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-role-secondary/10 blur-[120px] rounded-full" />
             </div>
 
-            {/* Dashboard Header */}
-            <header className="px-10 py-8 flex items-center justify-between relative z-20 shrink-0">
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center gap-6"
-                >
-                    <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-2xl shadow-accent/40 group hover:scale-105 transition-all duration-500">
-                        <History size={32} className="text-slate-900 group-hover:rotate-12 transition-transform" />
+            <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl relative z-10">
+                {/* Tactical Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center shadow-2xl shadow-role-primary/40 ring-1 ring-white/20">
+                            <History className="w-8 h-8 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-2">
+                                Judge Console
+                            </h1>
+                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">
+                                <Activity size={14} className="text-role-primary" />
+                                Performance Records & Telemetry Verification
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none flex items-center gap-3">
-                            Judge Console
-                        </h1>
-                        <p className="text-muted-foreground mt-2 text-sm font-medium tracking-tight opacity-70">
-                            Performance records & telemetry history verification.
-                        </p>
-                    </div>
-                </motion.div>
-            </header>
+                </div>
 
-            <div className="flex-1 relative z-10 px-6 w-full max-w-[1700px] mx-auto">
-                <ScoreHistoryView />
+                <ScoreHistoryView isSentToTeamOnly={false} />
             </div>
         </div>
     );

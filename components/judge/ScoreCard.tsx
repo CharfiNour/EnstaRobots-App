@@ -2,9 +2,10 @@
 
 import { motion } from 'framer-motion';
 import {
-    Shield, Timer, Trophy, CheckCircle
+    Shield, Timer, Trophy, CheckCircle, Trash2, Edit2, X, Save
 } from 'lucide-react';
-import { OfflineScore } from '@/lib/offlineScores';
+import { OfflineScore, deleteScore, updateScore } from '@/lib/offlineScores';
+import { useState } from 'react';
 
 interface ScoreCardProps {
     group: {
@@ -15,13 +16,29 @@ interface ScoreCardProps {
     };
     activePhase: string;
     onPhaseChange: (phase: string) => void;
+    isAdmin?: boolean;
+    onDelete?: () => void;
 }
 
-export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCardProps) {
+export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete }: ScoreCardProps) {
     const currentScore = group.submissions.find((s) => s.phase === activePhase) || group.submissions[0];
     const isLineFollower = currentScore?.competitionType === 'line_follower' || currentScore?.competitionType === 'all_terrain';
 
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState<Partial<OfflineScore>>({});
+
     if (!currentScore) return null;
+
+    const handleStartEdit = () => {
+        setEditData({ ...currentScore });
+        setIsEditing(true);
+    };
+
+    const handleSave = () => {
+        updateScore(currentScore.id, editData);
+        setIsEditing(false);
+        onDelete?.(); // Re-trigger load in parent
+    };
 
     return (
         <motion.div
@@ -46,23 +63,71 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                         </h2>
                     </div>
 
-                    {/* Phase Switcher Integrated */}
-                    {group.submissions.length > 1 && (
-                        <div className="flex gap-1 bg-muted p-1 rounded-xl border border-card-border/50">
-                            {group.submissions.map((sub: any) => (
-                                <button
-                                    key={sub.id}
-                                    onClick={() => onPhaseChange(sub.phase)}
-                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activePhase === sub.phase
-                                        ? 'bg-accent text-slate-900 shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                        }`}
-                                >
-                                    {(sub.phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {/* Admin Delete Action */}
+                        {isAdmin && (
+                            <>
+                                {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={handleSave}
+                                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors border border-green-500/20"
+                                            title="Save Changes"
+                                        >
+                                            <Save size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => setIsEditing(false)}
+                                            className="p-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors border border-card-border"
+                                            title="Cancel Edit"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={handleStartEdit}
+                                            className="p-2 text-role-primary hover:bg-role-primary/10 rounded-lg transition-colors border border-role-primary/20"
+                                            title="Edit Record"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('Are you sure you want to delete this phase/score record?')) {
+                                                    deleteScore(currentScore.id);
+                                                    onDelete?.();
+                                                }
+                                            }}
+                                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-red-500/20"
+                                            title="Delete Phase"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Phase Switcher Integrated */}
+                        {group.submissions.length > 1 && (
+                            <div className="flex gap-1 bg-muted p-1 rounded-xl border border-card-border/50">
+                                {group.submissions.map((sub: any) => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => onPhaseChange(sub.phase)}
+                                        className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activePhase === sub.phase
+                                            ? 'bg-accent text-slate-900 shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                            }`}
+                                    >
+                                        {(sub.phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="p-4 md:p-5 space-y-4">
@@ -83,7 +148,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                                 <div className="text-xl font-black text-foreground uppercase mb-1.5 leading-tight">
                                     {currentScore.teamId}
                                 </div>
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
                                     <div className="flex items-center gap-1.5 text-muted-foreground">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
                                         <span className="font-semibold">Robotics Club</span>
@@ -105,7 +170,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
 
                     {/* Performance Breakdown */}
                     <div className="space-y-3">
-                        {/* Replace "Data" with "Breakdown" line */}
                         <div className="flex items-center gap-2">
                             <div className="h-px flex-1 bg-card-border" />
                             <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">Performance Breakdown</span>
@@ -122,18 +186,30 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                                         </div>
                                         <span className="text-xs font-black uppercase tracking-wide text-foreground">Official Lap Time</span>
                                     </div>
-                                    <span className="text-xl font-mono text-foreground font-black tracking-tight">
-                                        {(() => {
-                                            const ms = currentScore.timeMs || 0;
-                                            const min = Math.floor(ms / 60000);
-                                            const sec = Math.floor((ms % 60000) / 1000);
-                                            const mls = ms % 1000;
-                                            return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
-                                        })()}
-                                    </span>
+                                    {isEditing ? (
+                                        <div className="flex gap-1 items-center">
+                                            <input
+                                                type="number"
+                                                value={editData.timeMs || 0}
+                                                onChange={(e) => setEditData({ ...editData, timeMs: parseInt(e.target.value) })}
+                                                className="w-24 bg-card border border-card-border p-1 rounded font-mono text-sm text-right"
+                                            />
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">ms</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-xl font-mono text-foreground font-black tracking-tight">
+                                            {(() => {
+                                                const ms = currentScore.timeMs || 0;
+                                                const min = Math.floor(ms / 60000);
+                                                const sec = Math.floor((ms % 60000) / 1000);
+                                                const mls = ms % 1000;
+                                                return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
+                                            })()}
+                                        </span>
+                                    )}
                                 </div>
 
-                                {/* Road Completion Box (from team card style) */}
+                                {/* Road Completion Box */}
                                 <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
                                     <div className="flex items-center gap-3">
                                         <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
@@ -141,9 +217,18 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                                         </div>
                                         <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
                                     </div>
-                                    <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
-                                        {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                    </span>
+                                    {isEditing ? (
+                                        <button
+                                            onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
+                                            className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
+                                        >
+                                            {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                        </button>
+                                    ) : (
+                                        <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
+                                            {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Bonus Points for LF */}
@@ -154,22 +239,58 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                                         </div>
                                         <span className="text-xs font-black uppercase tracking-wide text-foreground">Homologation Points</span>
                                     </div>
-                                    <span className="text-lg font-black text-foreground">{currentScore.bonusPoints || 0} PTS</span>
+                                    {isEditing ? (
+                                        <input
+                                            type="number"
+                                            value={editData.bonusPoints || 0}
+                                            onChange={(e) => setEditData({ ...editData, bonusPoints: parseInt(e.target.value) })}
+                                            className="w-20 bg-card border border-card-border p-1 rounded font-bold text-sm text-right"
+                                        />
+                                    ) : (
+                                        <span className="text-lg font-black text-foreground">{currentScore.bonusPoints || 0} PTS</span>
+                                    )}
                                 </div>
                             </div>
                         ) : (
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="flex flex-col items-center p-4 bg-muted/10 rounded-xl border border-card-border">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">KOs</span>
-                                    <span className="text-2xl font-black text-foreground">{currentScore.knockouts || 0}</span>
+                                    {isEditing ? (
+                                        <input
+                                            type="number"
+                                            value={editData.knockouts || 0}
+                                            onChange={(e) => setEditData({ ...editData, knockouts: parseInt(e.target.value) })}
+                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
+                                        />
+                                    ) : (
+                                        <span className="text-2xl font-black text-foreground">{currentScore.knockouts || 0}</span>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-center p-4 bg-muted/11 rounded-xl border border-card-border">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">Judges</span>
-                                    <span className="text-2xl font-black text-foreground">{currentScore.judgePoints || 0}</span>
+                                    {isEditing ? (
+                                        <input
+                                            type="number"
+                                            value={editData.judgePoints || 0}
+                                            onChange={(e) => setEditData({ ...editData, judgePoints: parseInt(e.target.value) })}
+                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
+                                        />
+                                    ) : (
+                                        <span className="text-2xl font-black text-foreground">{currentScore.judgePoints || 0}</span>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-center p-4 bg-muted/10 rounded-xl border border-card-border">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">Damage</span>
-                                    <span className="text-2xl font-black text-foreground">{currentScore.damageScore || 0}</span>
+                                    {isEditing ? (
+                                        <input
+                                            type="number"
+                                            value={editData.damageScore || 0}
+                                            onChange={(e) => setEditData({ ...editData, damageScore: parseInt(e.target.value) })}
+                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
+                                        />
+                                    ) : (
+                                        <span className="text-2xl font-black text-foreground">{currentScore.damageScore || 0}</span>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -181,13 +302,13 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
                             currentScore.status === 'qualified' ? 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400' :
                                 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
                             }`}>
-                            MATCH OUTCOME: {currentScore.status}
+                            OUTCOME: {currentScore.status}
                         </div>
                     )}
 
                 </div>
 
-                {/* Verified Results bottom bar (from team card style) */}
+                {/* Verified Results bottom bar */}
                 <div className="bg-green-500/10 p-4 border-t border-green-500/20 flex items-center justify-center gap-2.5">
                     <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
                     <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
@@ -197,8 +318,8 @@ export default function ScoreCard({ group, activePhase, onPhaseChange }: ScoreCa
             {/* Additional Metadata for Judges only */}
             {!isLineFollower && (
                 <div className="mt-6 flex items-center justify-between px-4 text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                    <div>Submission Timestamp: {new Date(currentScore.timestamp).toLocaleString()}</div>
-                    <div>Match ID: {currentScore.matchId.slice(-10)}</div>
+                    <div>Timestamp: {new Date(currentScore.timestamp).toLocaleString()}</div>
+                    <div>ID: {currentScore.matchId.slice(-10)}</div>
                 </div>
             )}
         </motion.div>

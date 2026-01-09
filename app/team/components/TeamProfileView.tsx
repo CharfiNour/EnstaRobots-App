@@ -287,8 +287,8 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                     )}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-[9px] uppercase font-black tracking-widest text-muted-foreground">Affiliated Club</p>
-                                    <p className="font-bold text-sm text-foreground leading-none truncate">{formData.club || 'No Club'}</p>
+                                    <p className="text-[10px] uppercase font-black tracking-widest text-foreground">{formData.club || 'CLUB NAME'}</p>
+                                    <p className="text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-60 mt-1 tracking-tighter">{formData.university || 'UNIVERSITY NAME'}</p>
                                 </div>
                             </div>
                         </div>
@@ -380,7 +380,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                         )}
 
                         {activeTab === 'crew' && (
-                            <div className="flex flex-col gap-6 h-full">
+                            <div className="flex flex-col gap-4 h-full">
                                 <div className="flex items-center justify-between h-10 shrink-0">
                                     <h3 className="text-sm font-black uppercase tracking-[0.2em] text-role-primary flex items-center gap-3">
                                         <div className="w-1.5 h-6 bg-role-primary rounded-full"></div>
@@ -396,7 +396,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                     )}
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto custom-scrollbar grid gap-3 pr-1">
+                                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 content-start pr-1">
                                     {[...formData.members]
                                         .sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
                                         .map((member, index) => {

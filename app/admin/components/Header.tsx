@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Users, Trophy, Bell } from "lucide-react";
+import { LayoutDashboard, LogOut, Users, Trophy, Bell, Calendar, History } from "lucide-react";
 import { logout } from "@/lib/auth";
 
 export default function Header() {
@@ -54,6 +54,30 @@ export default function Header() {
                                 <span className="flex items-center gap-2">
                                     <Trophy className="w-4 h-4" />
                                     <span className="hidden sm:block">Competitions</span>
+                                </span>
+                            </div>
+                        </Link>
+
+                        <Link href="/admin/matches">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/admin/matches')
+                                ? 'bg-role-muted text-role-primary shadow-sm'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                }`}>
+                                <span className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4" />
+                                    <span className="hidden sm:block">Matches</span>
+                                </span>
+                            </div>
+                        </Link>
+
+                        <Link href="/admin/scores">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/admin/scores')
+                                ? 'bg-role-muted text-role-primary shadow-sm'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                }`}>
+                                <span className="flex items-center gap-2">
+                                    <History className="w-4 h-4" />
+                                    <span className="hidden sm:block">Scores</span>
                                 </span>
                             </div>
                         </Link>

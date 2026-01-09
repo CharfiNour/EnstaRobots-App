@@ -161,6 +161,34 @@ export function sendScoreToTeam(scoreId: string): void {
     localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
 }
 
+// Delete score
+export function deleteScore(scoreId: string): void {
+    if (typeof window === 'undefined') return;
+
+    const scores = getOfflineScores();
+    const updatedScores = scores.filter((s) => s.id !== scoreId);
+
+    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
+}
+
+// Update score
+export function updateScore(scoreId: string, updates: Partial<OfflineScore>): void {
+    if (typeof window === 'undefined') return;
+
+    const scores = getOfflineScores();
+    const updatedScores = scores.map((s) => {
+        if (s.id === scoreId) {
+            const updated = { ...s, ...updates };
+            // Recalculate total points if critical fields changed
+            updated.totalPoints = calculateTotalPoints(updated.competitionType, updated);
+            return updated;
+        }
+        return s;
+    });
+
+    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
+}
+
 // Clear synced scores (optional cleanup)
 export function clearSyncedScores(): void {
     if (typeof window === 'undefined') return;

@@ -5,23 +5,16 @@ import { useRouter } from 'next/navigation';
 import { Shield, Key, ListOrdered, UserCircle } from 'lucide-react';
 import { getTeams, Team } from '@/lib/teams';
 import { getSession } from '@/lib/auth';
-import TeamsCodesTab from './components/TeamsCodesTab';
-import TeamsOrderTab from './components/TeamsOrderTab';
-import TeamsProfilesTab from './components/TeamsProfilesTab';
-
-const COMPETITION_CATEGORIES = [
-    { id: 'junior_line_follower', name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
-    { id: 'junior_all_terrain', name: 'Junior All Terrain', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' },
-    { id: 'line_follower', name: 'Line Follower', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
-    { id: 'all_terrain', name: 'All Terrain', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' },
-    { id: 'fight', name: 'Fight', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
-];
+import { TeamsCodesTab, TeamsOrderTab, TeamsProfilesTab } from './components';
+import { getCompetitionCategories } from './services/teamsFeatureService';
+import { AdminTeamsTab } from './types';
 
 export default function AdminTeamsPage() {
     const [teams, setTeams] = useState<Team[]>([]);
-    const [activeTab, setActiveTab] = useState<'codes' | 'order' | 'profiles'>('codes');
+    const [activeTab, setActiveTab] = useState<AdminTeamsTab>('codes');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const router = useRouter();
+    const categories = getCompetitionCategories();
 
     useEffect(() => {
         const session = getSession();
@@ -33,9 +26,9 @@ export default function AdminTeamsPage() {
         setTeams(currentTeams);
 
         if (activeTab === 'order' && selectedCategory === 'all') {
-            setSelectedCategory(COMPETITION_CATEGORIES[0].id);
+            setSelectedCategory(categories[0].id);
         }
-    }, [selectedCategory, activeTab]);
+    }, [selectedCategory, activeTab, categories]);
 
     return (
         <div className="min-h-screen bg-background">
@@ -65,7 +58,7 @@ export default function AdminTeamsPage() {
                             onClick={() => {
                                 setActiveTab(tab.id as any);
                                 if (tab.id === 'order' && selectedCategory === 'all') {
-                                    setSelectedCategory(COMPETITION_CATEGORIES[0].id);
+                                    setSelectedCategory(categories[0].id);
                                 }
                             }}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id

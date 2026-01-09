@@ -2,33 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Plus, Send, Radio, Users, Target } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
-const ANNOUNCEMENT_TYPES = [
-    { value: 'info', label: 'Info', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
-    { value: 'warning', label: 'Warning', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
-    { value: 'success', label: 'Success', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
-    { value: 'urgent', label: 'Urgent', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
-];
-
-const VISIBILITY_OPTIONS = [
-    { value: 'all', label: 'All Users' },
-    { value: 'teams', label: 'Teams Only' },
-    { value: 'judges', label: 'Judges Only' },
-    { value: 'admins', label: 'Admins Only' },
-];
-
-const COMPETITIONS = [
-    { id: 'all', title: 'Global (All Competitions)' },
-    { id: '1', title: 'Junior Line Follower' },
-    { id: '2', title: 'Junior All Terrain' },
-    { id: '3', title: 'Line Follower' },
-    { id: '4', title: 'All Terrain' },
-    { id: '5', title: 'Fight (Battle Robots)' },
-];
+// Local imports
+import { InfoBox, AnnouncementForm } from './components';
+import { publishAnnouncement } from './services/announcementService';
+import { AnnouncementFormData } from './types';
 
 export default function AnnouncementsPage() {
     const [session, setSession] = useState<any>(null);
@@ -36,7 +17,7 @@ export default function AnnouncementsPage() {
     const [submitting, setSubmitting] = useState(false);
     const router = useRouter();
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<AnnouncementFormData>({
         title: '',
         message: '',
         type: 'info',
@@ -59,15 +40,7 @@ export default function AnnouncementsPage() {
         setSubmitting(true);
 
         try {
-            const { error } = await supabase.from('announcements').insert({
-                title: formData.title,
-                message: formData.message,
-                type: formData.type,
-                visible_to: formData.visibleTo,
-                competition_id: formData.competitionId === 'all' ? null : parseInt(formData.competitionId),
-            });
-
-            if (error) throw error;
+            await publishAnnouncement(formData);
 
             setFormData({
                 title: '',
@@ -76,6 +49,7 @@ export default function AnnouncementsPage() {
                 visibleTo: 'all',
                 competitionId: 'all',
             });
+            alert('Announcement published successfully');
         } catch (err) {
             console.error('Failed to publish announcement:', err);
             alert('Failed to publish announcement');
@@ -113,26 +87,8 @@ export default function AnnouncementsPage() {
                     </div>
                 </motion.div>
 
-                {/* Info Box */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                    className="mb-8 p-6 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-4 items-start backdrop-blur-sm"
-                >
-                    <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
-                        <Radio size={20} className="text-blue-500" />
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-black uppercase tracking-wide text-blue-500 mb-1">Live Broadcast System</h4>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            Announcements are pushed in real-time to all connected users matching your visibility criteria.
-                            Users will immediately see a notification banner at the top of their dashboard.
-                        </p>
-                    </div>
-                </motion.div>
+                <InfoBox />
 
-                {/* Create Announcement Form */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -146,115 +102,12 @@ export default function AnnouncementsPage() {
                         </h2>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        <div className="grid md:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-1 mb-2 block">
-                                        Title
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.title}
-                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        placeholder="e.g., Match Schedule Update"
-                                        className="w-full px-5 py-3 bg-muted/20 border border-card-border rounded-xl text-foreground placeholder:text-muted-foreground/50 font-bold focus:outline-none focus:border-role-primary/50 focus:bg-muted/30 transition-all"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-1 mb-2 block">
-                                        Type
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {ANNOUNCEMENT_TYPES.map((type) => (
-                                            <button
-                                                key={type.value}
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, type: type.value })}
-                                                className={`px-4 py-3 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${formData.type === type.value
-                                                    ? type.color + ' ring-1 ring-inset ring-current'
-                                                    : 'bg-muted/10 border-transparent text-muted-foreground hover:bg-muted/20'
-                                                    }`}
-                                            >
-                                                {type.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-1 mb-2 block">
-                                        Visibility
-                                    </label>
-                                    <div className="relative">
-                                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                                        <select
-                                            value={formData.visibleTo}
-                                            onChange={(e) => setFormData({ ...formData, visibleTo: e.target.value })}
-                                            className="w-full pl-11 pr-5 py-3 bg-muted/20 border border-card-border rounded-xl text-foreground font-bold appearance-none focus:outline-none focus:border-role-primary/50 transition-all"
-                                            required
-                                        >
-                                            {VISIBILITY_OPTIONS.map((option) => (
-                                                <option key={option.value} value={option.value} className="text-black">
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-1 mb-2 block">
-                                        Target Competition
-                                    </label>
-                                    <div className="relative">
-                                        <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                                        <select
-                                            value={formData.competitionId}
-                                            onChange={(e) => setFormData({ ...formData, competitionId: e.target.value })}
-                                            className="w-full pl-11 pr-5 py-3 bg-muted/20 border border-card-border rounded-xl text-foreground font-bold appearance-none focus:outline-none focus:border-role-primary/50 transition-all"
-                                            required
-                                        >
-                                            {COMPETITIONS.map((comp) => (
-                                                <option key={comp.id} value={comp.id} className="text-black">
-                                                    {comp.title}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-1 mb-2 block">
-                                Message Body
-                            </label>
-                            <textarea
-                                value={formData.message}
-                                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                                placeholder="Enter your detailed announcement message here..."
-                                rows={6}
-                                className="w-full px-5 py-4 bg-muted/20 border border-card-border rounded-xl text-foreground placeholder:text-muted-foreground/50 font-medium focus:outline-none focus:border-role-primary/50 focus:bg-muted/30 transition-all resize-none leading-relaxed"
-                                required
-                            />
-                        </div>
-
-                        <div className="pt-4 border-t border-card-border/50">
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="w-full py-4 bg-gradient-to-r from-role-primary to-role-secondary text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-role-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-sm"
-                            >
-                                <Send size={18} />
-                                {submitting ? 'Broadcasting...' : 'Broadcast Announcement'}
-                            </button>
-                        </div>
-                    </form>
+                    <AnnouncementForm
+                        formData={formData}
+                        setFormData={setFormData}
+                        onSubmit={handleSubmit}
+                        submitting={submitting}
+                    />
                 </motion.div>
             </div>
         </div>

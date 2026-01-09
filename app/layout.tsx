@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NotificationBanner from "@/components/NotificationBanner";
 import DevTools from "@/components/DevTools";
-import { ThemeProvider } from "@/components/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,18 +30,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <div className="relative min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
-            {children}
-            <NotificationBanner />
-            <DevTools />
-          </div>
-        </ThemeProvider>
+        <div className="relative min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+          {children}
+          <NotificationBanner />
+          <DevTools />
+        </div>
       </body>
     </html>
   );

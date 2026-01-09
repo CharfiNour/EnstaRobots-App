@@ -65,57 +65,7 @@
 }
 
 /* ================================
-   DARK MODE OVERRIDES
-   ================================ */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0c;
-    --foreground: #f1f5f9;
-
-    --color-muted: #1e293b;
-    --color-muted-foreground: #94a3b8;
-
-    --color-card: #111113;
-    --color-card-foreground: #f1f5f9;
-    --color-card-border: #1e293b;
-
-    --color-brand-accent: #00e5ff;
-
-    --color-input: rgba(255, 255, 255, 0.05);
-    --color-input-border: #1e293b;
-    --color-input-focus: #00e5ff;
-
-    --color-navbar: rgba(2, 6, 23, 0.8);
-    --color-navbar-border: #1e293b;
-  }
-}
-
-/* ================================
-   DARK CLASS (Toggleable)
-   ================================ */
-.dark {
-  --background: #0a0a0c;
-  --foreground: #f1f5f9;
-
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
-
-  --color-card: #111113;
-  --color-card-foreground: #f1f5f9;
-  --color-card-border: #1e293b;
-
-  --color-brand-accent: #00e5ff;
-
-  --color-input: rgba(255, 255, 255, 0.05);
-  --color-input-border: #1e293b;
-  --color-input-focus: #00e5ff;
-
-  --color-navbar: rgba(2, 6, 23, 0.8);
-  --color-navbar-border: #1e293b;
-}
-
-/* ================================
-   MAP TO TAILWIND / THEME
+   BODY STYLING
    ================================ */
 @theme inline {
   --color-background: var(--background);

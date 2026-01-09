@@ -2,27 +2,13 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Save, ArrowLeft } from 'lucide-react';
+import { Trophy, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-const CATEGORIES = [
-    { value: 'junior_line_follower', label: 'Junior Line Follower' },
-    { value: 'junior_all_terrain', label: 'Junior All Terrain' },
-    { value: 'line_follower', label: 'Line Follower' },
-    { value: 'all_terrain', label: 'All Terrain' },
-    { value: 'fight', label: 'Fight (Battle Robots)' },
-];
-
-const STATUSES = [
-    { value: 'upcoming', label: 'Upcoming' },
-    { value: 'qualifiers', label: 'Qualifiers' },
-    { value: 'group_stage', label: 'Group Stage' },
-    { value: 'knockout', label: 'Knockout' },
-    { value: 'finals', label: 'Finals' },
-    { value: 'completed', label: 'Completed' },
-];
+// Local imports
+import { CompetitionForm } from '../components';
 
 export default function CreateCompetitionPage() {
     const router = useRouter();
@@ -86,79 +72,13 @@ export default function CreateCompetitionPage() {
                     transition={{ delay: 0.1 }}
                     className="bg-[var(--color-card)] border border-[var(--color-card-border)] rounded-xl p-6"
                 >
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Competition Title
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                placeholder="e.g., Senior Line Follower 2024"
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
-                                required
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Category
-                            </label>
-                            <select
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
-                                required
-                            >
-                                {CATEGORIES.map((cat) => (
-                                    <option key={cat.value} value={cat.value}>
-                                        {cat.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Status
-                            </label>
-                            <select
-                                value={formData.status}
-                                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
-                                required
-                            >
-                                {STATUSES.map((status) => (
-                                    <option key={status.value} value={status.value}>
-                                        {status.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Description
-                            </label>
-                            <textarea
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="Brief description of the competition..."
-                                rows={4}
-                                className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all resize-none"
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="w-full px-6 py-3 bg-[var(--color-accent)] text-[var(--background)] rounded-lg font-bold text-lg shadow-lg shadow-[var(--color-accent)]/50 hover:shadow-[var(--color-accent)]/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                            <Save size={20} />
-                            {submitting ? 'Creating...' : 'Create Competition'}
-                        </button>
-                    </form>
+                    <CompetitionForm
+                        formData={formData}
+                        setFormData={setFormData}
+                        onSubmit={handleSubmit}
+                        submitting={submitting}
+                        submitLabel="Create Competition"
+                    />
                 </motion.div>
             </div>
         </div>
