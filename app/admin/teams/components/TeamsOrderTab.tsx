@@ -97,13 +97,13 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
                         <button
                             onClick={handleToggleOrder}
                             className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all active:scale-95 ${isOrdered
-                                    ? 'bg-accent text-slate-900 border-accent shadow-lg shadow-accent/20'
-                                    : 'bg-muted/30 text-muted-foreground border-card-border hover:border-accent/30 hover:text-foreground'
+                                ? 'bg-accent text-slate-900 border-accent shadow-lg shadow-accent/20'
+                                : 'bg-muted/30 text-muted-foreground border-card-border hover:border-accent/30 hover:text-foreground'
                                 }`}
                         >
                             <CheckCircle2 size={16} className={isOrdered ? 'animate-pulse' : ''} />
                             <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-                                {isOrdered ? 'List is Ordered' : 'Set as Ordered'}
+                                {isOrdered ? 'Order is confirmed' : 'Confirm Order'}
                             </span>
                         </button>
                     </div>
@@ -134,33 +134,73 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
                 </div>
             </div>
 
-            <div className="space-y-3">
-                {mainDisplayTeams.map((team, index) => (
-                    <motion.div
-                        key={team.id}
-                        layout
-                        className={`bg-card border p-3 rounded-2xl flex items-center gap-4 transition-all ${team.isPlaceholder ? 'border-dashed border-card-border/60 opacity-60' : 'border-card-border hover:border-accent/30'}`}
-                    >
-                        <div className="bg-muted px-3 py-1.5 rounded-lg text-muted-foreground font-mono text-sm font-bold w-12 text-center">
-                            #{index + 1}
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-muted border border-card-border overflow-hidden flex-shrink-0">
-                            {team.logo && <img src={team.logo} className="w-full h-full object-cover" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="font-bold text-base truncate italic">{team.robotName || team.name}</div>
-                            <div className="text-xs text-muted-foreground font-bold flex items-center gap-1.5">
-                                <span className="uppercase tracking-wide opacity-70">{team.club}</span>
-                                <span className="w-1 h-1 bg-muted-foreground/30 rounded-full"></span>
-                                <span className="opacity-60">{team.university || 'No University'}</span>
+            <div className="space-y-4">
+                {mainDisplayTeams.map((team, index) => {
+                    const compConfig = COMPETITION_CATEGORIES.find(c => c.id === team.competition);
+                    return (
+                        <motion.div
+                            key={team.id}
+                            layout
+                            transition={{
+                                layout: { type: "spring", stiffness: 600, damping: 35 },
+                                opacity: { duration: 0.2 }
+                            }}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`group relative bg-card/40 backdrop-blur-md border border-card-border p-3 rounded-2xl flex items-center gap-4 transition-all hover:bg-muted/30 hover:shadow-2xl hover:shadow-accent/5 ${team.isPlaceholder ? 'border-dashed opacity-50' : 'hover:border-accent/40'}`}
+                        >
+                            {/* Rank Indicator */}
+                            <div className="relative flex-shrink-0">
+                                <div className="w-12 h-12 rounded-xl bg-muted border border-card-border flex flex-col items-center justify-center font-black shadow-inner">
+                                    <span className="text-[9px] text-muted-foreground/40 uppercase leading-none mb-1">POS</span>
+                                    <span className="text-lg text-foreground italic leading-none">{index + 1}</span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <button onClick={() => moveTeamAcrossFiltered(index, 'up')} disabled={index === 0} className="p-1.5 bg-muted hover:bg-accent hover:text-white rounded-lg text-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ArrowUp size={16} /></button>
-                            <button onClick={() => moveTeamAcrossFiltered(index, 'down')} disabled={index === mainDisplayTeams.length - 1} className="p-1.5 bg-muted hover:bg-accent hover:text-white rounded-lg text-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ArrowDown size={16} /></button>
-                        </div>
-                    </motion.div>
-                ))}
+
+                            {/* Team Identity */}
+                            <div className="w-12 h-12 rounded-xl bg-muted border border-card-border overflow-hidden flex-shrink-0 shadow-sm transition-transform group-hover:scale-105">
+                                {team.logo ? (
+                                    <img src={team.logo} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 font-black text-lg italic uppercase">
+                                        {team.id.slice(-2)}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-extrabold text-base truncate italic uppercase text-foreground leading-none tracking-tight mb-1">
+                                    {team.robotName || team.name}
+                                </h3>
+                                <div className="text-[10px] text-muted-foreground font-bold flex items-center gap-2 uppercase tracking-wide opacity-70">
+                                    <span className="text-accent/80 italic">{team.club}</span>
+                                    <span className="w-1 h-1 bg-muted-foreground/30 rounded-full"></span>
+                                    <span className="truncate">{team.university || 'Sector Unassigned'}</span>
+                                </div>
+                            </div>
+
+                            {/* Dynamic Actions */}
+                            <div className={`flex flex-col gap-1 transition-all duration-300 ${isOrdered ? 'opacity-20 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0'}`}>
+                                <button
+                                    onClick={() => moveTeamAcrossFiltered(index, 'up')}
+                                    disabled={index === 0 || isOrdered}
+                                    className="p-1.5 bg-card hover:bg-accent hover:text-white rounded-lg text-muted-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+                                    title={isOrdered ? "Order Locked" : "Prioritize Unit"}
+                                >
+                                    <ArrowUp size={14} strokeWidth={3} />
+                                </button>
+                                <button
+                                    onClick={() => moveTeamAcrossFiltered(index, 'down')}
+                                    disabled={index === mainDisplayTeams.length - 1 || isOrdered}
+                                    className="p-1.5 bg-card hover:bg-accent hover:text-white rounded-lg text-muted-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+                                    title={isOrdered ? "Order Locked" : "De-prioritize Unit"}
+                                >
+                                    <ArrowDown size={14} strokeWidth={3} />
+                                </button>
+                            </div>
+                        </motion.div>
+                    );
+                })}
             </div>
         </div>
     );

@@ -1,6 +1,7 @@
 
 export interface CompetitionState {
     activeTeamId: string | null;
+    activeCompetitionId: string | null; // Tracks which competition category is currently live
     isLive: boolean; // True when judge pressed Start
     currentPhase: string | null;
     startTime: number | null;
@@ -12,6 +13,7 @@ const STATE_STORAGE_KEY = 'enstarobots_competition_state_v1';
 
 export const INITIAL_STATE: CompetitionState = {
     activeTeamId: null,
+    activeCompetitionId: null,
     isLive: false,
     currentPhase: null,
     startTime: null,
@@ -68,9 +70,10 @@ export function toggleProfilesLock() {
     updateCompetitionState({ profilesLocked: !state.profilesLocked });
 }
 
-export function startLiveSession(teamId: string, phase: string) {
+export function startLiveSession(teamId: string, competitionId: string, phase: string) {
     updateCompetitionState({
         activeTeamId: teamId,
+        activeCompetitionId: competitionId,
         isLive: true,
         currentPhase: phase,
         startTime: Date.now()
@@ -80,9 +83,6 @@ export function startLiveSession(teamId: string, phase: string) {
 export function stopLiveSession() {
     updateCompetitionState({
         isLive: false,
-        // Keep activeTeamId for reference until next start? Or clear it?
-        // User says: "jump to the next team card after the score card gets submitted"
-        // So we might want to update activeTeamId to the *next* one effectively, or just clear live status.
-        // Let's just unset live for now.
+        activeCompetitionId: null,
     });
 }

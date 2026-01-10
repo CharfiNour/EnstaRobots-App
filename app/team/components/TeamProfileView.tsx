@@ -405,77 +405,82 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                             return (
                                                 <div
                                                     key={originalIndex}
-                                                    className="flex items-center gap-4 h-14 px-4 rounded-2xl border border-card-border bg-muted/30 shrink-0 transition-all hover:bg-muted/40"
+                                                    className={`flex items-center justify-between p-3 bg-muted/30 rounded-2xl border transition-all group ${isEditing ? 'border-card-border/70' : 'border-card-border/50 hover:border-role-primary/30'}`}
                                                 >
-                                                    {/* Icon */}
-                                                    <div
-                                                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm
-                                                            ${member.isLeader
-                                                                ? 'bg-yellow-400 text-slate-900'
-                                                                : 'bg-card text-muted-foreground'
-                                                            }`}
-                                                    >
-                                                        {member.isLeader ? (
-                                                            <Crown size={14} />
-                                                        ) : (
-                                                            <span className="text-xs font-bold uppercase">
-                                                                {member.name.charAt(0) || '?'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Text */}
-                                                    <div className="flex-1 flex items-center justify-between min-w-0 gap-4">
-                                                        {isEditing ? (
-                                                            <input
-                                                                className="h-8 py-0 bg-transparent border-none outline-none font-bold text-sm text-foreground truncate min-w-0 w-full"
-                                                                value={member.name}
-                                                                placeholder="Member Name"
-                                                                onChange={(e) =>
-                                                                    updateMember(originalIndex, 'name', e.target.value)
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <span className="text-sm font-bold truncate leading-none">
-                                                                {member.name}
-                                                            </span>
-                                                        )}
-
-                                                        {isEditing ? (
-                                                            <input
-                                                                className="h-8 py-0 bg-transparent border-none outline-none text-[10px] uppercase font-black tracking-widest text-muted-foreground/70 w-24 text-right shrink-0"
-                                                                value={member.isLeader ? 'LEADER' : member.role}
-                                                                placeholder="Role"
-                                                                onChange={(e) =>
-                                                                    updateMember(originalIndex, 'role', e.target.value)
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <span className="text-[10px] font-black uppercase text-muted-foreground/70 shrink-0 leading-none tracking-widest">
-                                                                {member.isLeader ? 'LEADER' : member.role}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Actions */}
-                                                    {isEditing && (
-                                                        <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                            <button
-                                                                onClick={() =>
-                                                                    updateMember(originalIndex, 'isLeader', !member.isLeader)
-                                                                }
-                                                                className="p-1.5 rounded-lg hover:bg-yellow-400/20 text-yellow-400 flex items-center justify-center transition-colors"
-                                                            >
+                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                        {/* Icon */}
+                                                        <div
+                                                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-colors
+                                                                ${member.isLeader
+                                                                    ? 'bg-yellow-500 text-slate-900'
+                                                                    : 'bg-card border border-card-border text-muted-foreground'
+                                                                }`}
+                                                        >
+                                                            {member.isLeader ? (
                                                                 <Crown size={14} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => removeMember(originalIndex)}
-                                                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg flex items-center justify-center transition-colors"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
+                                                            ) : (
+                                                                <span className="text-xs font-bold uppercase transition-colors">
+                                                                    {member.name.charAt(0) || '?'}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                    )}
+
+                                                        {/* Name/Edit Input */}
+                                                        <div className="min-w-0 flex-1">
+                                                            {isEditing ? (
+                                                                <input
+                                                                    className="w-full h-8 bg-transparent border-none outline-none font-bold text-sm text-foreground placeholder:opacity-30"
+                                                                    value={member.name}
+                                                                    placeholder="Unit Name"
+                                                                    onChange={(e) =>
+                                                                        updateMember(originalIndex, 'name', e.target.value)
+                                                                    }
+                                                                />
+                                                            ) : (
+                                                                <div className="font-bold text-sm text-foreground group-hover:text-role-primary transition-colors truncate">
+                                                                    {member.name}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Role Badge/Edit Input */}
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {isEditing ? (
+                                                            <div className="flex items-center gap-1 bg-card/50 px-2 py-1 rounded-xl border border-card-border/50">
+                                                                <input
+                                                                    className="w-20 bg-transparent border-none outline-none text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 text-right"
+                                                                    value={member.isLeader ? 'LEADER' : member.role}
+                                                                    placeholder="ROLE"
+                                                                    onChange={(e) =>
+                                                                        updateMember(originalIndex, 'role', e.target.value)
+                                                                    }
+                                                                />
+                                                                <button
+                                                                    onClick={() => updateMember(originalIndex, 'isLeader', !member.isLeader)}
+                                                                    className={`p-1 rounded-lg transition-colors ${member.isLeader ? 'text-yellow-500 bg-yellow-500/10' : 'text-muted-foreground hover:bg-muted'}`}
+                                                                >
+                                                                    <Crown size={12} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => removeMember(originalIndex)}
+                                                                    className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            member.isLeader ? (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 bg-yellow-500 px-2 py-0.5 rounded-full border border-yellow-600 shadow-sm animate-pulse">
+                                                                    Leader
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground bg-card px-2 py-0.5 rounded border border-card-border">
+                                                                    {member.role || 'Member'}
+                                                                </span>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}

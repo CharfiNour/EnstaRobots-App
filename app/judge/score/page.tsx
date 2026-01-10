@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { saveScoreOffline, calculateTotalPoints, getOfflineScores } from '@/lib/offlineScores';
 import { getTeams, Team } from '@/lib/teams';
 import { startLiveSession, stopLiveSession, getCompetitionState } from '@/lib/competitionState';
+import { updateCompetitionStatus } from '../../admin/competitions/services/competitionService';
 
 // Local project structure imports
 import {
@@ -79,11 +80,22 @@ export default function ScoreCardPage() {
         const syncState = () => {
             const state = getCompetitionState();
             setIsLive(state.isLive);
+
+            // Sync current competition if live
+            if (state.isLive && state.activeCompetitionId) {
+                const liveComp = COMPETITIONS.find(c => c.value === state.activeCompetitionId);
+                if (liveComp) setCompetition(liveComp);
+            }
+
             if (state.isLive && state.activeTeamId) {
                 setTeams(prev => {
+                    if (prev[0] && prev[0].id === state.activeTeamId) return prev;
                     const copy = [...prev];
-                    if (copy[0] && !copy[0].id) copy[0].id = state.activeTeamId!;
-                    return copy;
+                    if (copy[0]) {
+                        copy[0].id = state.activeTeamId!;
+                        return copy;
+                    }
+                    return prev;
                 });
             }
         };
@@ -102,25 +114,31 @@ export default function ScoreCardPage() {
     useEffect(() => {
         const filtered = allTeams.filter(t => t.competition === competition.value);
         setCompetitionTeams(filtered);
-        // If we have teams and the current input is empty, pre-fill with the first team
-        if (filtered.length > 0 && !teams[0].id && !isLive) {
-            setCurrentTeamIndex(0);
-            const newTeams = [...teams];
-            newTeams[0].id = filtered[0].id;
 
-            // Check for phase too for the first team
+        // If we have teams and the current input is empty, pre-fill with the first team (if NOT live)
+        if (filtered.length > 0 && teams[0] && !teams[0].id && !isLive) {
+            const nextTeam = filtered[0];
+            let targetPhase = teams[0].phase;
+
             if (isLineFollower) {
                 const existingScores = getOfflineScores();
                 const hasEssay1 = existingScores.some(s =>
-                    s.teamId === filtered[0].id &&
+                    s.teamId === nextTeam.id &&
                     s.competitionType === competition.value &&
                     s.phase === 'essay_1'
                 );
-                newTeams[0].phase = hasEssay1 ? 'essay_2' : 'essay_1';
+                targetPhase = hasEssay1 ? 'essay_2' : 'essay_1';
             }
-            setTeams(newTeams);
+
+            // Only update if something actually changed
+            if (teams[0].id !== nextTeam.id || teams[0].phase !== targetPhase) {
+                setCurrentTeamIndex(0);
+                const newTeams = [...teams];
+                newTeams[0] = { ...newTeams[0], id: nextTeam.id, phase: targetPhase };
+                setTeams(newTeams);
+            }
         }
-    }, [competition, allTeams, isLive, isLineFollower, teams]);
+    }, [competition, allTeams, isLive, isLineFollower]); // Removed 'teams' dependency to break possible loops and added careful manual checks if needed
 
     useEffect(() => {
         const currentSession = getSession();
@@ -157,20 +175,32 @@ export default function ScoreCardPage() {
         }
     }, [competition, isLineFollower]);
 
+    // Sync globalPhase changes to global state if live (for non-LF)
+    useEffect(() => {
+        if (isLive && !isLineFollower && teams[0]?.id) {
+            const state = getCompetitionState();
+            if (state.currentPhase !== globalPhase) {
+                startLiveSession(teams[0].id, competition.value, globalPhase);
+            }
+        }
+    }, [globalPhase, isLive, isLineFollower, competition.value, teams]);
+
     // Update number of teams for non-LF
     useEffect(() => {
         if (!isLineFollower) {
-            const newTeams = [...teams];
-            if (numberOfTeams > newTeams.length) {
-                while (newTeams.length < numberOfTeams) {
-                    newTeams.push({ id: '', status: 'qualified' });
+            if (numberOfTeams !== teams.length) {
+                const newTeams = [...teams];
+                if (numberOfTeams > newTeams.length) {
+                    while (newTeams.length < numberOfTeams) {
+                        newTeams.push({ id: '', status: 'qualified' });
+                    }
+                } else if (numberOfTeams < newTeams.length) {
+                    newTeams.splice(numberOfTeams);
                 }
-            } else if (numberOfTeams < newTeams.length) {
-                newTeams.splice(numberOfTeams);
+                setTeams(newTeams);
             }
-            setTeams(newTeams);
         }
-    }, [numberOfTeams, isLineFollower, teams]);
+    }, [numberOfTeams, isLineFollower, teams.length]); // Use teams.length as dependency instead of teams array reference
 
     const handleNextCard = () => {
         if (competitionTeams.length === 0) return;
@@ -199,6 +229,11 @@ export default function ScoreCardPage() {
         }
 
         setTeams(newTeams);
+
+        if (isLive) {
+            const phase = isLineFollower ? (newTeams[0].phase || 'essay_1') : globalPhase;
+            startLiveSession(newTeams[0].id, competition.value, phase);
+        }
     };
 
     const handleStartMatch = () => {
@@ -207,13 +242,20 @@ export default function ScoreCardPage() {
         if (activeTeamId) {
             setIsLive(true);
             const phase = isLineFollower ? (teams[0].phase || 'essay_1') : globalPhase;
-            startLiveSession(activeTeamId, phase);
+            startLiveSession(activeTeamId, competition.value, phase);
         } else {
             alert("Please select a team or ensure teams are loaded.");
         }
     };
 
     const handleEndMatch = () => {
+        // Mark the current phase as completed on the public board
+        const currentPhaseVal = isLineFollower ? (teams[0].phase || 'essay_1') : globalPhase;
+        const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
+        const phaseLabel = allPhases.find(p => p.value === currentPhaseVal)?.label || currentPhaseVal;
+
+        updateCompetitionStatus(competition.value, `${phaseLabel} Completed`);
+
         stopLiveSession();
         setIsLive(false);
     };
@@ -238,7 +280,17 @@ export default function ScoreCardPage() {
         }
 
         setTeams(newTeams);
+
+        // Immediate Live Sync if the first team (active team) changes
+        if (isLive && index === 0 && (field === 'id' || field === 'phase')) {
+            const activeId = field === 'id' ? value : newTeams[0].id;
+            const phase = isLineFollower ? (field === 'phase' ? value : newTeams[0].phase) : globalPhase;
+            if (activeId) {
+                startLiveSession(activeId, competition.value, phase!);
+            }
+        }
     };
+
 
     // Check if a phase has already been submitted for a team
     const isPhaseSubmitted = (teamId: string, phase: string): boolean => {

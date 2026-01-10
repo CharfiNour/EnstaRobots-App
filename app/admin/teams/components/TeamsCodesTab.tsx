@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Plus, Check, X, Trash2, ChevronDown
+    Plus, Check, X, Trash2, ChevronDown, Shield
 } from 'lucide-react';
 import { Team, addClubSlots, deleteTeam, deleteClub } from '@/lib/teams';
 
@@ -81,7 +81,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                         <select
                             value={selectedClub}
                             onChange={(e) => setSelectedClub(e.target.value)}
-                            className="w-full pl-4 pr-10 py-2.5 bg-muted/50 border border-card-border rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-accent/50 appearance-none cursor-pointer text-foreground"
+                            className="w-full pl-4 pr-10 py-2.5 bg-muted/50 border border-card-border rounded-xl text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-accent/50 appearance-none cursor-pointer text-foreground/80"
                         >
                             <option value="all">All Clubs</option>
                             {Object.keys(groupedTeams).sort().map(club => (
@@ -135,61 +135,84 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                 </div>
             </div>
 
-            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-10 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
                 {Object.entries(groupedTeams)
                     .filter(([club]) => selectedClub === 'all' || club === selectedClub)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([club, clubTeams]) => (
-                        <div key={club} className="space-y-4">
-                            <div className="flex items-center gap-3 py-2">
-                                <h3 className="font-bold text-lg tracking-tight uppercase italic">{club}</h3>
-                                <div className="h-px bg-card-border flex-1" />
-                                <button onClick={() => handleAddSlotToClub(club)} className="text-[10px] font-bold uppercase text-accent bg-accent/10 px-3.5 py-2 rounded-lg hover:bg-accent/20 transition-all flex items-center gap-1.5">Add Slot</button>
-                                <button onClick={() => handleDeleteClub(club)} className="text-[10px] font-bold uppercase text-red-500 bg-red-500/10 px-3.5 py-2 rounded-lg hover:bg-red-500/20 flex items-center justify-center"><Trash2 size={14} /></button>
+                        <div key={club} className="space-y-5">
+                            <div className="flex items-center gap-4 py-2 sticky top-0 bg-background/80 backdrop-blur-sm z-10 px-2 rounded-xl">
+                                <div className="p-2 bg-accent/10 rounded-lg border border-accent/20">
+                                    <Shield size={18} className="text-accent" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h3 className="font-bold text-lg tracking-tight uppercase italic text-foreground/90 leading-none">{club}</h3>
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground opacity-40 mt-1.5">{clubTeams.length} Active Nodes</span>
+                                </div>
+                                <div className="h-px bg-card-border flex-1 ml-2 opacity-30" />
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => handleAddSlotToClub(club)} className="text-[10px] font-bold uppercase text-accent/80 bg-accent/5 px-4 py-2 rounded-xl border border-accent/10 hover:bg-accent/10 transition-all flex items-center gap-2">
+                                        <Plus size={14} />
+                                        Add Team
+                                    </button>
+                                    <button onClick={() => handleDeleteClub(club)} className="p-2 text-red-500/80 bg-red-500/5 border border-red-500/10 rounded-xl hover:bg-red-500/10 transition-all">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex flex-col gap-3">
                                 {clubTeams.map((team, idx) => {
                                     const compConfig = COMPETITION_CATEGORIES.find(c => c.id === team.competition);
                                     return (
-                                        <div key={team.id} className="bg-card border border-card-border p-4 rounded-xl flex items-center justify-between group shadow-sm hover:border-accent/40 transition-all hover:bg-muted/30">
+                                        <motion.div
+                                            key={team.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className="bg-card/40 backdrop-blur-md border border-card-border p-4 rounded-2xl flex items-center justify-between group shadow-sm hover:border-accent/40 transition-all hover:bg-muted/40"
+                                        >
                                             <div className="flex items-center gap-4 min-w-0 flex-1">
-                                                <div className="w-12 h-12 rounded-xl bg-muted border border-card-border flex items-center justify-center font-bold text-xs text-muted-foreground shrink-0 overflow-hidden">
+                                                <div className="w-12 h-12 rounded-xl bg-muted border border-card-border flex items-center justify-center font-black text-xs text-muted-foreground shrink-0 overflow-hidden shadow-inner">
                                                     {team.logo ? (
                                                         <img src={team.logo} className="w-full h-full object-cover" alt="" />
                                                     ) : (
-                                                        idx + 1
+                                                        <span className="opacity-40">{idx + 1}</span>
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                        <div className="font-bold text-sm truncate text-foreground">
-                                                            {team.robotName || 'Waiting for Profile...'}
+                                                        <div className="font-bold text-sm truncate text-foreground/90 tracking-tight uppercase">
+                                                            {team.robotName || 'Awaiting Profile...'}
                                                         </div>
-                                                        {compConfig && (
-                                                            <div className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border ${compConfig.color}`}>
+                                                        {compConfig ? (
+                                                            <div className={`px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-lg border ${compConfig.color}`}>
                                                                 {compConfig.name}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-lg border bg-muted/50 text-muted-foreground border-card-border">
+                                                                Unassigned
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                                                        <span className="truncate uppercase tracking-wide text-foreground/80">{team.club}</span>
+                                                    <div className="text-[10px] font-bold text-muted-foreground/60 flex items-center gap-2 flex-wrap uppercase italic tracking-wider">
+                                                        <span className="truncate">{team.club}</span>
                                                         <span className="w-1 h-1 bg-muted-foreground/30 rounded-full"></span>
-                                                        <span className="truncate opacity-70">{team.university || 'No University Assigned'}</span>
+                                                        <span className="truncate">{team.university || 'No Sector Assigned'}</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 shrink-0 ml-4">
-                                                <div className="bg-muted px-4 py-2 rounded-lg font-mono font-bold text-sm text-foreground border border-card-border shadow-inner tracking-wider">
+                                            <div className="flex items-center gap-4 shrink-0 ml-4">
+                                                <div className="bg-muted px-4 py-2 rounded-xl font-mono font-bold text-sm text-foreground/60 border border-card-border shadow-inner tracking-[0.2em]">
                                                     {team.code}
                                                 </div>
                                                 <button
                                                     onClick={() => handleDeleteTeam(team.id)}
-                                                    className="p-2 text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                    className="p-2 text-muted-foreground/20 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all border border-transparent hover:border-red-500/20"
                                                     title="Remove Team Node"
                                                 >
                                                     <X size={18} />
                                                 </button>
                                             </div>
-                                        </div>
+                                        </motion.div>
                                     );
                                 })}
                             </div>

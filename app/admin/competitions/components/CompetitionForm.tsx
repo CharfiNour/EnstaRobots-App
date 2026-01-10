@@ -1,7 +1,7 @@
 "use client";
 
 import { Save } from 'lucide-react';
-import { CATEGORIES, STATUSES } from '../services/competitionService';
+import { CATEGORIES, PHASES } from '../services/competitionService';
 
 interface CompetitionFormProps {
     formData: {
@@ -23,6 +23,9 @@ export default function CompetitionForm({
     submitting,
     submitLabel
 }: CompetitionFormProps) {
+    // Determine which phases to show based on current category selection
+    const currentPhases = formData.category.includes('line') ? PHASES.line : PHASES.standard;
+
     return (
         <form onSubmit={onSubmit} className="space-y-6">
             <div>
@@ -45,7 +48,15 @@ export default function CompetitionForm({
                 </label>
                 <select
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    onChange={(e) => {
+                        const newCat = e.target.value;
+                        const newPhases = newCat.includes('line') ? PHASES.line : PHASES.standard;
+                        setFormData({
+                            ...formData,
+                            category: newCat,
+                            status: newPhases[0] // Set to first available phase for the new category
+                        });
+                    }}
                     className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
                     required
                 >
@@ -59,17 +70,17 @@ export default function CompetitionForm({
 
             <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Status
+                    Current Phase
                 </label>
                 <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all"
+                    className="w-full px-4 py-3 bg-white/5 border border-[var(--color-card-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition-all uppercase text-xs tracking-widest font-black"
                     required
                 >
-                    {STATUSES.map((status) => (
-                        <option key={status.value} value={status.value}>
-                            {status.label}
+                    {currentPhases.map((phase) => (
+                        <option key={phase} value={phase} className="bg-slate-900">
+                            {phase}
                         </option>
                     ))}
                 </select>

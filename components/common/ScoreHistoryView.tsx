@@ -21,15 +21,22 @@ const COMPETITION_CATEGORIES = [
 interface ScoreHistoryViewProps {
     isSentToTeamOnly?: boolean;
     isAdmin?: boolean;
+    initialCompetition?: string;
+    showFilter?: boolean;
 }
 
-export default function ScoreHistoryView({ isSentToTeamOnly = false, isAdmin = false }: ScoreHistoryViewProps) {
+export default function ScoreHistoryView({
+    isSentToTeamOnly = false,
+    isAdmin = false,
+    initialCompetition = 'all',
+    showFilter = true
+}: ScoreHistoryViewProps) {
     const [loading, setLoading] = useState(true);
     const [groupedScores, setGroupedScores] = useState<any[]>([]);
     const [selectedGroup, setSelectedGroup] = useState<any>(null);
     const [activePhase, setActivePhase] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCompetition, setSelectedCompetition] = useState('all');
+    const [selectedCompetition, setSelectedCompetition] = useState(initialCompetition);
 
     const loadScores = (forceSelectId?: string) => {
         let offlineScores = getOfflineScores();
@@ -129,26 +136,28 @@ export default function ScoreHistoryView({ isSentToTeamOnly = false, isAdmin = f
             <div className="w-full lg:w-80 flex flex-col gap-6 shrink-0">
                 <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-6">
                     {/* Competition Selector */}
-                    <div>
-                        <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
-                            <Target size={12} className="text-role-primary" />
-                            Deployment Category
-                        </h2>
-                        <div className="relative group/select">
-                            <select
-                                value={selectedCompetition}
-                                onChange={(e) => setSelectedCompetition(e.target.value)}
-                                className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
-                            >
-                                {COMPETITION_CATEGORIES.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name.toUpperCase()}</option>
-                                ))}
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground group-hover/select:text-role-primary transition-colors">
-                                <ChevronRight size={14} className="rotate-90" />
+                    {showFilter && (
+                        <div>
+                            <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                                <Target size={12} className="text-role-primary" />
+                                Deployment Category
+                            </h2>
+                            <div className="relative group/select">
+                                <select
+                                    value={selectedCompetition}
+                                    onChange={(e) => setSelectedCompetition(e.target.value)}
+                                    className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
+                                >
+                                    {COMPETITION_CATEGORIES.map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground group-hover/select:text-role-primary transition-colors">
+                                    <ChevronRight size={14} className="rotate-90" />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Search and Teams List */}
                     <div>

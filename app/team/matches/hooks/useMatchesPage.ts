@@ -21,26 +21,29 @@ export function useMatchesPage() {
 
             const teams = getTeams();
 
-            // Current Team
+            // Current Team Logic: Competition-weighted position
             if (state.activeTeamId) {
-                const currentIdx = teams.findIndex(t => t.id === state.activeTeamId);
-                if (currentIdx !== -1) {
-                    setCurrentTeam({ ...teams[currentIdx], order: currentIdx + 1 });
+                const activeTeam = teams.find(t => t.id === state.activeTeamId);
+                if (activeTeam) {
+                    const compTeams = teams.filter(t => t.competition === activeTeam.competition);
+                    const currentIdx = compTeams.findIndex(t => t.id === state.activeTeamId);
 
-                    // Next Team (Looping)
-                    const nextIdx = (currentIdx + 1) % teams.length;
-                    setNextTeam({ ...teams[nextIdx], order: nextIdx + 1 });
+                    if (currentIdx !== -1) {
+                        setCurrentTeam({ ...activeTeam, order: currentIdx + 1 });
 
-                    // Next Phase Logic
-                    if (currentIdx === teams.length - 1) {
-                        const phases = ['Qualifiers', 'Group Stage', 'Knockout', 'Finals'];
-                        const currentPhaseIdx = phases.indexOf(state.currentPhase || 'Qualifiers');
-                        const nextPhaseName = currentPhaseIdx !== -1 && currentPhaseIdx < phases.length - 1
-                            ? phases[currentPhaseIdx + 1]
-                            : 'Next Stage';
-                        setNextPhase(nextPhaseName);
-                    } else {
-                        setNextPhase(null);
+                        const nextIdx = (currentIdx + 1) % compTeams.length;
+                        setNextTeam({ ...compTeams[nextIdx], order: nextIdx + 1 });
+
+                        if (currentIdx === compTeams.length - 1) {
+                            const phases = ['Qualifiers', 'Group Stage', 'Knockout', 'Finals'];
+                            const currentPhaseIdx = phases.indexOf(state.currentPhase || 'Qualifiers');
+                            const nextPhaseName = currentPhaseIdx !== -1 && currentPhaseIdx < phases.length - 1
+                                ? phases[currentPhaseIdx + 1]
+                                : 'Next Stage';
+                            setNextPhase(nextPhaseName);
+                        } else {
+                            setNextPhase(null);
+                        }
                     }
                 }
             } else {
@@ -55,9 +58,13 @@ export function useMatchesPage() {
 
         if (currentSession?.teamId) {
             const teams = getTeams();
-            const teamIndex = teams.findIndex(t => t.id === currentSession.teamId);
-            if (teamIndex !== -1) {
-                setTeamData({ ...teams[teamIndex], order: teamIndex + 1 });
+            const sessionTeam = teams.find(t => t.id === currentSession.teamId);
+            if (sessionTeam) {
+                const compTeams = teams.filter(t => t.competition === sessionTeam.competition);
+                const teamIndex = compTeams.findIndex(t => t.id === sessionTeam.id);
+                if (teamIndex !== -1) {
+                    setTeamData({ ...sessionTeam, order: teamIndex + 1 });
+                }
             }
         }
 

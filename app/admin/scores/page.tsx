@@ -33,30 +33,18 @@ export default function AdminScoresPage() {
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-muted/5 to-transparent pointer-events-none" />
             </div>
 
-            {/* Refined Admin Header */}
-            <header className="relative z-10 p-6 md:p-8 pt-10">
-                <div className="max-w-[1600px] mx-auto">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl md:text-5xl font-black text-foreground tracking-tighter uppercase italic flex items-center gap-4">
-                                <Shield className="w-12 h-12 text-role-primary" />
-                                Sc<span className="text-role-primary">ore</span> Registry
-                            </h1>
-                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.2em] mt-3 opacity-60 flex items-center gap-2">
-                                <Terminal size={14} className="text-role-primary" />
-                                Master record authority with elevated data permissions
-                            </p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <span className="flex items-center gap-2 bg-role-primary/10 px-4 py-2 rounded-xl border border-role-primary/20 shadow-sm">
-                                <Activity size={16} className="text-role-primary animate-pulse" />
-                                <span className="text-[11px] text-role-primary font-black tracking-widest uppercase italic">Operational Sync Active</span>
-                            </span>
-                        </div>
-                    </div>
+            {/* Header */}
+            <div className="container mx-auto px-6 py-8 md:py-12 max-w-7xl relative z-10">
+                <div className="mb-12">
+                    <h1 className="text-3xl font-extrabold flex items-center gap-3 italic uppercase text-foreground">
+                        <History className="w-8 h-8 text-accent" />
+                        Score Registry Console
+                    </h1>
+                    <p className="text-sm font-medium text-muted-foreground tracking-wide opacity-60 mt-2">
+                        Master record authority and live score synchronization
+                    </p>
                 </div>
-            </header>
+            </div>
 
             {/* Main Content Area */}
             <main className="relative z-10 px-6 md:px-8 pb-12 flex-1 flex flex-col">

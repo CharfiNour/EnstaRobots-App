@@ -89,11 +89,14 @@ export default function ScheduleCard({
 
                     <div className="grid grid-cols-2 gap-8">
                         <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">Phase Start</p>
-                            <p className="text-3xl font-black text-foreground tracking-tighter italic">{startTime}</p>
+                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">Current Turn</p>
+                            <div className="flex items-baseline gap-2">
+                                <Hash className="w-5 h-5 text-role-primary" />
+                                <p className="text-4xl font-black text-foreground tracking-tighter italic">{currentTeam?.order || '--'}</p>
+                            </div>
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">Queue Priority</p>
+                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">My Turn</p>
                             <div className="flex items-baseline gap-2">
                                 <Hash className="w-5 h-5 text-role-primary" />
                                 <p className="text-4xl font-black text-foreground tracking-tighter italic">{teamOrder}</p>

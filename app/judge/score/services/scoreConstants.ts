@@ -16,8 +16,9 @@ export const PHASES_LINE_FOLLOWER = [
 
 export const PHASES_DEFAULT = [
     { value: 'qualifications', label: 'Qualifications' },
-    { value: 'quarter_final', label: 'Quarter Final' },
-    { value: 'semi_final', label: 'Semi Final' },
+    { value: 'eighth_finals', label: '1/8 Finals' },
+    { value: 'quarter_finals', label: '1/4 Finals' },
+    { value: 'semi_finals', label: '1/2 Finals' },
     { value: 'final', label: 'Final' },
 ];
 

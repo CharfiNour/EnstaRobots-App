@@ -18,7 +18,7 @@ const COMPETITIONS = {
     '2': { title: 'Junior All Terrain', color: 'text-green-400', banner: 'bg-green-500/10' },
     '3': { title: 'Line Follower', color: 'text-purple-400', banner: 'bg-purple-500/10' },
     '4': { title: 'All Terrain', color: 'text-orange-400', banner: 'bg-orange-500/10' },
-    '5': { title: 'Fight (Battle Robots)', color: 'text-red-400', banner: 'bg-red-500/10' },
+    '5': { title: 'Fight', color: 'text-red-400', banner: 'bg-red-500/10' },
 };
 
 const MATCHES = [
@@ -39,33 +39,60 @@ export default function CompetitionDetailPage() {
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [compState, setCompState] = useState<CompetitionState>(INITIAL_STATE);
+    const [activeTeam, setActiveTeam] = useState<Team | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    const compId = params.id as string;
+    const CATEGORY_MAP: Record<string, string> = {
+        '1': 'junior_line_follower',
+        '2': 'junior_all_terrain',
+        '3': 'line_follower',
+        '4': 'all_terrain',
+        '5': 'fight'
+    };
+    const currentCategory = CATEGORY_MAP[compId];
 
     useEffect(() => {
-        // Load teams
-        const loadedTeams = getTeams();
-        setTeams(loadedTeams);
-        if (loadedTeams.length > 0) {
-            setSelectedTeam(loadedTeams[0]);
-        }
-
-        // Load and Listen for Competition State
-        setCompState(getCompetitionState());
-
+        setMounted(true);
         const handleStateUpdate = () => {
-            setCompState(getCompetitionState());
+            // Load and filter teams
+            const allTeams = getTeams();
+            const filteredTeams = allTeams.filter(t => t.competition === currentCategory);
+            setTeams(filteredTeams);
+
+            // Initial selection if none
+            if (filteredTeams.length > 0 && !selectedTeam) {
+                setSelectedTeam(filteredTeams[0]);
+            }
+
+            // Load State
+            const state = getCompetitionState();
+            setCompState(state);
+
+            // Load Active Team details
+            if (state.isLive && state.activeTeamId) {
+                const liveTeam = allTeams.find(t => t.id === state.activeTeamId);
+                setActiveTeam(liveTeam || null);
+            } else {
+                setActiveTeam(null);
+            }
         };
 
+        handleStateUpdate();
+
         window.addEventListener('competition-state-updated', handleStateUpdate);
-        window.addEventListener('storage', handleStateUpdate); // Cross-tab support
+        window.addEventListener('storage', handleStateUpdate);
 
         return () => {
             window.removeEventListener('competition-state-updated', handleStateUpdate);
             window.removeEventListener('storage', handleStateUpdate);
         };
-    }, []);
+    }, [compId, currentCategory]);
 
-    const compId = params.id as string;
     const competition = COMPETITIONS[compId as keyof typeof COMPETITIONS] || { title: 'Competition Details', color: 'text-accent', banner: 'bg-accent/5' };
+
+    // Logic to check if THIS specific competition is the one currently live
+    const isActuallyLive = compState.isLive && compState.activeCompetitionId === currentCategory;
 
     return (
         <div className="min-h-screen">
@@ -79,7 +106,7 @@ export default function CompetitionDetailPage() {
                     <div className="flex items-start gap-4">
                         <div className="relative">
                             <Trophy className={`w-10 h-10 md:w-12 md:h-12 ${competition.color} mt-1`} />
-                            {compState.isLive && (
+                            {mounted && isActuallyLive && (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]" />
                             )}
                         </div>
@@ -90,7 +117,7 @@ export default function CompetitionDetailPage() {
                             <div className="flex items-center gap-2 text-muted-foreground text-sm">
                                 <MapPin size={14} className="text-accent" />
                                 <span>Main Science Arena</span>
-                                {compState.isLive && (
+                                {mounted && isActuallyLive && (
                                     <span className="ml-2 px-2 py-0.5 bg-red-500/10 text-red-500 text-[10px] font-bold uppercase rounded border border-red-500/20 animate-pulse">
                                         LIVE NOW
                                     </span>
@@ -144,7 +171,7 @@ export default function CompetitionDetailPage() {
                                             }`}
                                     >
                                         {/* RED DOT INDICATOR */}
-                                        {compState.isLive && compState.activeTeamId === team.id && (
+                                        {mounted && compState.isLive && compState.activeTeamId === team.id && (
                                             <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)] z-10" />
                                         )}
 
@@ -197,7 +224,7 @@ export default function CompetitionDetailPage() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {compState.isLive && compState.activeTeamId === selectedTeam?.id && (
+                                                    {mounted && compState.isLive && compState.activeTeamId === selectedTeam?.id && (
                                                         <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full border-4 border-card animate-pulse shadow-lg" />
                                                     )}
                                                 </div>
