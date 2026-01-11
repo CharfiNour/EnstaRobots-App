@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Users, Trophy, Bell, Calendar, History } from "lucide-react";
+import { LayoutDashboard, LogOut, Users, Trophy, Bell, Calendar, History, Key } from "lucide-react";
 import { logout } from "@/lib/auth";
 
 export default function Header() {
@@ -64,8 +64,8 @@ export default function Header() {
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }`}>
                                 <span className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4" />
-                                    <span className="hidden sm:block">Matches</span>
+                                    <Key className="w-4 h-4" />
+                                    <span className="hidden sm:block">Codes</span>
                                 </span>
                             </div>
                         </Link>

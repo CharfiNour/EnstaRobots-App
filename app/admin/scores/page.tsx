@@ -33,9 +33,9 @@ export default function AdminScoresPage() {
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-muted/5 to-transparent pointer-events-none" />
             </div>
 
-            {/* Header */}
-            <div className="container mx-auto px-6 py-8 md:py-12 max-w-7xl relative z-10">
-                <div className="mb-12">
+            {/* Main Container */}
+            <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl relative z-10">
+                <div className="mb-10">
                     <h1 className="text-3xl font-extrabold flex items-center gap-3 italic uppercase text-foreground">
                         <History className="w-8 h-8 text-accent" />
                         Score Registry Console
@@ -44,14 +44,9 @@ export default function AdminScoresPage() {
                         Master record authority and live score synchronization
                     </p>
                 </div>
-            </div>
 
-            {/* Main Content Area */}
-            <main className="relative z-10 px-6 md:px-8 pb-12 flex-1 flex flex-col">
-                <div className="max-w-[1600px] mx-auto w-full flex-1 flex flex-col">
-                    <ScoreHistoryView isAdmin={true} />
-                </div>
-            </main>
+                <ScoreHistoryView isAdmin={true} />
+            </div>
 
             {/* Tactical Footer Overlay */}
             <div className="fixed bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-role-primary/30 to-transparent z-50 overflow-hidden">

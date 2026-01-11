@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Loader2, Shield } from 'lucide-react';
-import { loginWithEmail, getSession } from '@/lib/auth';
+import { loginWithStaffCode, getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function JudgeLoginPage() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
@@ -26,12 +25,10 @@ export default function JudgeLoginPage() {
         setError('');
         setLoading(true);
 
-        const result = await loginWithEmail(email, password);
+        const result = await loginWithStaffCode(code);
 
-        if (result.success && result.session?.role === 'judge') {
-            router.push('/judge');
-        } else if (result.success && result.session?.role === 'admin') {
-            router.push('/admin');
+        if (result.success && result.session) {
+            router.push(result.session.role === 'admin' ? '/admin' : '/judge');
         } else {
             setError(result.error || 'Invalid credentials or insufficient permissions');
             setLoading(false);
@@ -51,10 +48,10 @@ export default function JudgeLoginPage() {
                         <Shield className="w-8 h-8 text-accent" />
                     </div>
                     <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-                        Judge & Admin Login
+                        Staff Access
                     </h1>
                     <p className="text-muted-foreground">
-                        Sign in with your credentials
+                        Enter your secure access code
                     </p>
                 </motion.div>
 
@@ -67,37 +64,19 @@ export default function JudgeLoginPage() {
                 >
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-foreground/80 mb-2">
-                                Email Address
+                            <label htmlFor="code" className="block text-sm font-medium text-foreground/80 mb-2">
+                                Access Code
                             </label>
                             <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="judge@enstarobots.com"
-                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                                id="code"
+                                type="text"
+                                value={code}
+                                onChange={(e) => setCode(e.target.value)}
+                                placeholder="e.g. JUDGE-1234"
+                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all uppercase tracking-widest font-mono"
                                 required
                                 disabled={loading}
-                                autoComplete="email"
                                 autoFocus
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-foreground/80 mb-2">
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                                required
-                                disabled={loading}
-                                autoComplete="current-password"
                             />
                         </div>
 
@@ -113,18 +92,18 @@ export default function JudgeLoginPage() {
 
                         <button
                             type="submit"
-                            disabled={loading || !email.trim() || !password.trim()}
+                            disabled={loading || !code.trim()}
                             className="w-full px-6 py-3 bg-accent text-background rounded-lg font-bold text-lg shadow-md shadow-accent/20 hover:shadow-lg hover:shadow-accent/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                    Signing in...
+                                    Verifying...
                                 </>
                             ) : (
                                 <>
                                     <LogIn className="w-5 h-5" />
-                                    Sign In
+                                    Authenticate
                                 </>
                             )}
                         </button>

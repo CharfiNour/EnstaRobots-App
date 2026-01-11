@@ -11,7 +11,7 @@ import { useMatchesPage } from './hooks/useMatchesPage';
 import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/judge/score/services/scoreConstants';
 
 export default function TeamMatchesPage() {
-    const { teamData, compState, currentTeam, nextTeam, nextPhase, loading } = useMatchesPage();
+    const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive } = useMatchesPage();
 
     if (loading) {
         return (
@@ -53,11 +53,11 @@ export default function TeamMatchesPage() {
                     <div className="lg:col-span-4">
                         <ScheduleCard
                             startTime="14:30 SA"
-                            isLive={(compState?.isLive && compState?.activeCompetitionId === teamData?.competition) || false}
+                            isLive={isLive}
                             currentPhase={(() => {
-                                if (!compState?.currentPhase) return null;
+                                if (!currentPhase) return null;
                                 const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
-                                return allPhases.find(p => p.value === compState.currentPhase)?.label || compState.currentPhase;
+                                return allPhases.find(p => p.value === currentPhase)?.label || currentPhase;
                             })()}
                             teamOrder={teamData?.order || 1}
                             teamName={teamData?.name || 'Unit'}

@@ -24,13 +24,7 @@ export default function HeaderActions({
 }: HeaderActionsProps) {
     return (
         <div className="flex justify-between items-center mb-6">
-            <button
-                onClick={handleNextCard}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground font-black uppercase tracking-widest text-xs transition-all active:scale-95 border border-card-border"
-            >
-                <span>Next Card</span>
-                <ChevronRight size={16} />
-            </button>
+            <div></div>
 
             {isLive ? (
                 <button

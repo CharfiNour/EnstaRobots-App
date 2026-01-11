@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import {
-    Shield, Timer, Trophy, CheckCircle, Trash2, Edit2, X, Save
+    Shield, Timer, Trophy, CheckCircle, Trash2, Edit2, X, Save, Users
 } from 'lucide-react';
 import { OfflineScore, deleteScore, updateScore } from '@/lib/offlineScores';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useState } from 'react';
 interface ScoreCardProps {
     group: {
         teamId: string;
+        team?: any;
         competitionType: string;
         submissions: OfflineScore[];
         latestTimestamp: number;
@@ -18,11 +19,12 @@ interface ScoreCardProps {
     onPhaseChange: (phase: string) => void;
     isAdmin?: boolean;
     onDelete?: () => void;
+    matchParticipants?: { teamId: string; team?: any; submissions: OfflineScore[] }[];
 }
 
-export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete }: ScoreCardProps) {
+export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete, matchParticipants }: ScoreCardProps) {
     const currentScore = group.submissions.find((s) => s.phase === activePhase) || group.submissions[0];
-    const isLineFollower = currentScore?.competitionType === 'line_follower' || currentScore?.competitionType === 'all_terrain';
+    const isLineFollower = currentScore?.competitionType === 'line_follower' || currentScore?.competitionType === 'junior_line_follower';
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -38,6 +40,24 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
         updateScore(currentScore.id, editData);
         setIsEditing(false);
         onDelete?.(); // Re-trigger load in parent
+    };
+
+    // Get other participants (exclude current team)
+    const otherParticipants = matchParticipants?.filter(p => p.teamId !== group.teamId) || [];
+
+    // Helper to get result badge for a participant
+    const getResultBadge = (participant: { teamId: string; team?: any; submissions: OfflineScore[] }) => {
+        const latestScore = participant.submissions[0];
+        if (!latestScore) return null;
+
+        if (latestScore.status === 'winner') {
+            return { label: 'Winner', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' };
+        } else if (latestScore.status === 'qualified') {
+            return { label: 'Qualified', color: 'bg-blue-500/10 border-blue-500/30 text-blue-600' };
+        } else if (latestScore.status === 'eliminated') {
+            return { label: 'Eliminated', color: 'bg-red-500/10 border-red-500/30 text-red-600' };
+        }
+        return null;
     };
 
     return (
@@ -136,176 +156,189 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                         <div className="p-4 flex items-center gap-4">
                             {/* Team Logo */}
                             <div className="w-16 h-16 rounded-lg bg-card border-2 border-accent/30 shadow-lg overflow-hidden flex-shrink-0">
-                                <img
-                                    src={`https://api.dicebear.com/7.x/identicon/svg?seed=${currentScore.teamId}`}
-                                    alt="Team Logo"
-                                    className="w-full h-full object-cover"
-                                />
+                                {group.team?.logo ? (
+                                    <img src={group.team.logo} alt="Team Logo" className="w-full h-full object-cover" />
+                                ) : (
+                                    <img
+                                        src={`https://api.dicebear.com/7.x/identicon/svg?seed=${currentScore.teamId}`}
+                                        alt="Team Logo"
+                                        className="w-full h-full object-cover"
+                                    />
+                                )}
                             </div>
 
                             {/* Team Info */}
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xl font-black text-foreground uppercase mb-1.5 leading-tight">
-                                    {currentScore.teamId}
+                            <div className="flex-1 min-w-0 pr-24">
+                                <div className="text-xl font-black text-foreground uppercase mb-1.5 leading-tight truncate">
+                                    {group.team?.name || currentScore.teamId}
                                 </div>
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
                                     <div className="flex items-center gap-1.5 text-muted-foreground">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
-                                        <span className="font-semibold">Robotics Club</span>
+                                        <span className="font-semibold">{group.team?.club || 'Robotics Club'}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 text-muted-foreground">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
-                                        <span className="font-semibold">Engineering University</span>
+                                        <span className="font-semibold">{group.team?.university || 'Engineering University'}</span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Result Badge for selected team (Absolute) */}
+                            {!isLineFollower && currentScore.status && (
+                                <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${currentScore.status === 'winner' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
+                                    currentScore.status === 'qualified' ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
+                                        'bg-red-500/10 border-red-500/30 text-red-600'
+                                    }`}>
+                                    {currentScore.status === 'winner' && '🏆 '}{currentScore.status}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Match Phase Box */}
-                    <div className="p-3 bg-muted/30 rounded-xl border border-card-border">
-                        <div className="text-[9px] font-black text-muted-foreground uppercase opacity-60 mb-1 tracking-widest">Match Phase</div>
-                        <div className="text-lg font-black text-accent uppercase">{(currentScore.phase || '').replace(/_/g, ' ')}</div>
-                    </div>
 
-                    {/* Performance Breakdown */}
+                    {/* Performance Breakdown / Match Participants */}
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
                             <div className="h-px flex-1 bg-card-border" />
-                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">Performance Breakdown</span>
+                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">
+                                {isLineFollower ? 'Performance Breakdown' : 'Match Opponents'}
+                            </span>
                             <div className="h-px flex-1 bg-card-border" />
                         </div>
 
-                        {isLineFollower ? (
-                            <div className="grid gap-3">
-                                {/* Lap Time Box */}
-                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border shadow-inner">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-accent/10 rounded-lg text-accent">
-                                            <Timer size={16} />
+                        <div className="h-[250px] overflow-y-auto custom-scrollbar pr-2">
+                            {isLineFollower ? (
+                                <div className="grid gap-3">
+                                    {/* Lap Time Box */}
+                                    <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border shadow-inner">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                                                <Timer size={16} />
+                                            </div>
+                                            <span className="text-xs font-black uppercase tracking-wide text-foreground">Official Lap Time</span>
                                         </div>
-                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Official Lap Time</span>
+                                        {isEditing ? (
+                                            <div className="flex gap-1 items-center">
+                                                <input
+                                                    type="number"
+                                                    value={editData.timeMs || 0}
+                                                    onChange={(e) => setEditData({ ...editData, timeMs: parseInt(e.target.value) })}
+                                                    className="w-24 bg-card border border-card-border p-1 rounded font-mono text-sm text-right"
+                                                />
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">ms</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xl font-mono text-foreground font-black tracking-tight">
+                                                {(() => {
+                                                    const ms = currentScore.timeMs || 0;
+                                                    const min = Math.floor(ms / 60000);
+                                                    const sec = Math.floor((ms % 60000) / 1000);
+                                                    const mls = ms % 1000;
+                                                    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
+                                                })()}
+                                            </span>
+                                        )}
                                     </div>
-                                    {isEditing ? (
-                                        <div className="flex gap-1 items-center">
+
+                                    {/* Road Completion Box */}
+                                    <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                <Shield size={16} />
+                                            </div>
+                                            <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
+                                        </div>
+                                        {isEditing ? (
+                                            <button
+                                                onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
+                                                className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
+                                            >
+                                                {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                            </button>
+                                        ) : (
+                                            <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
+                                                {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Bonus Points for LF */}
+                                    <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
+                                                <Trophy size={16} />
+                                            </div>
+                                            <span className="text-xs font-black uppercase tracking-wide text-foreground">Homologation Points</span>
+                                        </div>
+                                        {isEditing ? (
                                             <input
                                                 type="number"
-                                                value={editData.timeMs || 0}
-                                                onChange={(e) => setEditData({ ...editData, timeMs: parseInt(e.target.value) })}
-                                                className="w-24 bg-card border border-card-border p-1 rounded font-mono text-sm text-right"
+                                                value={editData.bonusPoints || 0}
+                                                onChange={(e) => setEditData({ ...editData, bonusPoints: parseInt(e.target.value) })}
+                                                className="w-20 bg-card border border-card-border p-1 rounded font-bold text-sm text-right"
                                             />
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">ms</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-xl font-mono text-foreground font-black tracking-tight">
-                                            {(() => {
-                                                const ms = currentScore.timeMs || 0;
-                                                const min = Math.floor(ms / 60000);
-                                                const sec = Math.floor((ms % 60000) / 1000);
-                                                const mls = ms % 1000;
-                                                return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
-                                            })()}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Road Completion Box */}
-                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                            <Shield size={16} />
-                                        </div>
-                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
+                                        ) : (
+                                            <span className="text-lg font-black text-foreground">{currentScore.bonusPoints || 0} PTS</span>
+                                        )}
                                     </div>
-                                    {isEditing ? (
-                                        <button
-                                            onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
-                                            className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
-                                        >
-                                            {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                        </button>
-                                    ) : (
-                                        <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
-                                            {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                        </span>
-                                    )}
                                 </div>
+                            ) : (
+                                // Non-Line Follower: Show other match participants
+                                <div className="grid gap-3 content-start">
+                                    {otherParticipants.length > 0 ? (
+                                        otherParticipants.map((participant) => {
+                                            const badge = getResultBadge(participant);
+                                            return (
+                                                <div
+                                                    key={participant.teamId}
+                                                    className="relative bg-muted/10 rounded-xl border border-card-border overflow-hidden"
+                                                >
+                                                    <div className="p-4 flex items-center gap-4">
+                                                        {/* Team Logo */}
+                                                        <div className="w-10 h-10 rounded-lg bg-card border border-card-border shadow overflow-hidden flex-shrink-0">
+                                                            {participant.team?.logo ? (
+                                                                <img src={participant.team.logo} alt="Team Logo" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <img
+                                                                    src={`https://api.dicebear.com/7.x/identicon/svg?seed=${participant.teamId}`}
+                                                                    alt="Team Logo"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            )}
+                                                        </div>
 
-                                {/* Bonus Points for LF */}
-                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
-                                            <Trophy size={16} />
+                                                        {/* Team Info */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-black text-foreground uppercase mb-0.5 leading-tight truncate">
+                                                                {participant.team?.name || participant.teamId}
+                                                            </div>
+                                                            <div className="text-[10px] text-muted-foreground font-semibold truncate">
+                                                                {participant.team?.club || 'Club Unknown'}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Result Badge */}
+                                                        {badge && (
+                                                            <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border shadow-sm ${badge.color}`}>
+                                                                {badge.label}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="py-8 text-center opacity-40 bg-muted/5 rounded-xl border border-dashed border-card-border">
+                                            <Users size={32} className="mx-auto mb-3 text-muted-foreground" />
+                                            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">No Opponents Found</p>
                                         </div>
-                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Homologation Points</span>
-                                    </div>
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            value={editData.bonusPoints || 0}
-                                            onChange={(e) => setEditData({ ...editData, bonusPoints: parseInt(e.target.value) })}
-                                            className="w-20 bg-card border border-card-border p-1 rounded font-bold text-sm text-right"
-                                        />
-                                    ) : (
-                                        <span className="text-lg font-black text-foreground">{currentScore.bonusPoints || 0} PTS</span>
                                     )}
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="flex flex-col items-center p-4 bg-muted/10 rounded-xl border border-card-border">
-                                    <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">KOs</span>
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            value={editData.knockouts || 0}
-                                            onChange={(e) => setEditData({ ...editData, knockouts: parseInt(e.target.value) })}
-                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
-                                        />
-                                    ) : (
-                                        <span className="text-2xl font-black text-foreground">{currentScore.knockouts || 0}</span>
-                                    )}
-                                </div>
-                                <div className="flex flex-col items-center p-4 bg-muted/11 rounded-xl border border-card-border">
-                                    <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">Judges</span>
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            value={editData.judgePoints || 0}
-                                            onChange={(e) => setEditData({ ...editData, judgePoints: parseInt(e.target.value) })}
-                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
-                                        />
-                                    ) : (
-                                        <span className="text-2xl font-black text-foreground">{currentScore.judgePoints || 0}</span>
-                                    )}
-                                </div>
-                                <div className="flex flex-col items-center p-4 bg-muted/10 rounded-xl border border-card-border">
-                                    <span className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 leading-none">Damage</span>
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            value={editData.damageScore || 0}
-                                            onChange={(e) => setEditData({ ...editData, damageScore: parseInt(e.target.value) })}
-                                            className="w-full bg-card border border-card-border p-1 rounded font-bold text-center text-lg"
-                                        />
-                                    ) : (
-                                        <span className="text-2xl font-black text-foreground">{currentScore.damageScore || 0}</span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Status & Outcome info (Only for non-LF) */}
-                    {!isLineFollower && currentScore.status && (
-                        <div className={`text-center py-3 px-5 rounded-xl text-xs font-black uppercase tracking-[0.2em] border shadow-sm ${currentScore.status === 'winner' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-400' :
-                            currentScore.status === 'qualified' ? 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400' :
-                                'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
-                            }`}>
-                            OUTCOME: {currentScore.status}
+                            )}
                         </div>
-                    )}
 
+                    </div>
                 </div>
 
                 {/* Verified Results bottom bar */}
@@ -314,14 +347,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                     <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
                 </div>
             </div>
-
-            {/* Additional Metadata for Judges only */}
-            {!isLineFollower && (
-                <div className="mt-6 flex items-center justify-between px-4 text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                    <div>Timestamp: {new Date(currentScore.timestamp).toLocaleString()}</div>
-                    <div>ID: {currentScore.matchId.slice(-10)}</div>
-                </div>
-            )}
         </motion.div>
     );
 }

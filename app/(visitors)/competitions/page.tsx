@@ -15,7 +15,6 @@ import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/judge/score/services
 export default function CompetitionsPage() {
     const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
     const [compState, setCompState] = useState(getCompetitionState());
-    const [activeTeam, setActiveTeam] = useState<Team | null>(null);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -26,14 +25,6 @@ export default function CompetitionsPage() {
 
             // Sync competitions list as well
             setCompetitions(getAdminCompetitions());
-
-            if (state.isLive && state.activeTeamId) {
-                const teams = getTeams();
-                const team = teams.find(t => t.id === state.activeTeamId);
-                setActiveTeam(team || null);
-            } else {
-                setActiveTeam(null);
-            }
         };
 
         handleStateUpdate();
@@ -82,14 +73,15 @@ export default function CompetitionsPage() {
                 <div className="space-y-6">
                     {competitions.map((comp: CompetitionListItem, index: number) => {
                         // Live logic
-                        const isActuallyLive = compState.isLive && compState.activeCompetitionId === comp.category;
+                        const liveSess = compState.liveSessions[comp.category];
+                        const isActuallyLive = !!liveSess;
 
                         const getLivePhaseLabel = () => {
-                            if (!compState.currentPhase) return comp.status;
+                            if (!liveSess || !liveSess.phase) return comp.status;
                             const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
-                            const match = allPhases.find(p => p.value === compState.currentPhase);
+                            const match = allPhases.find(p => p.value === liveSess.phase);
                             if (match) return match.label;
-                            return compState.currentPhase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            return liveSess.phase.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
                         };
 
                         const displayPhase = isActuallyLive ? getLivePhaseLabel() : comp.status;

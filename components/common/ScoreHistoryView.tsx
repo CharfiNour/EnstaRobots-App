@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ClipboardCheck, ChevronRight, History, Shield, Activity, Search, Target, Trophy
+    ClipboardCheck, ChevronRight, Shield, Target, Layers
 } from 'lucide-react';
 import { getOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
 import ScoreCard from '@/components/judge/ScoreCard';
+import { getCompetitionState } from '@/lib/competitionState';
 
 const COMPETITION_CATEGORIES = [
     { id: 'all', name: 'All Categories' },
@@ -23,20 +24,44 @@ interface ScoreHistoryViewProps {
     isAdmin?: boolean;
     initialCompetition?: string;
     showFilter?: boolean;
+    lockedCompetitionId?: string;
 }
 
 export default function ScoreHistoryView({
     isSentToTeamOnly = false,
     isAdmin = false,
     initialCompetition = 'all',
-    showFilter = true
+    showFilter = true,
+    lockedCompetitionId
 }: ScoreHistoryViewProps) {
     const [loading, setLoading] = useState(true);
     const [groupedScores, setGroupedScores] = useState<any[]>([]);
     const [selectedGroup, setSelectedGroup] = useState<any>(null);
+    const [selectedTeamInGroup, setSelectedTeamInGroup] = useState<string | null>(null);
     const [activePhase, setActivePhase] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCompetition, setSelectedCompetition] = useState(initialCompetition);
+    const [selectedCompetition, setSelectedCompetition] = useState(lockedCompetitionId || initialCompetition);
+    const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
+
+    useEffect(() => {
+        const sync = () => {
+            const state = getCompetitionState();
+            setLiveSessions(state.liveSessions || {});
+        };
+        sync();
+        window.addEventListener('competition-state-updated', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('competition-state-updated', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (lockedCompetitionId) {
+            setSelectedCompetition(lockedCompetitionId);
+        }
+    }, [lockedCompetitionId]);
 
     const loadScores = (forceSelectId?: string) => {
         let offlineScores = getOfflineScores();
@@ -46,22 +71,57 @@ export default function ScoreHistoryView({
 
         const allTeams = getTeams();
 
+        // Determine if competition is match-based
+        const isMatchBased = (compType: string) => ['fight', 'all_terrain', 'junior_all_terrain'].includes(compType);
+
         const groups: Record<string, any> = {};
         offlineScores.forEach(score => {
-            const key = score.teamId + '-' + score.competitionType;
-            if (!groups[key]) {
+            if (isMatchBased(score.competitionType)) {
+                // Group by matchId for match-based competitions
+                const key = score.matchId;
+                if (!groups[key]) {
+                    groups[key] = {
+                        type: 'match',
+                        matchId: key,
+                        competitionType: score.competitionType,
+                        participants: [],
+                        latestTimestamp: 0
+                    };
+                }
                 const team = allTeams.find(t => t.id === score.teamId || t.name === score.teamId);
-                groups[key] = {
-                    teamId: score.teamId,
-                    team,
-                    competitionType: score.competitionType || team?.competition,
-                    submissions: [],
-                    latestTimestamp: 0
-                };
-            }
-            groups[key].submissions.push(score);
-            if (score.timestamp > groups[key].latestTimestamp) {
-                groups[key].latestTimestamp = score.timestamp;
+                // Add participant if not already added
+                if (!groups[key].participants.find((p: any) => p.teamId === score.teamId)) {
+                    groups[key].participants.push({
+                        teamId: score.teamId,
+                        team,
+                        submissions: [score]
+                    });
+                } else {
+                    // Add to existing participant's submissions
+                    const participant = groups[key].participants.find((p: any) => p.teamId === score.teamId);
+                    participant.submissions.push(score);
+                }
+                if (score.timestamp > groups[key].latestTimestamp) {
+                    groups[key].latestTimestamp = score.timestamp;
+                }
+            } else {
+                // Single team grouping (Line Follower style)
+                const key = score.teamId + '-' + score.competitionType;
+                if (!groups[key]) {
+                    const team = allTeams.find(t => t.id === score.teamId || t.name === score.teamId);
+                    groups[key] = {
+                        type: 'single',
+                        teamId: score.teamId,
+                        team,
+                        competitionType: score.competitionType || team?.competition,
+                        submissions: [],
+                        latestTimestamp: 0
+                    };
+                }
+                groups[key].submissions.push(score);
+                if (score.timestamp > groups[key].latestTimestamp) {
+                    groups[key].latestTimestamp = score.timestamp;
+                }
             }
         });
 
@@ -69,24 +129,26 @@ export default function ScoreHistoryView({
         setGroupedScores(sortedGroups);
 
         if (forceSelectId) {
-            const forced = sortedGroups.find(g => g.teamId === forceSelectId);
+            const forced = sortedGroups.find(g => g.teamId === forceSelectId || g.matchId === forceSelectId);
             if (forced) {
                 setSelectedGroup(forced);
-                setActivePhase(forced.submissions[0].phase);
+                if (forced.type === 'single') {
+                    setActivePhase(forced.submissions[0].phase);
+                    setSelectedTeamInGroup(null);
+                } else if (forced.participants?.length > 0) {
+                    setSelectedTeamInGroup(forced.participants[0].teamId);
+                    setActivePhase(forced.participants[0].submissions[0]?.phase || '');
+                }
             }
         } else if (sortedGroups.length > 0 && !selectedGroup) {
-            setSelectedGroup(sortedGroups[0]);
-            setActivePhase(sortedGroups[0].submissions[0].phase);
-        } else if (selectedGroup) {
-            const updatedGroup = sortedGroups.find(g => g.teamId === selectedGroup.teamId && g.competitionType === selectedGroup.competitionType);
-            if (updatedGroup) {
-                setSelectedGroup(updatedGroup);
-                if (!updatedGroup.submissions.find((s: any) => s.phase === activePhase)) {
-                    setActivePhase(updatedGroup.submissions[0].phase);
-                }
-            } else {
-                setSelectedGroup(sortedGroups[0] || null);
-                setActivePhase(sortedGroups[0]?.submissions[0].phase || '');
+            const first = sortedGroups[0];
+            setSelectedGroup(first);
+            if (first.type === 'single') {
+                setActivePhase(first.submissions[0].phase);
+                setSelectedTeamInGroup(null);
+            } else if (first.participants?.length > 0) {
+                setSelectedTeamInGroup(first.participants[0].teamId);
+                setActivePhase(first.participants[0].submissions[0]?.phase || '');
             }
         }
         setLoading(false);
@@ -99,26 +161,76 @@ export default function ScoreHistoryView({
     const filteredGroups = useMemo(() => {
         return groupedScores.filter(g => {
             const matchesComp = selectedCompetition === 'all' || g.competitionType === selectedCompetition;
-            const matchesSearch = g.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (g.competitionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (g.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesComp && matchesSearch;
+
+            if (g.type === 'match') {
+                // Search in participants
+                const matchesSearch = g.participants.some((p: any) =>
+                    p.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (p.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (p.team?.club || '').toLowerCase().includes(searchQuery.toLowerCase())
+                );
+                return matchesComp && matchesSearch;
+            } else {
+                const matchesSearch = g.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (g.competitionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (g.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesComp && matchesSearch;
+            }
         });
     }, [groupedScores, searchQuery, selectedCompetition]);
 
     // Synchronize selection when competition changes
     useEffect(() => {
         if (filteredGroups.length > 0) {
-            const stillExists = filteredGroups.some(g => g.teamId === selectedGroup?.teamId && g.competitionType === selectedGroup?.competitionType);
+            const stillExists = filteredGroups.some(g =>
+                (g.type === 'single' && g.teamId === selectedGroup?.teamId && g.competitionType === selectedGroup?.competitionType) ||
+                (g.type === 'match' && g.matchId === selectedGroup?.matchId)
+            );
             if (!stillExists) {
-                setSelectedGroup(filteredGroups[0]);
-                setActivePhase(filteredGroups[0].submissions[0].phase);
+                const first = filteredGroups[0];
+                setSelectedGroup(first);
+                if (first.type === 'single') {
+                    setActivePhase(first.submissions[0].phase);
+                    setSelectedTeamInGroup(null);
+                } else if (first.participants?.length > 0) {
+                    setSelectedTeamInGroup(first.participants[0].teamId);
+                    setActivePhase(first.participants[0].submissions[0]?.phase || '');
+                }
             }
         } else {
             setSelectedGroup(null);
             setActivePhase('');
+            setSelectedTeamInGroup(null);
         }
     }, [selectedCompetition]);
+
+    // Get current score data for display - must be before any returns to maintain hook order
+    const currentScoreGroup = useMemo(() => {
+        if (!selectedGroup) return null;
+        if (selectedGroup.type === 'single') {
+            return selectedGroup;
+        } else if (selectedGroup.type === 'match' && selectedTeamInGroup) {
+            const participant = selectedGroup.participants.find((p: any) => p.teamId === selectedTeamInGroup);
+            if (participant) {
+                return {
+                    type: 'single',
+                    teamId: participant.teamId,
+                    team: participant.team,
+                    competitionType: selectedGroup.competitionType,
+                    submissions: participant.submissions,
+                    latestTimestamp: selectedGroup.latestTimestamp
+                };
+            }
+        }
+        return null;
+    }, [selectedGroup, selectedTeamInGroup]);
+
+    // Get available phases for selected group/team - must be before any returns
+    const availablePhases = useMemo(() => {
+        if (!currentScoreGroup?.submissions) return [];
+        const phases = currentScoreGroup.submissions.map((s: any) => s.phase);
+        return [...new Set(phases)] as string[];
+    }, [currentScoreGroup]);
 
     if (loading) {
         return (
@@ -128,55 +240,116 @@ export default function ScoreHistoryView({
         );
     }
 
-    const currentScore = selectedGroup?.submissions.find((s: any) => s.phase === activePhase) || selectedGroup?.submissions[0];
+    const currentScore = currentScoreGroup?.submissions?.find((s: any) => s.phase === activePhase) || currentScoreGroup?.submissions?.[0];
+    const lockedComp = lockedCompetitionId ? COMPETITION_CATEGORIES.find(c => c.id === lockedCompetitionId) : null;
+
+    const handleSelectTeam = (group: any, teamId?: string) => {
+        setSelectedGroup(group);
+        if (group.type === 'single') {
+            setActivePhase(group.submissions[0].phase);
+            setSelectedTeamInGroup(null);
+        } else if (group.type === 'match' && teamId) {
+            setSelectedTeamInGroup(teamId);
+            const participant = group.participants.find((p: any) => p.teamId === teamId);
+            if (participant?.submissions?.length > 0) {
+                setActivePhase(participant.submissions[0].phase);
+            }
+        }
+    };
+
+    // Check if a specific group/team is selected
+    const isGroupSelected = (group: any) => {
+        if (!selectedGroup) return false;
+        if (group.type === 'single' && selectedGroup.type === 'single') {
+            return group.teamId === selectedGroup.teamId && group.competitionType === selectedGroup.competitionType;
+        }
+        if (group.type === 'match' && selectedGroup.type === 'match') {
+            return group.matchId === selectedGroup.matchId;
+        }
+        return false;
+    };
+
+    const isTeamInGroupSelected = (group: any, teamId: string) => {
+        return isGroupSelected(group) && selectedTeamInGroup === teamId;
+    };
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 w-full">
             {/* Sidebar: Tactical Log List */}
-            <div className="w-full lg:w-80 flex flex-col gap-6 shrink-0">
-                <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-6">
+            <div className="w-full lg:w-80 flex flex-col shrink-0 lg:h-[650px]">
+                <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-4 flex flex-col h-full overflow-hidden">
                     {/* Competition Selector */}
                     {showFilter && (
                         <div>
-                            <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
-                                <Target size={12} className="text-role-primary" />
-                                Deployment Category
-                            </h2>
-                            <div className="relative group/select">
-                                <select
-                                    value={selectedCompetition}
-                                    onChange={(e) => setSelectedCompetition(e.target.value)}
-                                    className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
-                                >
-                                    {COMPETITION_CATEGORIES.map(cat => (
-                                        <option key={cat.id} value={cat.id}>{cat.name.toUpperCase()}</option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground group-hover/select:text-role-primary transition-colors">
-                                    <ChevronRight size={14} className="rotate-90" />
+                            {lockedCompetitionId && lockedComp ? (
+                                <div className="mb-4 w-full p-4 rounded-xl border flex flex-col items-center justify-center gap-2 bg-muted/30 border-card-border shadow-inner">
+                                    <Shield className="w-6 h-6 text-role-primary" />
+                                    <span className="text-sm font-black uppercase tracking-widest text-role-primary text-center leading-tight">
+                                        {lockedComp.name}
+                                    </span>
+                                    <div className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-role-primary/10 text-role-primary border border-role-primary/20">
+                                        Official Sector
+                                    </div>
                                 </div>
+                            ) : (
+                                <>
+                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                                        <Target size={12} className="text-role-primary" />
+                                        Deployment Category
+                                    </h2>
+                                    <div className="relative group/select">
+                                        <select
+                                            value={selectedCompetition}
+                                            onChange={(e) => setSelectedCompetition(e.target.value)}
+                                            className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
+                                        >
+                                            {COMPETITION_CATEGORIES.map(cat => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.name.toUpperCase()} {liveSessions[cat.id] ? '(LIVE)' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground group-hover/select:text-role-primary transition-colors">
+                                            <ChevronRight size={14} className="rotate-90" />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Phase Selector - Above Teams List */}
+                    {availablePhases.length > 1 && (
+                        <div>
+                            <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                                <Layers size={12} className="text-role-primary" />
+                                Phase Selection
+                            </h2>
+                            <div className="flex flex-wrap gap-1.5 bg-muted/30 p-1.5 rounded-xl border border-card-border/50">
+                                {availablePhases.map((phase: string) => (
+                                    <button
+                                        key={phase}
+                                        onClick={() => setActivePhase(phase)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activePhase === phase
+                                            ? 'bg-accent text-slate-900 shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     )}
 
                     {/* Search and Teams List */}
-                    <div>
-                        <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2 shrink-0">
                             <Shield size={12} className="text-role-primary" />
                             Active Units
                         </h2>
-                        <div className="relative mb-4">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={12} />
-                            <input
-                                type="text"
-                                placeholder="SEARCH UNITS..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 bg-muted/50 border border-card-border rounded-xl text-[10px] font-black outline-none focus:ring-1 focus:ring-role-primary/30 transition-all placeholder:opacity-30"
-                            />
-                        </div>
 
-                        <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                             {filteredGroups.length === 0 ? (
                                 <div className="py-10 text-center opacity-40">
                                     <ClipboardCheck className="w-10 h-10 mx-auto mb-3" />
@@ -184,16 +357,81 @@ export default function ScoreHistoryView({
                                 </div>
                             ) : (
                                 filteredGroups.map((group) => {
-                                    const latest = group.submissions.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
-                                    const isSelected = selectedGroup?.teamId === group.teamId && selectedGroup?.competitionType === group.competitionType;
+                                    // MATCH GROUP RENDERING
+                                    if (group.type === 'match') {
+                                        const groupSelected = isGroupSelected(group);
+
+                                        return (
+                                            <div
+                                                key={group.matchId}
+                                                className={`rounded-xl border overflow-hidden transition-all ${groupSelected
+                                                    ? 'border-role-primary/30 bg-role-primary/5'
+                                                    : 'border-card-border bg-card'
+                                                    }`}
+                                            >
+                                                {/* Match Header */}
+                                                <div className="px-3 py-2 bg-muted/30 border-b border-card-border/50 flex justify-between items-center">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                                        Match Group
+                                                    </span>
+                                                    <span className="text-[8px] font-mono text-muted-foreground/60">
+                                                        {new Date(group.latestTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+
+                                                {/* Participants */}
+                                                <div className="p-1.5 space-y-1">
+                                                    {group.participants.map((participant: any) => {
+                                                        const isTeamSelected = isTeamInGroupSelected(group, participant.teamId);
+
+                                                        return (
+                                                            <button
+                                                                key={`${group.matchId}-${participant.teamId}`}
+                                                                onClick={() => handleSelectTeam(group, participant.teamId)}
+                                                                className={`w-full p-3 rounded-lg text-left transition-all border group relative overflow-hidden ${isTeamSelected
+                                                                    ? 'bg-role-primary/10 border-role-primary/30 shadow-sm'
+                                                                    : 'bg-card border-card-border/50 hover:bg-muted/50'
+                                                                    }`}
+                                                            >
+                                                                <div className="flex items-center gap-3 min-w-0 relative z-10">
+                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[9px] shrink-0 border transition-colors ${isTeamSelected
+                                                                        ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20'
+                                                                        : 'bg-muted text-muted-foreground border-card-border'
+                                                                        }`}>
+                                                                        {participant.team?.logo ? (
+                                                                            <img src={participant.team.logo} className="w-full h-full object-cover rounded-lg" alt="" />
+                                                                        ) : (
+                                                                            participant.teamId.slice(-2).toUpperCase()
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className={`font-black text-[11px] truncate uppercase ${isTeamSelected ? 'text-role-primary' : 'text-foreground'
+                                                                            }`}>
+                                                                            {participant.team?.name || participant.teamId}
+                                                                        </div>
+                                                                        <div className="text-[8px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
+                                                                            {participant.team?.club || 'Club Unknown'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {isTeamSelected && (
+                                                                    <div className="absolute right-0 top-0 bottom-0 w-1 bg-role-primary" />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    // SINGLE TEAM RENDERING (Line Follower style)
+                                    const isSelected = isGroupSelected(group);
 
                                     return (
                                         <button
                                             key={`${group.teamId}-${group.competitionType}`}
-                                            onClick={() => {
-                                                setSelectedGroup(group);
-                                                setActivePhase(group.submissions[0].phase);
-                                            }}
+                                            onClick={() => handleSelectTeam(group)}
                                             className={`w-full p-4 rounded-xl text-left transition-all border group relative overflow-hidden ${isSelected
                                                 ? 'bg-role-primary/10 border-role-primary/30 shadow-sm'
                                                 : 'bg-card border-card-border hover:bg-muted/50'}`}
@@ -231,19 +469,14 @@ export default function ScoreHistoryView({
                         </div>
                     </div>
                 </div>
-
-                <div className="p-5 bg-gradient-to-br from-role-primary/10 to-transparent border border-role-primary/20 rounded-2xl">
-                    <p className="text-[10px] font-black text-role-primary uppercase tracking-widest mb-2 font-mono">// ARCHIVE STATUS</p>
-                    <p className="text-[11px] font-bold text-muted-foreground leading-relaxed uppercase italic tracking-tight">Viewing verified telemetry from official terminal submissions. All records are final.</p>
-                </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative min-h-[600px] flex flex-col items-center justify-center">
+            <div className="flex-1 bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center justify-center">
                 <AnimatePresence mode="wait">
-                    {selectedGroup && currentScore ? (
+                    {currentScoreGroup && currentScore ? (
                         <motion.div
-                            key={`${selectedGroup.teamId}-${selectedGroup.competitionType}-${activePhase}`}
+                            key={`${currentScoreGroup.teamId}-${currentScoreGroup.competitionType}-${activePhase}`}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -251,11 +484,12 @@ export default function ScoreHistoryView({
                             className="w-full"
                         >
                             <ScoreCard
-                                group={selectedGroup}
+                                group={currentScoreGroup}
                                 activePhase={activePhase}
                                 onPhaseChange={setActivePhase}
                                 isAdmin={isAdmin}
                                 onDelete={() => loadScores()}
+                                matchParticipants={selectedGroup?.type === 'match' ? selectedGroup.participants : undefined}
                             />
                         </motion.div>
                     ) : (

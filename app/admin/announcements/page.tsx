@@ -8,13 +8,14 @@ import { useRouter } from 'next/navigation';
 
 // Local imports
 import { InfoBox, AnnouncementForm } from './components';
-import { publishAnnouncement } from './services/announcementService';
+import { publishAnnouncement, fetchRealCompetitions } from './services/announcementService';
 import { AnnouncementFormData } from './types';
 
 export default function AnnouncementsPage() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [competitions, setCompetitions] = useState<any[]>([]);
     const router = useRouter();
 
     const [formData, setFormData] = useState<AnnouncementFormData>({
@@ -31,6 +32,13 @@ export default function AnnouncementsPage() {
             router.push('/auth/judge');
             return;
         }
+
+        const loadCompetitions = async () => {
+            const comps = await fetchRealCompetitions();
+            setCompetitions(comps);
+        };
+
+        loadCompetitions();
         setSession(currentSession);
         setLoading(false);
     }, [router]);
@@ -47,12 +55,12 @@ export default function AnnouncementsPage() {
                 message: '',
                 type: 'info',
                 visibleTo: 'all',
-                competitionId: 'all',
+                competitionId: competitions.length > 0 ? competitions[0].id : 'all',
             });
             alert('Announcement published successfully');
         } catch (err) {
             console.error('Failed to publish announcement:', err);
-            alert('Failed to publish announcement');
+            alert(`Failed to publish announcement: ${(err as any)?.message || 'Unknown error'}`);
         } finally {
             setSubmitting(false);
         }
@@ -107,6 +115,7 @@ export default function AnnouncementsPage() {
                         setFormData={setFormData}
                         onSubmit={handleSubmit}
                         submitting={submitting}
+                        competitions={competitions}
                     />
                 </motion.div>
             </div>

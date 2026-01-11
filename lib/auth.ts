@@ -7,14 +7,57 @@ export interface AuthSession {
     teamId?: string;
     teamCode?: string;
     teamName?: string;
+    competition?: string; // For judges locked to a specific competition
     expiresAt: number;
 }
 
 // Local storage keys
 const SESSION_KEY = 'enstarobots_session';
+const STAFF_CODES_KEY = 'enstarobots_staff_codes';
 
 // Team Auth: Login with team code
 import { getTeams } from './teams';
+
+export async function loginWithStaffCode(code: string): Promise<{ success: boolean; error?: string; session?: AuthSession }> {
+    if (typeof window === 'undefined') return { success: false, error: 'Client side only' };
+
+    try {
+        const trimmedCode = code.trim().toUpperCase();
+
+        // Fetch staff codes from local storage
+        const stored = localStorage.getItem(STAFF_CODES_KEY);
+        let staffCodes: any[] = [];
+
+        if (stored) {
+            staffCodes = JSON.parse(stored);
+        } else {
+            // Default fallback if storage is empty (should match StaffCodesTab defaults)
+            staffCodes = [
+                { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
+                { id: '2', role: 'judge', name: 'Main Judge', code: 'JUDGE-2024' },
+            ];
+        }
+
+        const match = staffCodes.find(s => s.code === trimmedCode);
+
+        if (!match) {
+            return { success: false, error: 'Invalid access code' };
+        }
+
+        const session: AuthSession = {
+            userId: match.id,
+            role: match.role,
+            competition: match.role === 'judge' ? match.competition : undefined,
+            expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
+        };
+
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        return { success: true, session };
+
+    } catch (err) {
+        return { success: false, error: 'Login processing failed' };
+    }
+}
 
 export async function loginWithTeamCode(teamCode: string): Promise<{ success: boolean; error?: string; session?: AuthSession }> {
     try {
@@ -38,11 +81,11 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
         }
 
         // 2. Fallback to Supabase if not found locally
-        const { data: team, error } = await supabase
+        const { data: team, error } = await (supabase
             .from('teams')
-            .select('id, name, team_code, competition_id')
-            .eq('team_code', trimmedCode)
-            .single();
+            .select('id, name, code, competition_id')
+            .eq('code', trimmedCode)
+            .single() as any);
 
         if (error || !team) {
             return { success: false, error: 'Invalid team code' };
@@ -52,7 +95,7 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
             userId: team.id,
             role: 'team',
             teamId: team.id,
-            teamCode: team.team_code,
+            teamCode: team.code,
             teamName: team.name,
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
@@ -133,11 +176,11 @@ export async function loginWithEmail(email: string, password: string): Promise<{
         }
 
         // Get profile
-        const { data: profile } = await supabase
+        const { data: profile } = await (supabase
             .from('profiles')
-            .select('role, full_name')
+            .select('role')
             .eq('id', data.user.id)
-            .single();
+            .single() as any);
 
         if (!profile) {
             return { success: false, error: 'Profile not found' };

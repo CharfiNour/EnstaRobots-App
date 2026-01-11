@@ -34,9 +34,11 @@ export default function CompetitionCard({ comp, index, onUpdate }: CompetitionCa
             const state = getCompetitionState();
             setCompState(state);
 
-            if (state.isLive && state.activeTeamId) {
+            const session = state.liveSessions?.[comp.category];
+
+            if (session) {
                 const teams = getTeams();
-                const team = teams.find(t => t.id === state.activeTeamId);
+                const team = teams.find(t => t.id === session.teamId);
                 setActiveTeam(team || null);
             } else {
                 setActiveTeam(null);
@@ -65,19 +67,21 @@ export default function CompetitionCard({ comp, index, onUpdate }: CompetitionCa
             window.removeEventListener('competitions-updated', handleStateUpdate);
             window.removeEventListener('storage', handleStateUpdate);
         };
-    }, []);
+    }, [comp.category]);
 
-    // Logic to check if THIS specific competition is the one currently live
-    const isActuallyLive = compState.isLive && compState.activeCompetitionId === comp.category;
+    // Check if THIS specific competition is the one currently live using the session map
+    const isActuallyLive = !!compState.liveSessions?.[comp.category];
 
     // Synchronize phase with judge's phase if live
     const getLivePhaseLabel = () => {
-        if (!compState.currentPhase) return editedComp.status;
+        const session = compState.liveSessions?.[comp.category];
+        if (!session?.phase) return editedComp.status;
+
         const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
-        const match = allPhases.find(p => p.value === compState.currentPhase);
+        const match = allPhases.find(p => p.value === session.phase);
         if (match) return match.label;
         // Fallback for custom/legacy phases
-        return compState.currentPhase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return session.phase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };
 
     const displayPhase = isActuallyLive ? getLivePhaseLabel() : editedComp.status;

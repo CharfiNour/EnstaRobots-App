@@ -25,11 +25,12 @@ export default function CreateCompetitionPage() {
         setSubmitting(true);
 
         try {
-            const { error } = await supabase.from('competitions').insert({
-                title: formData.title,
-                category: formData.category,
-                status: formData.status,
-                description: formData.description,
+            const { error } = await (supabase.from('competitions') as any).insert({
+                id: formData.title.toLowerCase().replace(/\s+/g, '_'),
+                name: formData.title,
+                type: formData.category,
+                profiles_locked: false,
+                current_phase: formData.status
             });
 
             if (error) throw error;

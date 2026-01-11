@@ -1,24 +1,28 @@
 
+export interface LiveSession {
+    teamId: string;
+    phase: string;
+    startTime: number;
+}
+
 export interface CompetitionState {
-    activeTeamId: string | null;
-    activeCompetitionId: string | null; // Tracks which competition category is currently live
-    isLive: boolean; // True when judge pressed Start
-    currentPhase: string | null;
-    startTime: number | null;
+    liveSessions: Record<string, LiveSession>; // Map competitionId -> LiveSession
     orderedCompetitions: string[]; // List of competition IDs that are finalized
     profilesLocked: boolean; // Global lock for team profile editing
+
+    // Legacy support (to avoid immediate crashes, but logic will move to liveSessions)
+    isLive?: boolean;
+    activeCompetitionId?: string | null;
 }
 
 const STATE_STORAGE_KEY = 'enstarobots_competition_state_v1';
 
 export const INITIAL_STATE: CompetitionState = {
-    activeTeamId: null,
-    activeCompetitionId: null,
-    isLive: false,
-    currentPhase: null,
-    startTime: null,
+    liveSessions: {},
     orderedCompetitions: [],
     profilesLocked: false,
+    isLive: false,
+    activeCompetitionId: null
 };
 
 export function getCompetitionState(): CompetitionState {
@@ -29,6 +33,20 @@ export function getCompetitionState(): CompetitionState {
 
     try {
         const parsed = JSON.parse(stored);
+
+        // Ensure liveSessions exists (migration from old state)
+        if (!parsed.liveSessions) {
+            parsed.liveSessions = {};
+            // Attempt to migrate old single session if exists
+            if (parsed.isLive && parsed.activeCompetitionId && parsed.activeTeamId) {
+                parsed.liveSessions[parsed.activeCompetitionId] = {
+                    teamId: parsed.activeTeamId,
+                    phase: parsed.currentPhase || '',
+                    startTime: parsed.startTime || Date.now()
+                };
+            }
+        }
+
         return {
             ...INITIAL_STATE,
             ...parsed,
@@ -44,6 +62,13 @@ export function updateCompetitionState(updates: Partial<CompetitionState>): Comp
 
     const current = getCompetitionState();
     const newState = { ...current, ...updates };
+
+    // Synthesize legacy properties for backward compatibility during transition
+    const liveKeys = Object.keys(newState.liveSessions);
+    newState.isLive = liveKeys.length > 0;
+    // activeCompetitionId is ambiguous with multiple sessions, but we leave it null or last active?
+    // We'll leave it as is or null.
+
     localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(newState));
 
     // Dispatch event for local updates
@@ -71,18 +96,33 @@ export function toggleProfilesLock() {
 }
 
 export function startLiveSession(teamId: string, competitionId: string, phase: string) {
-    updateCompetitionState({
-        activeTeamId: teamId,
-        activeCompetitionId: competitionId,
-        isLive: true,
-        currentPhase: phase,
+    const state = getCompetitionState();
+    const newSessions = { ...state.liveSessions };
+
+    newSessions[competitionId] = {
+        teamId,
+        phase,
         startTime: Date.now()
+    };
+
+    updateCompetitionState({
+        liveSessions: newSessions
     });
 }
 
-export function stopLiveSession() {
+export function stopLiveSession(competitionId?: string) {
+    const state = getCompetitionState();
+    const newSessions = { ...state.liveSessions };
+
+    if (competitionId) {
+        // Stop specific competition session
+        delete newSessions[competitionId];
+    } else {
+        // Stop ALL sessions (legacy behavior fallback)
+        for (const key in newSessions) delete newSessions[key];
+    }
+
     updateCompetitionState({
-        isLive: false,
-        activeCompetitionId: null,
+        liveSessions: newSessions
     });
 }

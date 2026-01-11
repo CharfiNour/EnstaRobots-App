@@ -12,7 +12,7 @@ import { AdminTeamsTab } from './types';
 
 export default function AdminTeamsPage() {
     const [teams, setTeams] = useState<Team[]>([]);
-    const [activeTab, setActiveTab] = useState<AdminTeamsTab>('codes');
+    const [activeTab, setActiveTab] = useState<AdminTeamsTab>('order');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const router = useRouter();
     const categories = getCompetitionCategories();
@@ -55,7 +55,6 @@ export default function AdminTeamsPage() {
 
                     <div className="flex flex-wrap gap-2 p-1 bg-muted/30 backdrop-blur-md border border-card-border rounded-xl">
                         {[
-                            { id: 'codes', label: 'Security Codes', icon: Key },
                             { id: 'order', label: 'Match Order', icon: ListOrdered },
                             { id: 'profiles', label: 'Detailed Profiles', icon: UserCircle }
                         ].map(tab => (
@@ -87,16 +86,7 @@ export default function AdminTeamsPage() {
 
                 {/* Tab Content */}
                 <div className="flex-1">
-                    {activeTab === 'codes' && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="max-w-4xl mx-auto bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
-                        >
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
-                            <TeamsCodesTab teams={teams} setTeams={setTeams} />
-                        </motion.div>
-                    )}
+
 
                     {activeTab === 'order' && (
                         <motion.div

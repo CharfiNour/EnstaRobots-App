@@ -8,6 +8,7 @@ import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 
 export default function JudgeHistoryPage() {
     const [loading, setLoading] = useState(true);
+    const [session, setSession] = useState<any>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -16,6 +17,7 @@ export default function JudgeHistoryPage() {
             router.push('/auth/judge');
             return;
         }
+        setSession(currentSession);
         setLoading(false);
     }, [router]);
 
@@ -54,7 +56,10 @@ export default function JudgeHistoryPage() {
                     </div>
                 </div>
 
-                <ScoreHistoryView isSentToTeamOnly={false} />
+                <ScoreHistoryView
+                    isSentToTeamOnly={false}
+                    lockedCompetitionId={session?.competition}
+                />
             </div>
         </div>
     );

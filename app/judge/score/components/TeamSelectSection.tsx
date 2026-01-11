@@ -85,11 +85,14 @@ export default function TeamSelectSection({
                                         required
                                     >
                                         <option value="">Select Robot...</option>
-                                        {competitionTeams.map((t) => (
-                                            <option key={t.id} value={t.id}>
-                                                {t.name}
-                                            </option>
-                                        ))}
+                                        {competitionTeams.map((t) => {
+                                            const isTeamDone = isPhaseSubmitted(t.id, phaseToCheck!);
+                                            return (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name} {isTeamDone ? '✓' : ''}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
                                         <ChevronDown size={14} />

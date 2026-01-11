@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Trophy, Users, Calendar, Bell, Shield, History } from 'lucide-react';
+import { Trophy, Users, Calendar, Bell, Shield, History, Key } from 'lucide-react';
 import { StatCard, ActionCard, ActivityItem } from './components';
 import { useAdminDashboard } from './hooks/useAdminDashboard';
 
@@ -96,9 +96,9 @@ export default function AdminDashboard() {
                         />
                         <ActionCard
                             href="/admin/matches"
-                            icon={Calendar}
-                            title="Matches"
-                            description="Schedule and assign arenas"
+                            icon={Key}
+                            title="Security Codes"
+                            description="Auth keys & staff access"
                             color="from-purple-500/20"
                         />
                         <ActionCard

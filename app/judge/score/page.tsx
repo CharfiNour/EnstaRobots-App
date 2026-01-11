@@ -42,6 +42,7 @@ export default function ScoreCardPage() {
     // Judges
     const [judge1, setJudge1] = useState('');
     const [judge2, setJudge2] = useState('');
+    const [availableJudges, setAvailableJudges] = useState<string[]>([]);
 
     // Competition Context
     const [competition, setCompetition] = useState(COMPETITIONS[2]); // Default to Line Follower
@@ -76,23 +77,22 @@ export default function ScoreCardPage() {
         const loaded = getTeams();
         setAllTeams(loaded);
 
+        if (!competition) return;
+
         // Sync Live State
         const syncState = () => {
             const state = getCompetitionState();
-            setIsLive(state.isLive);
+            const liveSess = state.liveSessions[competition.value];
+            const isCompLive = !!liveSess;
 
-            // Sync current competition if live
-            if (state.isLive && state.activeCompetitionId) {
-                const liveComp = COMPETITIONS.find(c => c.value === state.activeCompetitionId);
-                if (liveComp) setCompetition(liveComp);
-            }
+            setIsLive(isCompLive);
 
-            if (state.isLive && state.activeTeamId) {
+            if (isCompLive && liveSess.teamId) {
                 setTeams(prev => {
-                    if (prev[0] && prev[0].id === state.activeTeamId) return prev;
+                    if (prev[0] && prev[0].id === liveSess.teamId) return prev;
                     const copy = [...prev];
                     if (copy[0]) {
-                        copy[0].id = state.activeTeamId!;
+                        copy[0].id = liveSess.teamId;
                         return copy;
                     }
                     return prev;
@@ -108,7 +108,7 @@ export default function ScoreCardPage() {
             window.removeEventListener('competition-state-updated', syncState);
             window.removeEventListener('storage', syncState);
         };
-    }, []);
+    }, [competition.value]);
 
     // Filter teams when competition or allTeams changes
     useEffect(() => {
@@ -149,6 +149,28 @@ export default function ScoreCardPage() {
         setSession(currentSession);
         setLoading(false);
 
+        // Lock competition and load judges if assigned
+        if (currentSession.competition) {
+            const assignedComp = COMPETITIONS.find(c => c.value === currentSession.competition);
+            if (assignedComp) {
+                setCompetition(assignedComp);
+
+                // Fetch available judges for this competition
+                try {
+                    const storedCodes = localStorage.getItem('enstarobots_staff_codes');
+                    if (storedCodes) {
+                        const parsed: any[] = JSON.parse(storedCodes);
+                        const judgeNames = parsed
+                            .filter(c => c.role === 'judge' && c.competition === currentSession.competition)
+                            .map(c => c.name);
+                        setAvailableJudges(judgeNames);
+                    }
+                } catch (e) {
+                    console.error("Failed to load judge names", e);
+                }
+            }
+        }
+
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
         window.addEventListener('online', handleOnline);
@@ -179,7 +201,10 @@ export default function ScoreCardPage() {
     useEffect(() => {
         if (isLive && !isLineFollower && teams[0]?.id) {
             const state = getCompetitionState();
-            if (state.currentPhase !== globalPhase) {
+            const liveSess = state.liveSessions[competition.value];
+
+            // Only update if the phase is actually different to avoid loops
+            if (liveSess && liveSess.phase !== globalPhase) {
                 startLiveSession(teams[0].id, competition.value, globalPhase);
             }
         }
@@ -256,7 +281,7 @@ export default function ScoreCardPage() {
 
         updateCompetitionStatus(competition.value, `${phaseLabel} Completed`);
 
-        stopLiveSession();
+        stopLiveSession(competition.value);
         setIsLive(false);
     };
 
@@ -382,7 +407,7 @@ export default function ScoreCardPage() {
 
             if (isOnline) {
                 try {
-                    const { error } = await supabase.from('scores').insert(dbPayload);
+                    const { error } = await (supabase.from('scores') as any).insert(dbPayload);
                     if (error) {
                         hasError = true;
                         saveScoreOffline(payload);
@@ -461,6 +486,7 @@ export default function ScoreCardPage() {
                     setCompetition={setCompetition}
                     showCompList={showCompList}
                     setShowCompList={setShowCompList}
+                    locked={!!session?.competition}
                 />
 
                 {/* Main Card */}
@@ -484,6 +510,7 @@ export default function ScoreCardPage() {
                         <JudgeInputs
                             judge1={judge1} setJudge1={setJudge1}
                             judge2={judge2} setJudge2={setJudge2}
+                            availableJudges={availableJudges}
                         />
 
                         <div className="w-full h-px bg-card-border" />

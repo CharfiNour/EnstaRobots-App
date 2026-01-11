@@ -1,28 +1,26 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-    MatchesHeader,
-    RobotModelView,
-    PdfViewer,
-    ScheduleCard
-} from '../../team/matches/components';
-import { useAdminMatches } from './hooks/useAdminMatches';
-import { Radio } from 'lucide-react';
+import { Key } from 'lucide-react';
+import { getTeams, Team, saveTeams } from '@/lib/teams';
+import TeamsCodesTab from '../teams/components/TeamsCodesTab';
+import StaffCodesTab from './components/StaffCodesTab';
 
-export default function AdminMatchesPage() {
-    const {
-        teams,
-        selectedTeam,
-        selectedTeamId,
-        setSelectedTeamId,
-        compState,
-        currentTeam,
-        nextTeam,
-        nextPhase,
-        loading,
-        toggleLive
-    } = useAdminMatches();
+export default function AdminCodesPage() {
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const currentTeams = getTeams();
+        setTeams(currentTeams);
+        setLoading(false);
+    }, []);
+
+    const handleSetTeams = (updatedTeams: Team[]) => {
+        setTeams(updatedTeams);
+        saveTeams(updatedTeams);
+    };
 
     if (loading) {
         return (
@@ -33,55 +31,49 @@ export default function AdminMatchesPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground py-10 md:py-16">
-            <div className="container mx-auto px-6 max-w-6xl">
-                {/* Unified Header */}
-                <div className="flex flex-col gap-4 mb-12">
+        <div className="min-h-screen bg-background relative overflow-hidden flex flex-col py-10 md:py-16">
+            {/* Background Decorative Elements */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[120px]" />
+            </div>
+
+            <div className="container mx-auto px-6 max-w-5xl relative z-10">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                     <div>
                         <h1 className="text-3xl font-extrabold flex items-center gap-3 italic uppercase text-foreground">
-                            <Radio className="w-8 h-8 text-accent animate-pulse" />
-                            Live Ops Console
+                            <Key className="w-8 h-8 text-accent" />
+                            Security Protocol Center
                         </h1>
                         <p className="text-sm font-medium text-muted-foreground tracking-wide opacity-60 mt-2 italic">
-                            Real-time tournament orchestration and match monitoring authority
+                            Cryptographic key management for team registration and terminal access control
                         </p>
                     </div>
                 </div>
 
-                {/* Main Content View */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
-                    {/* Left Side: Robot & PDFs */}
-                    <div className="xl:col-span-8 space-y-10">
-                        <RobotModelView
-                            imageUrl="/suiveur.jpg"
-                            competitionName={selectedTeam?.competition?.replace(/_/g, ' ') || "TRACK SCHEMATIC"}
-                        />
+                <div className="space-y-12">
+                    {/* Staff Codes Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500/20 via-accent/20 to-amber-500/20" />
+                        <StaffCodesTab />
+                    </motion.div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <PdfViewer
-                                title="CDC Specification"
-                                pdfUrl="/cdc-suiveur.pdf"
-                            />
-                            <PdfViewer
-                                title="Cotations Logic"
-                                pdfUrl="/cotations-suiveur.pdf"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right Side: Schedule & Admin HUD */}
-                    <div className="xl:col-span-4 space-y-8">
-                        <ScheduleCard
-                            startTime="14:30 SA"
-                            isLive={compState?.isLive || false}
-                            currentPhase={compState?.currentPhase || null}
-                            teamOrder={selectedTeamId ? teams.findIndex(t => t.id === selectedTeamId) + 1 : 1}
-                            teamName={selectedTeam?.name || 'Unit'}
-                            currentTeam={currentTeam}
-                            nextTeam={nextTeam}
-                            nextPhase={nextPhase}
-                        />
-                    </div>
+                    {/* Team Codes Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
+                        <TeamsCodesTab teams={teams} setTeams={handleSetTeams} />
+                    </motion.div>
                 </div>
             </div>
         </div>

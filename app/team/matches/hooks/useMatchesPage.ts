@@ -13,6 +13,8 @@ export function useMatchesPage() {
     const [nextTeam, setNextTeam] = useState<any>(null);
     const [nextPhase, setNextPhase] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+    const [isLiveForMyComp, setIsLiveForMyComp] = useState(false);
 
     useEffect(() => {
         const fetchState = () => {
@@ -20,13 +22,33 @@ export function useMatchesPage() {
             setCompState(state);
 
             const teams = getTeams();
+            const currentSession = getSession();
+
+            // Determine active context based on logged-in team's competition
+            let activeTeamId: string | null = null;
+            let phase: string | null = null;
+            let isLive = false;
+
+            if (currentSession?.teamId) {
+                const myTeam = teams.find(t => t.id === currentSession.teamId);
+                // Check if my competition has a live session
+                if (myTeam && myTeam.competition && state.liveSessions && state.liveSessions[myTeam.competition]) {
+                    const session = state.liveSessions[myTeam.competition];
+                    activeTeamId = session.teamId;
+                    phase = session.phase;
+                    isLive = true;
+                }
+            }
+
+            setCurrentPhase(phase);
+            setIsLiveForMyComp(isLive);
 
             // Current Team Logic: Competition-weighted position
-            if (state.activeTeamId) {
-                const activeTeam = teams.find(t => t.id === state.activeTeamId);
+            if (activeTeamId) {
+                const activeTeam = teams.find(t => t.id === activeTeamId);
                 if (activeTeam) {
                     const compTeams = teams.filter(t => t.competition === activeTeam.competition);
-                    const currentIdx = compTeams.findIndex(t => t.id === state.activeTeamId);
+                    const currentIdx = compTeams.findIndex(t => t.id === activeTeamId);
 
                     if (currentIdx !== -1) {
                         setCurrentTeam({ ...activeTeam, order: currentIdx + 1 });
@@ -36,7 +58,7 @@ export function useMatchesPage() {
 
                         if (currentIdx === compTeams.length - 1) {
                             const phases = ['Qualifiers', 'Group Stage', 'Knockout', 'Finals'];
-                            const currentPhaseIdx = phases.indexOf(state.currentPhase || 'Qualifiers');
+                            const currentPhaseIdx = phases.indexOf(phase || 'Qualifiers');
                             const nextPhaseName = currentPhaseIdx !== -1 && currentPhaseIdx < phases.length - 1
                                 ? phases[currentPhaseIdx + 1]
                                 : 'Next Stage';
@@ -82,6 +104,8 @@ export function useMatchesPage() {
         currentTeam,
         nextTeam,
         nextPhase,
-        loading
+        loading,
+        currentPhase,
+        isLive: isLiveForMyComp
     };
 }

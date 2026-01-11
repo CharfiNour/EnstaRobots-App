@@ -20,7 +20,7 @@ export const navConfig: Record<UserRole, NavItem[]> = {
     team: [
         { name: 'Dashboard', href: '/team', icon: 'LayoutDashboard' },
         { name: 'Briefing', href: '/team/matches', icon: 'Calendar' },
-        { name: 'Score History', href: '/team/score-card' },
+        { name: 'Score History', href: '/team/score-card', icon: 'History' },
     ],
     judge: [
         { name: 'Dashboard', href: '/judge', icon: 'LayoutDashboard' },

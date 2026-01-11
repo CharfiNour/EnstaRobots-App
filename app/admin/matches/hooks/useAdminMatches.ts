@@ -22,9 +22,21 @@ export function useAdminMatches() {
             const allTeams = getTeams();
             setTeams(allTeams);
 
+            // Find first active session
+            let activeTeamId: string | null = null;
+            let currentPhase: string | null = null;
+
+            if (state.liveSessions) {
+                const sessions = Object.values(state.liveSessions);
+                if (sessions.length > 0) {
+                    activeTeamId = sessions[0].teamId;
+                    currentPhase = sessions[0].phase;
+                }
+            }
+
             // Current Team
-            if (state.activeTeamId) {
-                const currentIdx = allTeams.findIndex(t => t.id === state.activeTeamId);
+            if (activeTeamId) {
+                const currentIdx = allTeams.findIndex(t => t.id === activeTeamId);
                 if (currentIdx !== -1) {
                     setCurrentTeam({ ...allTeams[currentIdx], order: currentIdx + 1 });
 
@@ -35,7 +47,7 @@ export function useAdminMatches() {
                     // Next Phase Logic
                     if (currentIdx === allTeams.length - 1) {
                         const phases = ['Qualifiers', 'Group Stage', 'Knockout', 'Finals'];
-                        const currentPhaseIdx = phases.indexOf(state.currentPhase || 'Qualifiers');
+                        const currentPhaseIdx = phases.indexOf(currentPhase || 'Qualifiers');
                         const nextPhaseName = currentPhaseIdx !== -1 && currentPhaseIdx < phases.length - 1
                             ? phases[currentPhaseIdx + 1]
                             : 'Next Stage';

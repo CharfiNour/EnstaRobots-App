@@ -4,7 +4,6 @@ import { Send, Users, Target } from 'lucide-react';
 import {
     ANNOUNCEMENT_TYPES,
     VISIBILITY_OPTIONS,
-    COMPETITIONS
 } from '../services/announcementService';
 import { AnnouncementFormData } from '../types';
 
@@ -13,13 +12,15 @@ interface AnnouncementFormProps {
     setFormData: (data: AnnouncementFormData) => void;
     onSubmit: (e: React.FormEvent) => void;
     submitting: boolean;
+    competitions?: any[];
 }
 
 export default function AnnouncementForm({
     formData,
     setFormData,
     onSubmit,
-    submitting
+    submitting,
+    competitions = []
 }: AnnouncementFormProps) {
     return (
         <form onSubmit={onSubmit} className="space-y-8">
@@ -95,7 +96,7 @@ export default function AnnouncementForm({
                                 className="w-full pl-11 pr-5 py-3 bg-muted/20 border border-card-border rounded-xl text-foreground font-bold appearance-none focus:outline-none focus:border-role-primary/50 transition-all"
                                 required
                             >
-                                {COMPETITIONS.map((comp) => (
+                                {competitions.map((comp: any) => (
                                     <option key={comp.id} value={comp.id} className="text-black">
                                         {comp.title}
                                     </option>

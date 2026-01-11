@@ -70,8 +70,9 @@ export default function CompetitionDetailPage() {
             setCompState(state);
 
             // Load Active Team details
-            if (state.isLive && state.activeTeamId) {
-                const liveTeam = allTeams.find(t => t.id === state.activeTeamId);
+            const liveSess = state.liveSessions[currentCategory];
+            if (liveSess && liveSess.teamId) {
+                const liveTeam = allTeams.find(t => t.id === liveSess.teamId);
                 setActiveTeam(liveTeam || null);
             } else {
                 setActiveTeam(null);
@@ -92,7 +93,7 @@ export default function CompetitionDetailPage() {
     const competition = COMPETITIONS[compId as keyof typeof COMPETITIONS] || { title: 'Competition Details', color: 'text-accent', banner: 'bg-accent/5' };
 
     // Logic to check if THIS specific competition is the one currently live
-    const isActuallyLive = compState.isLive && compState.activeCompetitionId === currentCategory;
+    const isActuallyLive = !!compState.liveSessions[currentCategory];
 
     return (
         <div className="min-h-screen">
@@ -171,7 +172,7 @@ export default function CompetitionDetailPage() {
                                             }`}
                                     >
                                         {/* RED DOT INDICATOR */}
-                                        {mounted && compState.isLive && compState.activeTeamId === team.id && (
+                                        {mounted && compState.liveSessions[currentCategory]?.teamId === team.id && (
                                             <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)] z-10" />
                                         )}
 
@@ -224,7 +225,7 @@ export default function CompetitionDetailPage() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {mounted && compState.isLive && compState.activeTeamId === selectedTeam?.id && (
+                                                    {mounted && compState.liveSessions[currentCategory]?.teamId === selectedTeam?.id && (
                                                         <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full border-4 border-card animate-pulse shadow-lg" />
                                                     )}
                                                 </div>
