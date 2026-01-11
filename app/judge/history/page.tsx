@@ -45,8 +45,8 @@ export default function JudgeHistoryPage() {
                             <History className="w-8 h-8 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-2">
-                                Judge Console
+                            <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none mb-2">
+                                Score List
                             </h1>
                             <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">
                                 <Activity size={14} className="text-role-primary" />

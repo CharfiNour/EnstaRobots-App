@@ -469,6 +469,16 @@ export default function ScoreCardPage() {
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-2xl">
+                {/* Tactical Header */}
+                <div className="mb-10">
+                    <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none mb-2">
+                        Score Management
+                    </h1>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-role-primary opacity-60">
+                        Tactical Performance Entry & Registry Sync
+                    </p>
+                </div>
+
                 {/* Header Actions */}
                 <HeaderActions
                     isLive={isLive}

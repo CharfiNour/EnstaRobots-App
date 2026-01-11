@@ -1,15 +1,24 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Box, Maximize2, X, Scan, Cpu } from 'lucide-react';
-import { useState } from 'react';
+import { Box, Maximize2, X, Scan, Cpu, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface RobotModelViewProps {
     imageUrl: string;
     competitionName: string;
+    maquetteUrl?: string;
 }
 
-export default function RobotModelView({ imageUrl, competitionName }: RobotModelViewProps) {
+export default function RobotModelView({ imageUrl, competitionName, maquetteUrl }: RobotModelViewProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [showMaquette, setShowMaquette] = useState(false);
+
+    // Sync showMaquette with maquetteUrl when it becomes available
+    useEffect(() => {
+        if (maquetteUrl) {
+            setShowMaquette(true);
+        }
+    }, [maquetteUrl]);
 
     return (
         <>
@@ -33,6 +42,19 @@ export default function RobotModelView({ imageUrl, competitionName }: RobotModel
                 </div>
 
                 <div className="absolute bottom-6 right-6 z-10 flex flex-col gap-2">
+                    {maquetteUrl && (
+                        <button
+                            onClick={() => setShowMaquette(!showMaquette)}
+                            className={`w-12 h-12 rounded-xl backdrop-blur-md border flex items-center justify-center transition-all cursor-pointer group/btn shadow-xl ${showMaquette
+                                ? 'bg-role-primary/80 border-role-primary/50'
+                                : 'bg-black/60 border-white/10 hover:bg-role-primary/20'
+                                }`}
+                            title={showMaquette ? "Show Track Schematic" : "Show Robot Mockup"}
+                        >
+                            <FileText className={`w-6 h-6 transition-transform group-hover/btn:scale-110 ${showMaquette ? 'text-white' : 'text-role-primary'
+                                }`} />
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsExpanded(true)}
                         className="w-12 h-12 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-role-primary/20 transition-all cursor-pointer group/btn shadow-xl"
@@ -41,24 +63,46 @@ export default function RobotModelView({ imageUrl, competitionName }: RobotModel
                     </button>
                 </div>
 
-                <div className="relative min-h-[400px] lg:h-[500px] overflow-hidden bg-white flex items-center justify-center p-6 lg:p-10 shadow-inner">
-                    <div className="relative w-full h-full">
-                        <Image
-                            src={imageUrl}
-                            alt={competitionName}
-                            fill
-                            className="object-contain transition-transform duration-700 group-hover:scale-105"
-                            priority
-                        />
-                    </div>
+                <div className="relative min-h-[400px] lg:h-[500px] overflow-hidden bg-white shadow-inner">
+                    {showMaquette && maquetteUrl ? (
+                        maquetteUrl.toLowerCase().endsWith('.pdf') ? (
+                            <iframe
+                                src={`${maquetteUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                className="absolute inset-0 w-full h-full border-none"
+                                title="Robot Design Mockup"
+                            />
+                        ) : (
+                            <div className="relative w-full h-full p-6 lg:p-10 flex items-center justify-center">
+                                <Image
+                                    src={maquetteUrl}
+                                    alt="Robot Design Mockup"
+                                    fill
+                                    className="object-contain transition-transform duration-700 group-hover:scale-105"
+                                    priority
+                                />
+                            </div>
+                        )
+                    ) : (
+                        <div className="relative w-full h-full p-6 lg:p-10 flex items-center justify-center">
+                            <Image
+                                src={imageUrl}
+                                alt={competitionName}
+                                fill
+                                className="object-contain transition-transform duration-700 group-hover:scale-105"
+                                priority
+                            />
+                        </div>
+                    )}
 
                     {/* Technical Blueprint Overlay - Ultra Subtle */}
-                    <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-                        style={{
-                            backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
-                            backgroundSize: '40px 40px'
-                        }}
-                    />
+                    {!showMaquette && (
+                        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                            style={{
+                                backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
+                                backgroundSize: '40px 40px'
+                            }}
+                        />
+                    )}
                 </div>
             </motion.div>
 
@@ -85,28 +129,50 @@ export default function RobotModelView({ imageUrl, competitionName }: RobotModel
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
                             className="relative w-full h-full max-w-6xl bg-white rounded-[2rem] md:rounded-[4rem] overflow-hidden shadow-2xl flex flex-col"
                         >
-                            <div className="flex-1 relative p-6 md:p-16">
-                                <Image
-                                    src={imageUrl}
-                                    alt={competitionName}
-                                    fill
-                                    className="object-contain"
-                                    priority
-                                />
+                            <div className="flex-1 relative">
+                                {showMaquette && maquetteUrl ? (
+                                    maquetteUrl.toLowerCase().endsWith('.pdf') ? (
+                                        <iframe
+                                            src={`${maquetteUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                            className="absolute inset-0 w-full h-full border-none"
+                                            title="Robot Design Mockup"
+                                        />
+                                    ) : (
+                                        <div className="relative w-full h-full p-6 md:p-16 flex items-center justify-center">
+                                            <Image
+                                                src={maquetteUrl}
+                                                alt="Robot Design Mockup"
+                                                fill
+                                                className="object-contain"
+                                                priority
+                                            />
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="relative w-full h-full p-6 md:p-16 flex items-center justify-center">
+                                        <Image
+                                            src={imageUrl}
+                                            alt={competitionName}
+                                            fill
+                                            className="object-contain"
+                                            priority
+                                        />
 
-                                {/* Full Scale Grid Overlay - Subtle */}
-                                <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-                                    style={{
-                                        backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
-                                        backgroundSize: '100px 100px'
-                                    }}
-                                />
-                                <div className="absolute inset-0 pointer-events-none opacity-[0.01]"
-                                    style={{
-                                        backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
-                                        backgroundSize: '20px 20px'
-                                    }}
-                                />
+                                        {/* Full Scale Grid Overlay - Subtle */}
+                                        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                                            style={{
+                                                backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
+                                                backgroundSize: '100px 100px'
+                                            }}
+                                        />
+                                        <div className="absolute inset-0 pointer-events-none opacity-[0.01]"
+                                            style={{
+                                                backgroundImage: `linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)`,
+                                                backgroundSize: '20px 20px'
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

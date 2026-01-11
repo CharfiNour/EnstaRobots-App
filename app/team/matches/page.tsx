@@ -33,18 +33,19 @@ export default function TeamMatchesPage() {
                     {/* Left Side: Robot & PDFs */}
                     <div className="lg:col-span-8 space-y-8">
                         <RobotModelView
-                            imageUrl="/suiveur.jpg"
+                            imageUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/maquette-junior.jpg' : '/suiveur.jpg'}
                             competitionName={teamData?.competition?.replace(/_/g, ' ') || "TRACK SCHEMATIC"}
+                            maquetteUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/maquette-junior.jpg' : undefined}
                         />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <PdfViewer
                                 title="Competition Rules (CDC)"
-                                pdfUrl="/cdc-suiveur.pdf"
+                                pdfUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/cdc-suiveur-junior.pdf' : '/cdc-suiveur.pdf'}
                             />
                             <PdfViewer
                                 title="Scoring Criteria (Cotations)"
-                                pdfUrl="/cotations-suiveur.pdf"
+                                pdfUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/cotations-junior.pdf' : '/cotations-suiveur.pdf'}
                             />
                         </div>
                     </div>

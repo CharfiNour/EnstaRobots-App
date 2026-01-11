@@ -130,23 +130,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             </>
                         )}
 
-                        {/* Phase Switcher Integrated */}
-                        {group.submissions.length > 1 && (
-                            <div className="flex gap-1 bg-muted p-1 rounded-xl border border-card-border/50">
-                                {group.submissions.map((sub: any) => (
-                                    <button
-                                        key={sub.id}
-                                        onClick={() => onPhaseChange(sub.phase)}
-                                        className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activePhase === sub.phase
-                                            ? 'bg-accent text-slate-900 shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                            }`}
-                                    >
-                                        {(sub.phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </div>
 

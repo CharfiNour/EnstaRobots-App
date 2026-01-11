@@ -41,6 +41,7 @@ export default function ScoreHistoryView({
     const [activePhase, setActivePhase] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCompetition, setSelectedCompetition] = useState(lockedCompetitionId || initialCompetition);
+    const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('all');
     const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
 
     useEffect(() => {
@@ -162,6 +163,15 @@ export default function ScoreHistoryView({
         return groupedScores.filter(g => {
             const matchesComp = selectedCompetition === 'all' || g.competitionType === selectedCompetition;
 
+            // Phase filtering
+            const matchesPhase = selectedPhaseFilter === 'all' || (
+                g.type === 'single'
+                    ? g.submissions.some((s: any) => s.phase === selectedPhaseFilter)
+                    : g.participants.some((p: any) => p.submissions.some((s: any) => s.phase === selectedPhaseFilter))
+            );
+
+            if (!matchesComp || !matchesPhase) return false;
+
             if (g.type === 'match') {
                 // Search in participants
                 const matchesSearch = g.participants.some((p: any) =>
@@ -169,15 +179,15 @@ export default function ScoreHistoryView({
                     (p.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (p.team?.club || '').toLowerCase().includes(searchQuery.toLowerCase())
                 );
-                return matchesComp && matchesSearch;
+                return matchesSearch;
             } else {
                 const matchesSearch = g.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (g.competitionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (g.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-                return matchesComp && matchesSearch;
+                return matchesSearch;
             }
         });
-    }, [groupedScores, searchQuery, selectedCompetition]);
+    }, [groupedScores, searchQuery, selectedCompetition, selectedPhaseFilter]);
 
     // Synchronize selection when competition changes
     useEffect(() => {
@@ -190,19 +200,36 @@ export default function ScoreHistoryView({
                 const first = filteredGroups[0];
                 setSelectedGroup(first);
                 if (first.type === 'single') {
-                    setActivePhase(first.submissions[0].phase);
+                    // Default to filtered phase if available
+                    const targetPhase = selectedPhaseFilter !== 'all' && first.submissions.some((s: any) => s.phase === selectedPhaseFilter)
+                        ? selectedPhaseFilter
+                        : first.submissions[0].phase;
+                    setActivePhase(targetPhase);
                     setSelectedTeamInGroup(null);
                 } else if (first.participants?.length > 0) {
                     setSelectedTeamInGroup(first.participants[0].teamId);
-                    setActivePhase(first.participants[0].submissions[0]?.phase || '');
+                    const targetPhase = selectedPhaseFilter !== 'all' && first.participants[0].submissions.some((s: any) => s.phase === selectedPhaseFilter)
+                        ? selectedPhaseFilter
+                        : first.participants[0].submissions[0]?.phase || '';
+                    setActivePhase(targetPhase);
                 }
+            } else if (selectedPhaseFilter !== 'all') {
+                // If current selection still visible but phase changed, try to match it
+                let hasFilteredPhase = false;
+                if (selectedGroup.type === 'single') {
+                    hasFilteredPhase = selectedGroup.submissions.some((s: any) => s.phase === selectedPhaseFilter);
+                } else if (selectedTeamInGroup) {
+                    const participant = selectedGroup.participants.find((p: any) => p.teamId === selectedTeamInGroup);
+                    hasFilteredPhase = participant?.submissions.some((s: any) => s.phase === selectedPhaseFilter);
+                }
+                if (hasFilteredPhase) setActivePhase(selectedPhaseFilter);
             }
         } else {
             setSelectedGroup(null);
             setActivePhase('');
             setSelectedTeamInGroup(null);
         }
-    }, [selectedCompetition]);
+    }, [selectedCompetition, selectedPhaseFilter]);
 
     // Get current score data for display - must be before any returns to maintain hook order
     const currentScoreGroup = useMemo(() => {
@@ -232,6 +259,27 @@ export default function ScoreHistoryView({
         return [...new Set(phases)] as string[];
     }, [currentScoreGroup]);
 
+    const allCompetitionPhases = useMemo(() => {
+        const phases = new Set<string>();
+        groupedScores.forEach(g => {
+            if (selectedCompetition === 'all' || g.competitionType === selectedCompetition) {
+                if (g.type === 'single') {
+                    g.submissions.forEach((s: any) => phases.add(s.phase));
+                } else {
+                    g.participants.forEach((p: any) => p.submissions.forEach((s: any) => phases.add(s.phase)));
+                }
+            }
+        });
+        return Array.from(phases).sort();
+    }, [groupedScores, selectedCompetition]);
+
+    // Auto-select first phase if none selected or if 'all' is chosen but hidden
+    useEffect(() => {
+        if (selectedPhaseFilter === 'all' && allCompetitionPhases.length > 0) {
+            setSelectedPhaseFilter(allCompetitionPhases[0]);
+        }
+    }, [allCompetitionPhases, selectedPhaseFilter]);
+
     if (loading) {
         return (
             <div className="min-h-[400px] flex items-center justify-center">
@@ -246,13 +294,19 @@ export default function ScoreHistoryView({
     const handleSelectTeam = (group: any, teamId?: string) => {
         setSelectedGroup(group);
         if (group.type === 'single') {
-            setActivePhase(group.submissions[0].phase);
+            const targetPhase = selectedPhaseFilter !== 'all' && group.submissions.some((s: any) => s.phase === selectedPhaseFilter)
+                ? selectedPhaseFilter
+                : group.submissions[0].phase;
+            setActivePhase(targetPhase);
             setSelectedTeamInGroup(null);
         } else if (group.type === 'match' && teamId) {
             setSelectedTeamInGroup(teamId);
             const participant = group.participants.find((p: any) => p.teamId === teamId);
             if (participant?.submissions?.length > 0) {
-                setActivePhase(participant.submissions[0].phase);
+                const targetPhase = selectedPhaseFilter !== 'all' && participant.submissions.some((s: any) => s.phase === selectedPhaseFilter)
+                    ? selectedPhaseFilter
+                    : participant.submissions[0].phase;
+                setActivePhase(targetPhase);
             }
         }
     };
@@ -313,32 +367,27 @@ export default function ScoreHistoryView({
                                             <ChevronRight size={14} className="rotate-90" />
                                         </div>
                                     </div>
+
+                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-4 mb-3 px-1 flex items-center gap-2">
+                                        <Layers size={12} className="text-role-primary" />
+                                        {selectedCompetition.includes('line_follower') ? 'Phase Selection' : 'Strategic Phase'}
+                                    </h2>
+                                    <div className="flex flex-wrap gap-1.5 bg-muted/30 p-1.5 rounded-xl border border-card-border/50">
+                                        {allCompetitionPhases.map((phase: string) => (
+                                            <button
+                                                key={phase}
+                                                onClick={() => setSelectedPhaseFilter(phase)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedPhaseFilter === phase
+                                                    ? 'bg-accent text-slate-900 shadow-sm'
+                                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/10'
+                                                    }`}
+                                            >
+                                                {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </>
                             )}
-                        </div>
-                    )}
-
-                    {/* Phase Selector - Above Teams List */}
-                    {availablePhases.length > 1 && (
-                        <div>
-                            <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
-                                <Layers size={12} className="text-role-primary" />
-                                Phase Selection
-                            </h2>
-                            <div className="flex flex-wrap gap-1.5 bg-muted/30 p-1.5 rounded-xl border border-card-border/50">
-                                {availablePhases.map((phase: string) => (
-                                    <button
-                                        key={phase}
-                                        onClick={() => setActivePhase(phase)}
-                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activePhase === phase
-                                            ? 'bg-accent text-slate-900 shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground hover:bg-white/10'
-                                            }`}
-                                    >
-                                        {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
-                                    </button>
-                                ))}
-                            </div>
                         </div>
                     )}
 

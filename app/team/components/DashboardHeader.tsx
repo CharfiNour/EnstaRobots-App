@@ -38,19 +38,6 @@ export default function DashboardHeader({ teamData, session }: DashboardHeaderPr
                 </div>
             </motion.div>
 
-            <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-card/40 backdrop-blur-xl border border-card-border p-2 pr-8 rounded-[2rem] shadow-xl flex items-center gap-6"
-            >
-                <div className="p-5 bg-muted/50 rounded-2xl font-mono text-2xl font-black text-role-primary tracking-tighter">
-                    {session?.teamCode}
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground opacity-50 mb-1">Access Token</p>
-                    <p className="text-sm font-bold text-foreground">Active Node</p>
-                </div>
-            </motion.div>
         </div>
     );
 }

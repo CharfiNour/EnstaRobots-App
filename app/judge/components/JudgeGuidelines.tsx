@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
+import { BookOpen } from 'lucide-react';
 import { JudgeDashboardData } from '../types';
 
 interface JudgeGuidelinesProps {
@@ -9,18 +10,25 @@ interface JudgeGuidelinesProps {
 
 export default function JudgeGuidelines({ guidelines }: JudgeGuidelinesProps) {
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mt-8 p-6 bg-muted border border-card-border rounded-xl"
-        >
-            <h3 className="text-lg font-bold text-foreground mb-3">Judge Guidelines 📋</h3>
-            <ul className="space-y-2 text-muted-foreground text-sm">
+        <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2rem] p-6">
+            <div className="flex items-center gap-2.5 mb-5">
+                <div className="w-7 h-7 rounded-lg bg-role-primary/10 text-role-primary flex items-center justify-center">
+                    <BookOpen size={16} />
+                </div>
+                <div>
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-tight italic">Protocol Directives</h3>
+                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">Standard Operating Procedures</p>
+                </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
                 {guidelines.map((guideline, index) => (
-                    <li key={index}>• {guideline}</li>
+                    <div key={index} className="flex gap-2 group">
+                        <span className="text-role-primary font-black text-[10px] group-hover:translate-x-0.5 transition-transform duration-300 mt-0.5">›</span>
+                        <p className="text-muted-foreground text-[11px] leading-relaxed font-medium">{guideline}</p>
+                    </div>
                 ))}
-            </ul>
-        </motion.div>
+            </div>
+        </div>
     );
 }
