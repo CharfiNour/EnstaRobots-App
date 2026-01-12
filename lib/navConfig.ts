@@ -1,7 +1,7 @@
 // Navigation configuration per user role
 // This ensures each role sees appropriate navigation items
 
-export type UserRole = 'visitor' | 'team' | 'judge' | 'admin';
+export type UserRole = 'visitor' | 'team' | 'jury' | 'admin';
 
 export interface NavItem {
     name: string;
@@ -22,10 +22,10 @@ export const navConfig: Record<UserRole, NavItem[]> = {
         { name: 'Briefing', href: '/team/matches', icon: 'Calendar' },
         { name: 'Score History', href: '/team/score-card', icon: 'History' },
     ],
-    judge: [
-        { name: 'Dashboard', href: '/judge', icon: 'LayoutDashboard' },
-        { name: 'Competition', href: '/judge/score', icon: 'ClipboardCheck' },
-        { name: 'Score History', href: '/judge/history', icon: 'History' },
+    jury: [
+        { name: 'Dashboard', href: '/jury', icon: 'LayoutDashboard' },
+        { name: 'Competition', href: '/jury/score', icon: 'ClipboardCheck' },
+        { name: 'Score History', href: '/jury/history', icon: 'History' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin', icon: 'LayoutDashboard' },
@@ -49,10 +49,10 @@ export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]
         { name: 'Briefing', href: '/team/matches' },
         { name: 'Score History', href: '/team/score-card' },
     ],
-    judge: [
-        { name: 'Dashboard', href: '/judge' },
-        { name: 'Competition', href: '/judge/score' },
-        { name: 'Score History', href: '/judge/history' },
+    jury: [
+        { name: 'Dashboard', href: '/jury' },
+        { name: 'Competition', href: '/jury/score' },
+        { name: 'Score History', href: '/jury/history' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin' },

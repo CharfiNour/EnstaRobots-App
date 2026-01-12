@@ -16,7 +16,7 @@ export default function TeamLoginPage() {
     useEffect(() => {
         const session = getSession();
         if (session) {
-            router.push(session.role === 'admin' ? '/admin' : session.role === 'judge' ? '/judge' : '/team');
+            router.push(session.role === 'admin' ? '/admin' : session.role === 'jury' ? '/jury' : '/team');
         }
     }, [router]);
 

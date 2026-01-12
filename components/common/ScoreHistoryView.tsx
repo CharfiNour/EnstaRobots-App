@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { getOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
-import ScoreCard from '@/components/judge/ScoreCard';
+import ScoreCard from '@/components/jury/ScoreCard';
 import { getCompetitionState } from '@/lib/competitionState';
+import { fetchScoresFromSupabase } from '@/lib/supabaseData';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 
 const COMPETITION_CATEGORIES = [
     { id: 'all', name: 'All Categories' },
@@ -59,19 +61,56 @@ export default function ScoreHistoryView({
     }, []);
 
     useEffect(() => {
-        if (lockedCompetitionId) {
-            setSelectedCompetition(lockedCompetitionId);
-        }
-    }, [lockedCompetitionId]);
+        const sync = () => {
+            const state = getCompetitionState();
+            setLiveSessions(state.liveSessions || {});
+        };
+        sync();
+        window.addEventListener('competition-state-updated', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('competition-state-updated', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
 
-    const loadScores = (forceSelectId?: string) => {
-        let offlineScores = getOfflineScores();
+    // Realtime Updates
+    const handleScoresUpdate = async () => {
+        // Fetch latest from DB
+        const scores = await fetchScoresFromSupabase();
+        // Update view
+        processScores(scores);
+    };
+
+    useSupabaseRealtime('scores', handleScoresUpdate);
+
+    // Initial Load - try to fetch from DB first (for visitors), falling back to local
+    useEffect(() => {
+        const init = async () => {
+            setLoading(true);
+            try {
+                const scores = await fetchScoresFromSupabase();
+                if (scores && scores.length > 0) {
+                    processScores(scores);
+                } else {
+                    processScores(getOfflineScores());
+                }
+            } catch (e) {
+                console.error("Failed to fetch initial scores", e);
+                processScores(getOfflineScores());
+            }
+        };
+        init();
+    }, []);
+
+    // Replaces loadScores but keeps the processing logic
+    const processScores = (scoresList: any[], forceSelectId?: string) => {
+        let offlineScores = scoresList;
         if (isSentToTeamOnly) {
             offlineScores = offlineScores.filter(s => s.isSentToTeam);
         }
 
         const allTeams = getTeams();
-
         // Determine if competition is match-based
         const isMatchBased = (compType: string) => ['fight', 'all_terrain', 'junior_all_terrain'].includes(compType);
 
@@ -129,6 +168,7 @@ export default function ScoreHistoryView({
         const sortedGroups = Object.values(groups).sort((a: any, b: any) => b.latestTimestamp - a.latestTimestamp);
         setGroupedScores(sortedGroups);
 
+        // Selection logic (simplified reuse)
         if (forceSelectId) {
             const forced = sortedGroups.find(g => g.teamId === forceSelectId || g.matchId === forceSelectId);
             if (forced) {
@@ -152,12 +192,15 @@ export default function ScoreHistoryView({
                 setActivePhase(first.participants[0].submissions[0]?.phase || '');
             }
         }
+
         setLoading(false);
     };
 
-    useEffect(() => {
-        loadScores();
-    }, []);
+    // Kept for backward compat or manual triggers if needed, but redirects to processScores
+    const loadScores = (forceSelectId?: string) => {
+        // Fallback to local if called manually without data
+        processScores(getOfflineScores(), forceSelectId);
+    };
 
     const filteredGroups = useMemo(() => {
         return groupedScores.filter(g => {
@@ -537,7 +580,7 @@ export default function ScoreHistoryView({
                                 activePhase={activePhase}
                                 onPhaseChange={setActivePhase}
                                 isAdmin={isAdmin}
-                                onDelete={() => loadScores()}
+                                onDelete={() => handleScoresUpdate()}
                                 matchParticipants={selectedGroup?.type === 'match' ? selectedGroup.participants : undefined}
                             />
                         </motion.div>

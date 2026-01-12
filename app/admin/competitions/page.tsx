@@ -9,6 +9,9 @@ import { useRouter } from 'next/navigation';
 import { CompetitionCard } from './components';
 import { getAdminCompetitions, saveAdminCompetitions } from './services/competitionService';
 import { CompetitionListItem } from './types';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionState } from '@/lib/competitionState';
 
 export default function CompetitionsPage() {
     const [session, setSession] = useState<any>(null);
@@ -18,14 +21,28 @@ export default function CompetitionsPage() {
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || (currentSession.role !== 'admin' && currentSession.role !== 'judge')) {
-            router.push('/auth/judge');
+        if (!currentSession || (currentSession.role !== 'admin' && currentSession.role !== 'jury')) {
+            router.push('/auth/jury');
             return;
         }
         setSession(currentSession);
         setCompetitions(getAdminCompetitions());
         setLoading(false);
+
+        // Initial fetch from DB
+        fetchLiveSessionsFromSupabase().then(sessions => {
+            if (Object.keys(sessions).length > 0) {
+                updateCompetitionState({ liveSessions: sessions });
+            }
+        });
     }, [router]);
+
+    const handleRealtimeUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
 
     const handleUpdate = (updated: CompetitionListItem) => {
         setCompetitions(prev => {

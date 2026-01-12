@@ -12,7 +12,7 @@ import { getCompetitionState, updateCompetitionState } from '@/lib/competitionSt
 
 import { PHASES } from '../services/competitionService';
 
-import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/judge/score/services/scoreConstants';
+import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
 import { getTeams, Team } from '@/lib/teams';
 
 interface CompetitionCardProps {
@@ -72,7 +72,7 @@ export default function CompetitionCard({ comp, index, onUpdate }: CompetitionCa
     // Check if THIS specific competition is the one currently live using the session map
     const isActuallyLive = !!compState.liveSessions?.[comp.category];
 
-    // Synchronize phase with judge's phase if live
+    // Synchronize phase with jury's phase if live
     const getLivePhaseLabel = () => {
         const session = compState.liveSessions?.[comp.category];
         if (!session?.phase) return editedComp.status;

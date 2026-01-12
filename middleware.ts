@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
 
     // Protected routes
     const teamRoutes = pathname.startsWith('/team');
-    const judgeRoutes = pathname.startsWith('/judge');
+    const judgeRoutes = pathname.startsWith('/jury');
     const adminRoutes = pathname.startsWith('/admin');
 
     // For now, allow all routes (auth is handled client-side)

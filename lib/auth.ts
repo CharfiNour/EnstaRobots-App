@@ -7,7 +7,7 @@ export interface AuthSession {
     teamId?: string;
     teamCode?: string;
     teamName?: string;
-    competition?: string; // For judges locked to a specific competition
+    competition?: string; // For juries locked to a specific competition
     expiresAt: number;
 }
 
@@ -34,7 +34,7 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
             // Default fallback if storage is empty (should match StaffCodesTab defaults)
             staffCodes = [
                 { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
-                { id: '2', role: 'judge', name: 'Main Judge', code: 'JUDGE-2024' },
+                { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024' },
             ];
         }
 
@@ -47,7 +47,7 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
         const session: AuthSession = {
             userId: match.id,
             role: match.role,
-            competition: match.role === 'judge' ? match.competition : undefined,
+            competition: match.role === 'jury' ? match.competition : undefined,
             expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
         };
 
@@ -156,14 +156,14 @@ export function hasAccess(requiredRole: UserRole): boolean {
     const roleHierarchy: Record<UserRole, number> = {
         visitor: 0,
         team: 1,
-        judge: 2,
+        jury: 2,
         admin: 3,
     };
 
     return roleHierarchy[currentRole] >= roleHierarchy[requiredRole];
 }
 
-// Admin/Judge login (placeholder for Supabase Auth)
+// Admin/Jury login (placeholder for Supabase Auth)
 export async function loginWithEmail(email: string, password: string): Promise<{ success: boolean; error?: string; session?: AuthSession }> {
     try {
         const { data, error } = await supabase.auth.signInWithPassword({

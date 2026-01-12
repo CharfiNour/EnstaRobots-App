@@ -11,6 +11,9 @@ import {
 import { getTeams, Team, TeamMember } from '@/lib/teams';
 import { getCompetitionState, CompetitionState, INITIAL_STATE } from '@/lib/competitionState';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionState } from '@/lib/competitionState';
 
 // Mock data for the demonstration
 const COMPETITIONS = {
@@ -81,6 +84,13 @@ export default function CompetitionDetailPage() {
 
         handleStateUpdate();
 
+        // Initial fetch from DB for accurate live state
+        fetchLiveSessionsFromSupabase().then(sessions => {
+            if (Object.keys(sessions).length > 0) {
+                updateCompetitionState({ liveSessions: sessions });
+            }
+        });
+
         window.addEventListener('competition-state-updated', handleStateUpdate);
         window.addEventListener('storage', handleStateUpdate);
 
@@ -89,6 +99,13 @@ export default function CompetitionDetailPage() {
             window.removeEventListener('storage', handleStateUpdate);
         };
     }, [compId, currentCategory]);
+
+    const handleRealtimeUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
 
     const competition = COMPETITIONS[compId as keyof typeof COMPETITIONS] || { title: 'Competition Details', color: 'text-accent', banner: 'bg-accent/5' };
 

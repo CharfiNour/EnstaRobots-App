@@ -6,15 +6,15 @@ import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 
-export default function JudgeHistoryPage() {
+export default function JuryHistoryPage() {
     const [loading, setLoading] = useState(true);
     const [session, setSession] = useState<any>(null);
     const router = useRouter();
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'judge') {
-            router.push('/auth/judge');
+        if (!currentSession || currentSession.role !== 'jury') {
+            router.push('/auth/jury');
             return;
         }
         setSession(currentSession);

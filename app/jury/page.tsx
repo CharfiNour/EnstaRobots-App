@@ -3,15 +3,15 @@
 import { motion } from 'framer-motion';
 import { ClipboardCheck, History } from 'lucide-react';
 import {
-    JudgeActionCard,
+    JuryActionCard,
     ActiveMatchesList,
-    JudgeGuidelines,
-    JudgeDashboardHeader
+    JuryGuidelines,
+    JuryDashboardHeader
 } from './components';
-import { useJudgeDashboard } from './hooks/useJudgeDashboard';
+import { useJuryDashboard } from './hooks/useJuryDashboard';
 
-export default function JudgeDashboard() {
-    const { loading, data } = useJudgeDashboard();
+export default function JuryDashboard() {
+    const { loading, data } = useJuryDashboard();
 
     if (loading || !data) {
         return (
@@ -28,7 +28,7 @@ export default function JudgeDashboard() {
         <div className="min-h-screen py-6 px-4 md:px-8">
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Tactical Header */}
-                <JudgeDashboardHeader />
+                <JuryDashboardHeader />
 
                 <div className="grid lg:grid-cols-12 gap-6">
                     {/* Primary Operations: Small Cards */}
@@ -39,8 +39,8 @@ export default function JudgeDashboard() {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: 0.1 }}
                             >
-                                <JudgeActionCard
-                                    href="/judge/score"
+                                <JuryActionCard
+                                    href="/jury/score"
                                     icon={ClipboardCheck}
                                     title="Score Management"
                                     description="Record tactical performance data and verify official scores for active categories."
@@ -53,8 +53,8 @@ export default function JudgeDashboard() {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: 0.2 }}
                             >
-                                <JudgeActionCard
-                                    href="/judge/history"
+                                <JuryActionCard
+                                    href="/jury/history"
                                     icon={History}
                                     title="Score List"
                                     description="Review previous scorecards, verify registry sync, and dispatch reports to teams."
@@ -68,7 +68,7 @@ export default function JudgeDashboard() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
                         >
-                            <JudgeGuidelines guidelines={data.guidelines} />
+                            <JuryGuidelines guidelines={data.guidelines} />
                         </motion.div>
                     </div>
 

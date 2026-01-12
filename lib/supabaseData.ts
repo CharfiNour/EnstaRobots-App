@@ -108,10 +108,10 @@ export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
         bonusPoints: s.bonus_points ?? undefined,
         completed_road: s.completed_road ?? undefined,
         knockouts: s.knockouts ?? undefined,
-        judgePoints: s.judge_points ?? undefined,
+        juryPoints: s.judge_points ?? undefined,
         damageScore: s.damage_score ?? undefined,
         totalPoints: s.total_points,
-        judgeId: s.judge_id || '',
+        juryId: s.judge_id || '',
         timestamp: new Date(s.timestamp).getTime(),
         synced: true,
         isSentToTeam: s.is_sent_to_team,
@@ -130,10 +130,10 @@ export async function pushScoreToSupabase(score: OfflineScore) {
         bonus_points: score.bonusPoints ?? null,
         completed_road: score.completedRoad ?? null,
         knockouts: score.knockouts ?? null,
-        judge_points: score.judgePoints ?? null,
+        judge_points: score.juryPoints ?? null,
         damage_score: score.damageScore ?? null,
         total_points: score.totalPoints,
-        judge_id: score.judgeId,
+        judge_id: score.juryId,
         status: score.status ?? null,
         is_sent_to_team: score.isSentToTeam ?? false,
         timestamp: new Date(score.timestamp).toISOString()
@@ -163,4 +163,26 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
         const { error } = await (supabase.from('live_sessions') as any).insert(sessionEntries);
         if (error) console.error('Error syncing live sessions:', error);
     }
+}
+
+export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, any>> {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select('*');
+
+    if (error) {
+        console.error('Error fetching live sessions:', error);
+        return {};
+    }
+
+    const sessions: Record<string, any> = {};
+    data?.forEach((s: any) => {
+        sessions[s.competition_id] = {
+            teamId: s.team_id,
+            phase: s.phase,
+            startTime: new Date(s.start_time).getTime()
+        };
+    });
+
+    return sessions;
 }

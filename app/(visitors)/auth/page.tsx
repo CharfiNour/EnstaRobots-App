@@ -49,14 +49,14 @@ export default function AuthPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
                 >
-                    <Link href="/auth/judge" className="group block h-full">
+                    <Link href="/auth/jury" className="group block h-full">
                         <div className="h-full p-8 rounded-2xl bg-card border border-card-border hover:border-primary transition-all hover:shadow-2xl hover:shadow-primary/5 flex flex-col items-center text-center">
                             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
                                 <Shield size={32} />
                             </div>
                             <h2 className="text-2xl font-bold mb-3">Staff Portal</h2>
                             <p className="text-muted-foreground mb-8">
-                                For Judges and Administrators. Manage competitions, input scores, and oversee the event.
+                                For Juries and Administrators. Manage competitions, input scores, and oversee the event.
                             </p>
                             <div className="mt-auto flex items-center gap-2 text-primary font-black uppercase tracking-widest text-sm">
                                 Staff Login <ArrowRight size={16} />

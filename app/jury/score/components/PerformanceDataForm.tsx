@@ -17,8 +17,8 @@ interface PerformanceDataFormProps {
     setHomologationPoints: (v: string) => void;
     knockouts: string;
     setKnockouts: (v: string) => void;
-    judgePoints: string;
-    setJudgePoints: (v: string) => void;
+    juryPoints: string;
+    setJuryPoints: (v: string) => void;
     damageScore: string;
     setDamageScore: (v: string) => void;
 }
@@ -31,7 +31,7 @@ export default function PerformanceDataForm({
     completedRoad, setCompletedRoad,
     homologationPoints, setHomologationPoints,
     knockouts, setKnockouts,
-    judgePoints, setJudgePoints,
+    juryPoints, setJuryPoints,
     damageScore, setDamageScore
 }: PerformanceDataFormProps) {
     return (
@@ -132,11 +132,11 @@ export default function PerformanceDataForm({
                         />
                     </div>
                     <div className="space-y-3">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 font-mono">Judges</label>
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 font-mono">Juries</label>
                         <input
                             type="number"
-                            value={judgePoints}
-                            onChange={(e) => setJudgePoints(e.target.value)}
+                            value={juryPoints}
+                            onChange={(e) => setJuryPoints(e.target.value)}
                             className="w-full px-4 py-4 bg-muted/20 border border-card-border rounded-2xl text-2xl font-black outline-none text-center text-foreground shadow-sm"
                         />
                     </div>

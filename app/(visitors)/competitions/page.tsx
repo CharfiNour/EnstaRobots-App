@@ -10,7 +10,10 @@ import { getAdminCompetitions } from '../../admin/competitions/services/competit
 import { getCompetitionState } from '@/lib/competitionState';
 import { getTeams, Team } from '@/lib/teams';
 import { CompetitionListItem } from '../../admin/competitions/types';
-import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/judge/score/services/scoreConstants';
+import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionState } from '@/lib/competitionState';
 
 export default function CompetitionsPage() {
     const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
@@ -29,6 +32,19 @@ export default function CompetitionsPage() {
 
         handleStateUpdate();
 
+        // Initial fetch from DB for accurate live state
+        fetchLiveSessionsFromSupabase().then(sessions => {
+            if (Object.keys(sessions).length > 0) {
+                // Update local state without triggering another sync (avoid loop ideally, but updateCompetitionState will sync back)
+                // Actually, for visitors, updateCompetitionState relies on localStorage, which is distinct from DB.
+                // We should update the local view state. 
+                // However, compState is derived from getCompetitionState().
+                // We need to inject this DB state into the local 'compState' variable or update the store.
+                // Updating the store 'updateCompetitionState' will write to localStorage. This is fine for the visitor's session.
+                updateCompetitionState({ liveSessions: sessions });
+            }
+        });
+
         // Listen for internal events (same tab)
         window.addEventListener('competition-state-updated', handleStateUpdate);
         window.addEventListener('competitions-updated', handleStateUpdate);
@@ -44,8 +60,8 @@ export default function CompetitionsPage() {
             }
         });
 
-        // Periodic check as a fallback
-        const interval = setInterval(handleStateUpdate, 2000);
+        // Periodic check as a fallback (keep this for reliability)
+        const interval = setInterval(handleStateUpdate, 5000); // Reduced frequency
 
         return () => {
             window.removeEventListener('competition-state-updated', handleStateUpdate);
@@ -54,6 +70,22 @@ export default function CompetitionsPage() {
             clearInterval(interval);
         };
     }, []);
+
+    // Instant Update System
+    const handleRealtimeUpdate = async () => {
+        // When any relevant table changes, re-fetch live sessions
+        console.log("Realtime update received");
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
+    useSupabaseRealtime('scores', () => {
+        // Scores updated - maybe refresh competitions list if it affects status, or just logs
+        // For now, knowing a score was added might imply activity.
+        // We could re-fetch matches if we displayed them.
+        console.log("New score detected");
+    });
 
     return (
         <div className="min-h-screen py-12">

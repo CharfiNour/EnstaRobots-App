@@ -8,7 +8,7 @@ import {
     ScheduleCard
 } from './components';
 import { useMatchesPage } from './hooks/useMatchesPage';
-import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/judge/score/services/scoreConstants';
+import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
 
 export default function TeamMatchesPage() {
     const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive } = useMatchesPage();

@@ -1,4 +1,4 @@
-// Offline score storage for judges
+// Offline score storage for juries
 // Scores are buffered locally and synced when connectivity is restored
 
 export interface OfflineScore {
@@ -9,7 +9,7 @@ export interface OfflineScore {
 
     // Common fields
     phase?: string;
-    judgeNames?: string[];
+    juryNames?: string[];
 
     // Line Follower / All Terrain
     timeMs?: number;
@@ -18,11 +18,11 @@ export interface OfflineScore {
 
     // Fight
     knockouts?: number;
-    judgePoints?: number;
+    juryPoints?: number;
     damageScore?: number;
 
     totalPoints: number;
-    judgeId: string;
+    juryId: string;
     timestamp: number;
     synced: boolean;
     isSentToTeam?: boolean;
@@ -65,7 +65,7 @@ export function getOfflineScores(): OfflineScore[] {
                 phase: 'essay_1',
                 totalPoints: 250,
                 timestamp: Date.now() - 10000000,
-                judgeId: 'judge-1',
+                juryId: 'jury-1',
                 synced: false,
                 isSentToTeam: true,
                 timeMs: 45000,
@@ -80,7 +80,7 @@ export function getOfflineScores(): OfflineScore[] {
                 phase: 'essay_2',
                 totalPoints: 280,
                 timestamp: Date.now() - 5000000,
-                judgeId: 'judge-1',
+                juryId: 'jury-1',
                 synced: false,
                 isSentToTeam: true,
                 timeMs: 42000,
@@ -97,11 +97,11 @@ export function getOfflineScores(): OfflineScore[] {
                 status: 'qualified',
                 totalPoints: 50,
                 timestamp: Date.now() - 20000000,
-                judgeId: 'judge-2',
+                juryId: 'jury-2',
                 synced: false,
                 isSentToTeam: true,
                 knockouts: 2,
-                judgePoints: 15,
+                juryPoints: 15,
                 damageScore: 10
             },
             {
@@ -113,11 +113,11 @@ export function getOfflineScores(): OfflineScore[] {
                 status: 'winner',
                 totalPoints: 80,
                 timestamp: Date.now() - 1000000,
-                judgeId: 'judge-2',
+                juryId: 'jury-2',
                 synced: false,
                 isSentToTeam: true,
                 knockouts: 3,
-                judgePoints: 20,
+                juryPoints: 20,
                 damageScore: 15
             }
         ];
@@ -205,9 +205,9 @@ export function calculateTotalPoints(
     if (competitionType === 'fight') {
         // Fight: Sum of knockouts, judge points, and damage score
         const knockouts = data.knockouts || 0;
-        const judgePoints = data.judgePoints || 0;
+        const juryPoints = data.juryPoints || 0;
         const damageScore = data.damageScore || 0;
-        return knockouts * 10 + judgePoints + damageScore;
+        return knockouts * 10 + juryPoints + damageScore;
     } else if (competitionType.includes('line_follower') || competitionType === 'homologation') {
         const timeMs = data.timeMs || 0;
         const bonusPoints = data.bonusPoints || 0;

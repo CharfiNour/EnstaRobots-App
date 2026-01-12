@@ -1,6 +1,6 @@
 import { LucideIcon } from 'lucide-react';
 
-export interface JudgeActionCardProps {
+export interface JuryActionCardProps {
     href: string;
     icon: LucideIcon;
     title: string;
@@ -13,7 +13,7 @@ export interface MatchData {
     title: string;
 }
 
-export interface JudgeDashboardData {
+export interface JuryDashboardData {
     activeMatches: MatchData[];
     guidelines: string[];
 }

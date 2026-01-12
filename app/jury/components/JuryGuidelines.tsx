@@ -2,13 +2,13 @@
 
 import { motion } from 'framer-motion';
 import { BookOpen } from 'lucide-react';
-import { JudgeDashboardData } from '../types';
+import { JuryDashboardData } from '../types';
 
-interface JudgeGuidelinesProps {
-    guidelines: JudgeDashboardData['guidelines'];
+interface JuryGuidelinesProps {
+    guidelines: JuryDashboardData['guidelines'];
 }
 
-export default function JudgeGuidelines({ guidelines }: JudgeGuidelinesProps) {
+export default function JuryGuidelines({ guidelines }: JuryGuidelinesProps) {
     return (
         <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2rem] p-6">
             <div className="flex items-center gap-2.5 mb-5">

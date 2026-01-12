@@ -2,10 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { Trophy, Activity, Zap } from 'lucide-react';
-import { JudgeDashboardData } from '../types';
+import { JuryDashboardData } from '../types';
 
 interface ActiveMatchesListProps {
-    matches: JudgeDashboardData['activeMatches'];
+    matches: JuryDashboardData['activeMatches'];
 }
 
 export default function ActiveMatchesList({ matches }: ActiveMatchesListProps) {

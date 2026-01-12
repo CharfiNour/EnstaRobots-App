@@ -6,7 +6,7 @@ import { Shield, Key, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
 
 interface StaffCode {
     id: string;
-    role: 'admin' | 'judge';
+    role: 'admin' | 'jury';
     name: string;
     code: string;
     competition?: string;
@@ -24,14 +24,14 @@ const STORAGE_KEY = 'enstarobots_staff_codes';
 
 const DEFAULT_CODES: StaffCode[] = [
     { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
-    { id: '2', role: 'judge', name: 'Main Judge', code: 'JUDGE-2024' },
+    { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024' },
 ];
 
 export default function StaffCodesTab() {
     const [codes, setCodes] = useState<StaffCode[]>([]);
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
-    const [newRole, setNewRole] = useState<'admin' | 'judge'>('judge');
+    const [newRole, setNewRole] = useState<'admin' | 'jury'>('jury');
     const [selectedComp, setSelectedComp] = useState(COMPETITION_CATEGORIES[0].id);
 
     useEffect(() => {
@@ -60,7 +60,7 @@ export default function StaffCodesTab() {
             role: newRole,
             name: newName.trim(),
             code: `${newRole.toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-            competition: newRole === 'judge' ? selectedComp : undefined
+            competition: newRole === 'jury' ? selectedComp : undefined
         };
         saveCodes([...codes, newCode]);
         setNewName('');
@@ -74,9 +74,9 @@ export default function StaffCodesTab() {
     };
 
     const adminCodes = codes.filter(c => c.role === 'admin');
-    const judgeCodes = codes.filter(c => c.role === 'judge');
+    const judgeCodes = codes.filter(c => c.role === 'jury');
 
-    const StaffSection = ({ title, staffList, role }: { title: string; staffList: StaffCode[]; role: 'admin' | 'judge' }) => (
+    const StaffSection = ({ title, staffList, role }: { title: string; staffList: StaffCode[]; role: 'admin' | 'jury' }) => (
         <div className="space-y-4">
             <div className="flex items-center gap-3 px-2">
                 <div className={`w-1.5 h-5 rounded-full ${role === 'admin' ? 'bg-rose-500' : 'bg-amber-500'}`} />
@@ -111,7 +111,7 @@ export default function StaffCodesTab() {
                                             {compConfig.name}
                                         </div>
                                     ) : (
-                                        <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Judge Privilege</div>
+                                        <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Jury Privilege</div>
                                     )}
                                 </div>
                             </div>
@@ -190,11 +190,11 @@ export default function StaffCodesTab() {
                                         onChange={(e) => setNewRole(e.target.value as any)}
                                         className="flex-1 px-5 py-3 bg-background/40 border border-card-border rounded-xl text-xs font-bold uppercase outline-none cursor-pointer hover:bg-background/60 transition-all appearance-none text-center"
                                     >
-                                        <option value="judge">Judge</option>
+                                        <option value="jury">Jury</option>
                                         <option value="admin">System Admin</option>
                                     </select>
 
-                                    {newRole === 'judge' ? (
+                                    {newRole === 'jury' ? (
                                         <motion.select
                                             initial={{ opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}
@@ -238,7 +238,7 @@ export default function StaffCodesTab() {
 
             <div className="space-y-12">
                 <StaffSection title="Administrative Authority" staffList={adminCodes} role="admin" />
-                <StaffSection title="Judicial Authority" staffList={judgeCodes} role="judge" />
+                <StaffSection title="Judicial Authority" staffList={judgeCodes} role="jury" />
             </div>
         </div>
     );

@@ -2,22 +2,22 @@
 
 import { User } from 'lucide-react';
 
-interface JudgeInputsProps {
-    judge1: string;
-    setJudge1: (v: string) => void;
-    judge2: string;
-    setJudge2: (v: string) => void;
-    availableJudges?: string[];
+interface JuryInputsProps {
+    jury1: string;
+    setJury1: (v: string) => void;
+    jury2: string;
+    setJury2: (v: string) => void;
+    availableJuries?: string[];
 }
 
-export default function JudgeInputs({ judge1, setJudge1, judge2, setJudge2, availableJudges }: JudgeInputsProps) {
+export default function JuryInputs({ jury1, setJury1, jury2, setJury2, availableJuries }: JuryInputsProps) {
     const InputField = ({ label, value, setValue }: { label: string, value: string, setValue: (v: string) => void }) => (
         <div className="space-y-1.5">
             <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-2 tracking-widest pl-1">
                 <User size={12} className="text-accent" />
                 {label}
             </label>
-            {availableJudges && availableJudges.length > 0 ? (
+            {availableJuries && availableJuries.length > 0 ? (
                 <div className="relative">
                     <select
                         value={value}
@@ -25,8 +25,8 @@ export default function JudgeInputs({ judge1, setJudge1, judge2, setJudge2, avai
                         className="w-full px-4 py-2.5 bg-muted/30 border border-card-border rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm text-foreground font-medium appearance-none cursor-pointer hover:bg-muted/50 transition-colors"
                         required
                     >
-                        <option value="" disabled>Select Official Judge</option>
-                        {availableJudges.map((name) => (
+                        <option value="" disabled>Select Official Jury</option>
+                        {availableJuries.map((name) => (
                             <option key={name} value={name}>
                                 {name}
                             </option>
@@ -43,7 +43,7 @@ export default function JudgeInputs({ judge1, setJudge1, judge2, setJudge2, avai
                     type="text"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    placeholder="Enter judge name"
+                    placeholder="Enter jury name"
                     className="w-full px-4 py-2.5 bg-muted/30 border border-card-border rounded-xl focus:ring-2 focus:ring-accent outline-none text-sm text-foreground font-medium"
                     required
                 />
@@ -53,8 +53,8 @@ export default function JudgeInputs({ judge1, setJudge1, judge2, setJudge2, avai
 
     return (
         <div className="grid md:grid-cols-2 gap-4">
-            <InputField label="Judge 1 Full Name" value={judge1} setValue={setJudge1} />
-            <InputField label="Judge 2 Full Name" value={judge2} setValue={setJudge2} />
+            <InputField label="Jury 1 Full Name" value={jury1} setValue={setJury1} />
+            <InputField label="Jury 2 Full Name" value={jury2} setValue={setJury2} />
         </div>
     );
 }

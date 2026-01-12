@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { LogOut } from 'lucide-react';
 import { getUserRole, logout } from '@/lib/auth';
 import { desktopNavConfig, UserRole } from '@/lib/navConfig';
-import { ThemeToggle } from './ThemeToggle';
+
 import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
@@ -41,7 +41,7 @@ export default function Navbar() {
                         </Link>
                     ))}
 
-                    <ThemeToggle />
+
 
                     {isAuthenticated && (
                         <button
@@ -67,7 +67,7 @@ export default function Navbar() {
 
                 {/* Mobile Icons */}
                 <div className="md:hidden flex items-center gap-4">
-                    <ThemeToggle />
+
                     {isAuthenticated ? (
                         <button
                             onClick={logout}

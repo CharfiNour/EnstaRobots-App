@@ -10,13 +10,15 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { saveScoreOffline, calculateTotalPoints, getOfflineScores } from '@/lib/offlineScores';
 import { getTeams, Team } from '@/lib/teams';
-import { startLiveSession, stopLiveSession, getCompetitionState } from '@/lib/competitionState';
+import { startLiveSession, stopLiveSession, getCompetitionState, updateCompetitionState } from '@/lib/competitionState';
 import { updateCompetitionStatus } from '../../admin/competitions/services/competitionService';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
 
 // Local project structure imports
 import {
     CompetitionSelector,
-    JudgeInputs,
+    JuryInputs,
     PerformanceDataForm,
     TeamSelectSection,
     HeaderActions
@@ -39,10 +41,10 @@ export default function ScoreCardPage() {
     const [showCompList, setShowCompList] = useState(false);
     const router = useRouter();
 
-    // Judges
-    const [judge1, setJudge1] = useState('');
-    const [judge2, setJudge2] = useState('');
-    const [availableJudges, setAvailableJudges] = useState<string[]>([]);
+    // Juries
+    const [jury1, setJury1] = useState('');
+    const [jury2, setJury2] = useState('');
+    const [availableJuries, setAvailableJuries] = useState<string[]>([]);
 
     // Competition Context
     const [competition, setCompetition] = useState(COMPETITIONS[2]); // Default to Line Follower
@@ -67,7 +69,7 @@ export default function ScoreCardPage() {
     const [completedRoad, setCompletedRoad] = useState(false);
     const [homologationPoints, setHomologationPoints] = useState('');
     const [knockouts, setKnockouts] = useState('');
-    const [judgePoints, setJudgePoints] = useState('');
+    const [juryPoints, setJuryPoints] = useState('');
     const [damageScore, setDamageScore] = useState('');
 
     const isLineFollower = ['line_follower', 'junior_line_follower'].includes(competition.value);
@@ -104,11 +106,27 @@ export default function ScoreCardPage() {
         window.addEventListener('competition-state-updated', syncState);
         window.addEventListener('storage', syncState);
 
+        window.addEventListener('storage', syncState);
+
+        // Initial fetch from supabase
+        fetchLiveSessionsFromSupabase().then(sessions => {
+            if (Object.keys(sessions).length > 0) {
+                updateCompetitionState({ liveSessions: sessions });
+            }
+        });
+
         return () => {
             window.removeEventListener('competition-state-updated', syncState);
             window.removeEventListener('storage', syncState);
         };
     }, [competition.value]);
+
+    const handleRealtimeUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
 
     // Filter teams when competition or allTeams changes
     useEffect(() => {
@@ -142,8 +160,8 @@ export default function ScoreCardPage() {
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'judge') {
-            router.push('/auth/judge');
+        if (!currentSession || currentSession.role !== 'jury') {
+            router.push('/auth/jury');
             return;
         }
         setSession(currentSession);
@@ -155,18 +173,18 @@ export default function ScoreCardPage() {
             if (assignedComp) {
                 setCompetition(assignedComp);
 
-                // Fetch available judges for this competition
+                // Fetch available juries for this competition
                 try {
                     const storedCodes = localStorage.getItem('enstarobots_staff_codes');
                     if (storedCodes) {
                         const parsed: any[] = JSON.parse(storedCodes);
-                        const judgeNames = parsed
-                            .filter(c => c.role === 'judge' && c.competition === currentSession.competition)
+                        const juryNames = parsed
+                            .filter(c => c.role === 'jury' && c.competition === currentSession.competition)
                             .map(c => c.name);
-                        setAvailableJudges(judgeNames);
+                        setAvailableJuries(juryNames);
                     }
                 } catch (e) {
-                    console.error("Failed to load judge names", e);
+                    console.error("Failed to load jury names", e);
                 }
             }
         }
@@ -351,14 +369,14 @@ export default function ScoreCardPage() {
         const payloads = teams.map(team => {
             const bonuses = isLineFollower && homologationPoints ? parseInt(homologationPoints) : 0;
             const kos = !isLineFollower && knockouts ? parseInt(knockouts) : 0;
-            const jpts = !isLineFollower && judgePoints ? parseInt(judgePoints) : 0;
+            const jpts = !isLineFollower && juryPoints ? parseInt(juryPoints) : 0;
             const dmg = !isLineFollower && damageScore ? parseInt(damageScore) : 0;
 
             const score = calculateTotalPoints(competition.value, {
                 timeMs: totalTimeMs,
                 bonusPoints: bonuses,
                 knockouts: kos,
-                judgePoints: jpts,
+                juryPoints: jpts,
                 damageScore: dmg
             });
 
@@ -368,13 +386,13 @@ export default function ScoreCardPage() {
                 teamId: team.id,
                 competitionType: competition.value,
                 phase: isLineFollower ? team.phase : globalPhase,
-                judgeId: session.userId,
-                judgeNames: [judge1, judge2],
+                juryId: session.userId,
+                juryNames: [jury1, jury2],
                 timeMs: totalTimeMs,
                 completedRoad: isLineFollower ? completedRoad : undefined,
                 bonusPoints: bonuses,
                 knockouts: kos,
-                judgePoints: jpts,
+                juryPoints: jpts,
                 damageScore: dmg,
                 penalties: 0,
                 timestamp: Date.now(),
@@ -395,10 +413,10 @@ export default function ScoreCardPage() {
                 penalties: 0,
                 bonus_points: payload.bonusPoints,
                 knockouts: payload.knockouts,
-                judge_points: payload.judgePoints,
+                judge_points: payload.juryPoints,
                 damage_score: payload.damageScore,
-                judge_id: payload.judgeId,
-                judge_names: payload.judgeNames,
+                judge_id: payload.juryId,
+                judge_names: payload.juryNames,
                 is_completed: payload.completedRoad,
                 total_points: payload.totalPoints,
                 is_sent_to_team: true,
@@ -428,7 +446,7 @@ export default function ScoreCardPage() {
             // Reset scores but keep judges
             setTimeMinutes(''); setTimeSeconds(''); setTimeMillis('');
             setCompletedRoad(false); setHomologationPoints('');
-            setKnockouts(''); setJudgePoints(''); setDamageScore('');
+            setKnockouts(''); setJuryPoints(''); setDamageScore('');
 
             // Advance to next team
             const nextIndex = currentTeamIndex + 1;
@@ -517,10 +535,10 @@ export default function ScoreCardPage() {
 
                     <form onSubmit={handleSubmit} className={`space-y-6 transition-opacity duration-300 ${!isLive ? 'opacity-40 pointer-events-none' : ''}`}>
 
-                        <JudgeInputs
-                            judge1={judge1} setJudge1={setJudge1}
-                            judge2={judge2} setJudge2={setJudge2}
-                            availableJudges={availableJudges}
+                        <JuryInputs
+                            jury1={jury1} setJury1={setJury1}
+                            jury2={jury2} setJury2={setJury2}
+                            availableJuries={availableJuries}
                         />
 
                         <div className="w-full h-px bg-card-border" />
@@ -550,7 +568,7 @@ export default function ScoreCardPage() {
                             completedRoad={completedRoad} setCompletedRoad={setCompletedRoad}
                             homologationPoints={homologationPoints} setHomologationPoints={setHomologationPoints}
                             knockouts={knockouts} setKnockouts={setKnockouts}
-                            judgePoints={judgePoints} setJudgePoints={setJudgePoints}
+                            juryPoints={juryPoints} setJuryPoints={setJuryPoints}
                             damageScore={damageScore} setDamageScore={setDamageScore}
                         />
 

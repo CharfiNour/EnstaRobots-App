@@ -17,7 +17,7 @@ export function useHomePage() {
         setMounted(true);
     }, []);
 
-    const dashboardHref = role === 'admin' ? '/admin' : role === 'judge' ? '/judge' : '/team';
+    const dashboardHref = role === 'admin' ? '/admin' : role === 'jury' ? '/jury' : '/team';
 
     return {
         role,

@@ -17,7 +17,7 @@ export default function Header() {
 
     const handleLogout = () => {
         logout();
-        router.push("/auth/judge"); // Or admin login if separate
+        router.push("/auth/jury"); // Or admin login if separate
     };
 
     return (

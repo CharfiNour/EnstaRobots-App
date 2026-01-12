@@ -10,32 +10,32 @@ export default function Header() {
     const router = useRouter();
 
     const isActive = (path: string) => {
-        if (path === '/judge' && pathname === '/judge') return true;
-        if (path !== '/judge' && pathname.startsWith(path)) return true;
+        if (path === '/jury' && pathname === '/jury') return true;
+        if (path !== '/jury' && pathname.startsWith(path)) return true;
         return false;
     };
 
     const handleLogout = () => {
         logout();
-        router.push("/auth/judge");
+        router.push("/auth/jury");
     };
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-role-border bg-background/80 backdrop-blur-md">
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                <Link href="/judge" className="flex items-center gap-2 group">
+                <Link href="/jury" className="flex items-center gap-2 group">
                     <div className="p-2 rounded-lg bg-role-muted group-hover:bg-role-primary/20 transition-colors">
                         <ClipboardCheck className="w-6 h-6 text-role-primary" />
                     </div>
                     <span className="font-bold text-lg hidden md:block group-hover:text-role-primary transition-colors">
-                        Judge Portal
+                        Jury Portal
                     </span>
                 </Link>
 
                 <div className="flex items-center gap-4">
                     <nav className="flex items-center gap-1 md:gap-2">
-                        <Link href="/judge">
-                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/judge')
+                        <Link href="/jury">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/jury')
                                 ? 'bg-role-muted text-role-primary shadow-sm'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }`}>
@@ -46,8 +46,8 @@ export default function Header() {
                             </div>
                         </Link>
 
-                        <Link href="/judge/score">
-                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/judge/score')
+                        <Link href="/jury/score">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/jury/score')
                                 ? 'bg-role-muted text-role-primary shadow-sm'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }`}>
@@ -58,8 +58,8 @@ export default function Header() {
                             </div>
                         </Link>
 
-                        <Link href="/judge/history">
-                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/judge/history')
+                        <Link href="/jury/history">
+                            <div className={`px-3 py-2 md:px-4 rounded-lg text-sm font-medium transition-all ${isActive('/jury/history')
                                 ? 'bg-role-muted text-role-primary shadow-sm'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }`}>

@@ -1,4 +1,6 @@
 
+import { syncLiveStateToSupabase } from './supabaseData';
+
 export interface LiveSession {
     teamId: string;
     phase: string;
@@ -70,6 +72,13 @@ export function updateCompetitionState(updates: Partial<CompetitionState>): Comp
     // We'll leave it as is or null.
 
     localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(newState));
+
+    // Sync to Supabase if liveSessions changed
+    if (updates.liveSessions) {
+        syncLiveStateToSupabase(newState.liveSessions).catch((err: any) =>
+            console.error("Failed to sync live state:", err)
+        );
+    }
 
     // Dispatch event for local updates
     window.dispatchEvent(new Event('competition-state-updated'));

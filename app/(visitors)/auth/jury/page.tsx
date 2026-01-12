@@ -7,7 +7,7 @@ import { loginWithStaffCode, getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default function JudgeLoginPage() {
+export default function JuryLoginPage() {
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -16,7 +16,7 @@ export default function JudgeLoginPage() {
     useEffect(() => {
         const session = getSession();
         if (session) {
-            router.push(session.role === 'admin' ? '/admin' : session.role === 'judge' ? '/judge' : '/team');
+            router.push(session.role === 'admin' ? '/admin' : session.role === 'jury' ? '/jury' : '/team');
         }
     }, [router]);
 
@@ -28,7 +28,7 @@ export default function JudgeLoginPage() {
         const result = await loginWithStaffCode(code);
 
         if (result.success && result.session) {
-            router.push(result.session.role === 'admin' ? '/admin' : '/judge');
+            router.push(result.session.role === 'admin' ? '/admin' : '/jury');
         } else {
             setError(result.error || 'Invalid credentials or insufficient permissions');
             setLoading(false);
@@ -72,7 +72,7 @@ export default function JudgeLoginPage() {
                                 type="text"
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
-                                placeholder="e.g. JUDGE-1234"
+                                placeholder="e.g. JURY-1234"
                                 className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all uppercase tracking-widest font-mono"
                                 required
                                 disabled={loading}
@@ -123,13 +123,13 @@ export default function JudgeLoginPage() {
                             </button>
                             <button
                                 onClick={() => {
-                                    const session = { userId: 'demo-judge', role: 'judge', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+                                    const session = { userId: 'demo-jury', role: 'jury', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
                                     localStorage.setItem('enstarobots_session', JSON.stringify(session));
-                                    router.push('/judge');
+                                    router.push('/jury');
                                 }}
                                 className="px-4 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 rounded-lg text-sm font-bold hover:bg-yellow-500/20 transition-all"
                             >
-                                Demo Judge
+                                Demo Jury
                             </button>
                         </div>
                         <div className="flex items-center justify-between text-sm">
@@ -151,7 +151,7 @@ export default function JudgeLoginPage() {
                     className="mt-6 p-4 bg-muted border border-card-border/50 rounded-lg shadow-sm"
                 >
                     <p className="text-sm text-muted-foreground text-center">
-                        <strong className="text-foreground">Note:</strong> Judge and Admin credentials are provided by event organizers.
+                        <strong className="text-foreground">Note:</strong> Jury and Admin credentials are provided by event organizers.
                         Contact support if you need assistance.
                     </p>
                 </motion.div>

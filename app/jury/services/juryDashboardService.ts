@@ -1,6 +1,6 @@
-import { JudgeDashboardData } from '../types';
+import { JuryDashboardData } from '../types';
 
-export const getJudgeDashboardData = (): JudgeDashboardData => {
+export const getJuryDashboardData = (): JuryDashboardData => {
     return {
         activeMatches: [],
         guidelines: [

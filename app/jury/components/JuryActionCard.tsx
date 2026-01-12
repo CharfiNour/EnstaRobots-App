@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { JudgeActionCardProps } from '../types';
+import { JuryActionCardProps } from '../types';
 
-export default function JudgeActionCard({
+export default function JuryActionCard({
     href,
     icon: Icon,
     title,
     description,
     isPrimary = false,
-}: JudgeActionCardProps) {
+}: JuryActionCardProps) {
     return (
         <Link href={href} className="group">
             <div className={`p-6 rounded-[2rem] border transition-all duration-500 cursor-pointer h-full relative overflow-hidden ${isPrimary

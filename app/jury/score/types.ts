@@ -21,6 +21,6 @@ export interface ScoreState {
     completedRoad: boolean;
     homologationPoints: string;
     knockouts: string;
-    judgePoints: string;
+    juryPoints: string;
     damageScore: string;
 }

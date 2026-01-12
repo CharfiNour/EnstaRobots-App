@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { getSession } from '@/lib/auth';
 import { getTeams } from '@/lib/teams';
-import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, CompetitionState, updateCompetitionState } from '@/lib/competitionState';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
 
 export function useMatchesPage() {
     const [session, setSession] = useState<any>(null);
@@ -96,6 +98,13 @@ export function useMatchesPage() {
         window.addEventListener('competition-state-updated', fetchState);
         return () => window.removeEventListener('competition-state-updated', fetchState);
     }, []);
+
+    const handleRealtimeUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
 
     return {
         session,

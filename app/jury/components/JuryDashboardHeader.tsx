@@ -3,11 +3,11 @@
 import { motion } from 'framer-motion';
 import { Gavel, Activity, ShieldCheck } from 'lucide-react';
 
-interface JudgeDashboardHeaderProps {
+interface JuryDashboardHeaderProps {
     judgeName?: string;
 }
 
-export default function JudgeDashboardHeader({ judgeName }: JudgeDashboardHeaderProps) {
+export default function JuryDashboardHeader({ judgeName }: JuryDashboardHeaderProps) {
     return (
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
             <motion.div
@@ -20,7 +20,7 @@ export default function JudgeDashboardHeader({ judgeName }: JudgeDashboardHeader
                     </div>
                     <div>
                         <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none">
-                            Judge Console
+                            Jury Console
                         </h1>
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-role-primary mt-1 pl-0.5">Tactical Oversight</p>
                     </div>

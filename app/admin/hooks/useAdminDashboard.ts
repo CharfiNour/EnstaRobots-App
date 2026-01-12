@@ -16,7 +16,7 @@ export function useAdminDashboard() {
     useEffect(() => {
         const currentSession = getSession();
         if (!currentSession || currentSession.role !== 'admin') {
-            router.push('/auth/judge');
+            router.push('/auth/jury');
             return;
         }
         setSession(currentSession);

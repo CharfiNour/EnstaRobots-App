@@ -14,7 +14,7 @@ export const ANNOUNCEMENT_TYPES: AnnouncementType[] = [
 export const VISIBILITY_OPTIONS: VisibilityOption[] = [
     { value: 'all', label: 'All Users' },
     { value: 'teams', label: 'Teams Only' },
-    { value: 'judges', label: 'Judges Only' },
+    { value: 'juries', label: 'Juries Only' },
     { value: 'admins', label: 'Admins Only' },
 ];
 
@@ -34,37 +34,23 @@ export const fetchRealCompetitions = async () => {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
         if (!supabaseUrl || !supabaseKey) {
-            console.error('❌ Supabase environment variables are missing!');
-            console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✓ Set' : '✗ Missing');
-            console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseKey ? '✓ Set' : '✗ Missing');
-            console.error('Please check your .env.local file');
+            console.error('Supabase environment variables are missing');
             return [];
         }
 
-        console.log('📡 Fetching competitions from Supabase...');
 
         const { data, error } = await supabase
             .from('competitions')
             .select('*');
 
         if (error) {
-            console.error('❌ Supabase Error:');
-            console.error('  Message:', error.message || 'No message');
-            console.error('  Code:', error.code || 'No code');
-            console.error('  Details:', error.details || 'No details');
-            console.error('  Hint:', error.hint || 'No hint');
-            console.error('  Full error:', error);
+            console.error('Supabase Error:', error);
             return [];
-        }
-
-        console.log('✅ Successfully fetched competitions:', data?.length || 0, 'items');
-        if (data && data.length > 0) {
-            console.log('📋 Available columns:', Object.keys(data[0]));
         }
 
         // If Supabase table is empty, fallback to hardcoded list
         if (!data || data.length === 0) {
-            console.log('⚠️  No competitions in Supabase, using fallback list');
+
             return COMPETITIONS;
         }
 
@@ -80,10 +66,7 @@ export const fetchRealCompetitions = async () => {
         ];
 
     } catch (err) {
-        console.error('❌ Network or initialization error:');
-        console.error('  Type:', err instanceof Error ? err.constructor.name : typeof err);
-        console.error('  Message:', err instanceof Error ? err.message : String(err));
-        console.error('  Stack:', err instanceof Error ? err.stack : 'No stack trace');
+        console.error('Network or initialization error:', err);
         return [];
     }
 };

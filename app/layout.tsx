@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NotificationBanner from "@/components/NotificationBanner";
-import DevTools from "@/components/DevTools";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +33,7 @@ export default function RootLayout({
         <div className="relative min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           {children}
           <NotificationBanner />
-          <DevTools />
+
         </div>
       </body>
     </html>
