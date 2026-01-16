@@ -1,5 +1,5 @@
 
-import { syncLiveStateToSupabase } from './supabaseData';
+import { syncLiveStateToSupabase, deleteLiveSessionFromSupabase } from './supabaseData';
 
 export interface LiveSession {
     teamId: string;
@@ -59,7 +59,7 @@ export function getCompetitionState(): CompetitionState {
     }
 }
 
-export function updateCompetitionState(updates: Partial<CompetitionState>): CompetitionState {
+export function updateCompetitionState(updates: Partial<CompetitionState>, syncRemote: boolean = true): CompetitionState {
     if (typeof window === 'undefined') return INITIAL_STATE;
 
     const current = getCompetitionState();
@@ -68,13 +68,11 @@ export function updateCompetitionState(updates: Partial<CompetitionState>): Comp
     // Synthesize legacy properties for backward compatibility during transition
     const liveKeys = Object.keys(newState.liveSessions);
     newState.isLive = liveKeys.length > 0;
-    // activeCompetitionId is ambiguous with multiple sessions, but we leave it null or last active?
-    // We'll leave it as is or null.
 
     localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(newState));
 
-    // Sync to Supabase if liveSessions changed
-    if (updates.liveSessions) {
+    // Sync to Supabase if liveSessions changed AND syncRemote is true
+    if (updates.liveSessions && syncRemote) {
         syncLiveStateToSupabase(newState.liveSessions).catch((err: any) =>
             console.error("Failed to sync live state:", err)
         );
@@ -126,12 +124,20 @@ export function stopLiveSession(competitionId?: string) {
     if (competitionId) {
         // Stop specific competition session
         delete newSessions[competitionId];
+        // Explicitly delete from Supabase
+        deleteLiveSessionFromSupabase(competitionId).catch(err =>
+            console.error("Failed to delete session from Supabase:", err)
+        );
     } else {
         // Stop ALL sessions (legacy behavior fallback)
-        for (const key in newSessions) delete newSessions[key];
+        for (const key in newSessions) {
+            deleteLiveSessionFromSupabase(key).catch(() => { });
+            delete newSessions[key];
+        }
     }
 
+    // Update local state without re-triggering global sync (avoiding redundant operations)
     updateCompetitionState({
         liveSessions: newSessions
-    });
+    }, false);
 }

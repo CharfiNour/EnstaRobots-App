@@ -111,7 +111,8 @@ export default function ScoreCardPage() {
         // Initial fetch from supabase
         fetchLiveSessionsFromSupabase().then(sessions => {
             if (Object.keys(sessions).length > 0) {
-                updateCompetitionState({ liveSessions: sessions });
+                // Pass false to avoid syncing back what we just fetched
+                updateCompetitionState({ liveSessions: sessions }, false);
             }
         });
 
@@ -123,7 +124,7 @@ export default function ScoreCardPage() {
 
     const handleRealtimeUpdate = async () => {
         const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions });
+        updateCompetitionState({ liveSessions: sessions }, false);
     };
 
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);

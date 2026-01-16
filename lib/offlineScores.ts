@@ -54,75 +54,7 @@ export function getOfflineScores(): OfflineScore[] {
 
     const scoresStr = localStorage.getItem(OFFLINE_SCORES_KEY);
     if (!scoresStr) {
-        // Initialize with default mock data for testing
-        const mockScores: OfflineScore[] = [
-            // Line Follower Team with multiple phases
-            {
-                id: 'mock-1',
-                matchId: 'match_lf_1',
-                teamId: 'team-42',
-                competitionType: 'line_follower',
-                phase: 'essay_1',
-                totalPoints: 250,
-                timestamp: Date.now() - 10000000,
-                juryId: 'jury-1',
-                synced: false,
-                isSentToTeam: true,
-                timeMs: 45000,
-                bonusPoints: 20,
-                completedRoad: true
-            },
-            {
-                id: 'mock-2',
-                matchId: 'match_lf_2',
-                teamId: 'team-42',
-                competitionType: 'line_follower',
-                phase: 'essay_2',
-                totalPoints: 280,
-                timestamp: Date.now() - 5000000,
-                juryId: 'jury-1',
-                synced: false,
-                isSentToTeam: true,
-                timeMs: 42000,
-                bonusPoints: 25,
-                completedRoad: true
-            },
-            // Fight Team with multiple phases
-            {
-                id: 'mock-3',
-                matchId: 'match_fight_1',
-                teamId: 'team-07',
-                competitionType: 'fight',
-                phase: 'qualifications',
-                status: 'qualified',
-                totalPoints: 50,
-                timestamp: Date.now() - 20000000,
-                juryId: 'jury-2',
-                synced: false,
-                isSentToTeam: true,
-                knockouts: 2,
-                juryPoints: 15,
-                damageScore: 10
-            },
-            {
-                id: 'mock-4',
-                matchId: 'match_fight_2',
-                teamId: 'team-07',
-                competitionType: 'fight',
-                phase: 'quarter_final',
-                status: 'winner',
-                totalPoints: 80,
-                timestamp: Date.now() - 1000000,
-                juryId: 'jury-2',
-                synced: false,
-                isSentToTeam: true,
-                knockouts: 3,
-                juryPoints: 20,
-                damageScore: 15
-            }
-        ];
-        localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(mockScores));
-        return mockScores;
+        return [];
     }
 
     try {
@@ -130,6 +62,12 @@ export function getOfflineScores(): OfflineScore[] {
     } catch {
         return [];
     }
+}
+
+// Clear ALL offline scores (for reset purposes)
+export function clearAllOfflineScores(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(OFFLINE_SCORES_KEY);
 }
 
 // Get unsynced scores
