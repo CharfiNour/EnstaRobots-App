@@ -19,61 +19,7 @@ export interface Team {
     visualsLocked?: boolean;
 }
 
-const INITIAL_TEAMS: Team[] = [
-    {
-        id: '1',
-        name: 'RoboKnights',
-        club: 'Robotics Club A',
-        university: 'Science University',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=RoboKnights',
-        code: 'RK-2024-X1',
-        competition: 'line_follower',
-        photo: 'https://images.unsplash.com/photo-1581092334651-ddf26d9a1930?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'Alice Smith', role: 'Leader' },
-            { name: 'Bob Johnson', role: 'Engineer' },
-            { name: 'Charlie Brown', role: 'Programmer' },
-        ]
-    },
-    {
-        id: '2',
-        name: 'CyberDragons',
-        club: 'Tech Hub',
-        university: 'Institute of Technology',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=CyberDragons',
-        code: 'CD-2024-Y2',
-        competition: 'all_terrain',
-        photo: 'https://images.unsplash.com/photo-1581092120527-df75275e7443?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'David Wilson', role: 'Leader' },
-            { name: 'Eva Green', role: 'Designer' },
-        ]
-    },
-    {
-        id: '3',
-        name: 'Steel Panthers',
-        club: 'Future Makers',
-        university: 'Global University',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=SteelPanthers',
-        code: 'SP-2024-Z3',
-        competition: 'fight',
-        photo: 'https://images.unsplash.com/photo-1551033406-611cf9a28f67?auto=format&fit=crop&q=80&w=800',
-        members: [
-            { name: 'Frank Castle', role: 'Leader' },
-            { name: 'Grace Hopper', role: 'Strategist' },
-        ]
-    },
-    {
-        id: '4',
-        name: 'Line Masters',
-        club: 'Speed Club',
-        university: 'Tech University',
-        logo: 'https://api.dicebear.com/7.x/identicon/svg?seed=LineMasters',
-        code: 'LM-2024-Q4',
-        competition: 'line_follower',
-        members: [{ name: 'John Doe', role: 'Leader' }]
-    }
-];
+const INITIAL_TEAMS: Team[] = [];
 
 const TEAMS_STORAGE_KEY = 'enstarobots_teams_v1';
 
@@ -85,7 +31,20 @@ export function getTeams(): Team[] {
 
     if (stored) {
         try {
-            teams = JSON.parse(stored);
+            const parsed = JSON.parse(stored);
+            // Self-healing: Patch stored teams with missing static data from INITIAL_TEAMS
+            teams = parsed.map((t: Team) => {
+                const seed = INITIAL_TEAMS.find(i => i.id === t.id);
+                if (seed) {
+                    return {
+                        ...t,
+                        competition: t.competition || seed.competition,
+                        code: t.code || seed.code,
+                        organization: (t as any).organization || t.university,
+                    };
+                }
+                return t;
+            }).filter((t: Team) => !['1', '2', '3', '4'].includes(t.id)); // Purge legacy dummy data
         } catch {
             teams = INITIAL_TEAMS;
         }
@@ -99,7 +58,8 @@ export function getTeams(): Team[] {
         return true;
     });
 
-    if (uniqueTeams.length !== teams.length) {
+    // If storage was updated/patched, save it back
+    if (JSON.stringify(uniqueTeams) !== stored) {
         saveTeams(uniqueTeams);
     }
 

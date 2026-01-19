@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ClipboardCheck, ChevronRight, Shield, Target, Layers
+    ChevronRight, ChevronLeft, Search, Filter, Trophy, Timer, Swords,
+    Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield
 } from 'lucide-react';
 import { getOfflineScores, clearAllOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
@@ -47,6 +48,7 @@ export default function ScoreHistoryView({
     const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('all');
     const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
     const [drawTeamsCount, setDrawTeamsCount] = useState(2);
+    const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
 
     const [competitions, setCompetitions] = useState<any[]>([]);
     const [drawState, setDrawState] = useState<'idle' | 'counting' | 'success'>('idle');
@@ -58,6 +60,11 @@ export default function ScoreHistoryView({
     }, [competitions, selectedCompetition]);
 
     const resolvedCompId = selectedCompData?.id || selectedCompetition;
+
+    // Sync state when props change (navigation)
+    useEffect(() => {
+        setSelectedCompetition(lockedCompetitionId || initialCompetition);
+    }, [initialCompetition, lockedCompetitionId]);
 
     useEffect(() => {
         const sync = () => {
@@ -338,28 +345,42 @@ export default function ScoreHistoryView({
             setActivePhase('');
             setSelectedTeamInGroup(null);
         }
-    }, [selectedCompetition, selectedPhaseFilter]);
+    }, [selectedCompetition, selectedPhaseFilter, filteredGroups]);
 
     // Get current score data for display
     const currentScoreGroup = useMemo(() => {
         if (!selectedGroup) return null;
-        if (selectedGroup.type === 'single') {
-            return selectedGroup;
-        } else if (selectedGroup.type === 'match' && selectedTeamInGroup) {
-            const participant = selectedGroup.participants.find((p: any) => p.teamId === selectedTeamInGroup);
+
+        // Validate that current selection actually exists in filtered results
+        // This prevents showing stale data when switching competitions
+        const isValid = filteredGroups.some(g =>
+            (g.type === 'single' && g.teamId === selectedGroup.teamId) ||
+            (g.type === 'match' && g.matchId === selectedGroup.matchId)
+        );
+
+        const activeGroup = isValid ? selectedGroup : (filteredGroups.length > 0 ? filteredGroups[0] : null);
+
+        if (!activeGroup) return null;
+
+        if (activeGroup.type === 'single') {
+            return activeGroup;
+        } else if (activeGroup.type === 'match') {
+            const targetTeamId = isValid ? selectedTeamInGroup : (activeGroup.participants[0]?.teamId);
+            const participant = activeGroup.participants.find((p: any) => p.teamId === targetTeamId);
+
             if (participant) {
                 return {
-                    type: 'match', // KEEP it as match so ScoreCard knows it's a match-based view
+                    type: 'match',
                     teamId: participant.teamId,
                     team: participant.team,
-                    competitionType: selectedGroup.competitionType,
+                    competitionType: activeGroup.competitionType,
                     submissions: participant.submissions,
-                    latestTimestamp: selectedGroup.latestTimestamp
+                    latestTimestamp: activeGroup.latestTimestamp
                 };
             }
         }
         return null;
-    }, [selectedGroup, selectedTeamInGroup]);
+    }, [selectedGroup, selectedTeamInGroup, filteredGroups]);
 
     // Get available phases for selected group/team - must be before any returns
     const availablePhases = useMemo(() => {
@@ -474,6 +495,7 @@ export default function ScoreHistoryView({
                 setActivePhase('');
             }
         }
+        setMobileView('detail');
     };
 
     // Check if a specific group/team is selected
@@ -668,7 +690,7 @@ export default function ScoreHistoryView({
     return (
         <div className="flex flex-col lg:flex-row gap-8 w-full">
             {/* Sidebar: Tactical Log List */}
-            <div className="w-full lg:w-80 flex flex-col shrink-0 lg:h-[650px]">
+            <div className={`w-full lg:w-80 flex-col shrink-0 h-[600px] lg:h-[650px] ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-4 flex flex-col h-full overflow-hidden">
                     {/* Admin Actions */}
                     {isAdmin && (
@@ -871,10 +893,20 @@ export default function ScoreHistoryView({
             </div>
 
             {/* Main Content Area */}
-            {/* Main Content Area */}
-            <div className="flex-1 bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center justify-center">
+            <div className={`flex-1 bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center justify-center ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}`}>
+                {/* Mobile Back Button */}
+                <div className="lg:hidden w-full mb-6">
+                    <button
+                        onClick={() => setMobileView('list')}
+                        className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        <ChevronLeft size={16} />
+                        Back to Unit List
+                    </button>
+                </div>
+
                 <AnimatePresence mode="wait">
-                    {(isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
+                    {(isAdmin && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
                         <motion.div
                             key="draw-interface"
                             initial={{ opacity: 0 }}
@@ -1000,3 +1032,4 @@ export default function ScoreHistoryView({
         </div>
     );
 }
+

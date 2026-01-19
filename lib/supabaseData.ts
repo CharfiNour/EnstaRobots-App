@@ -30,6 +30,11 @@ export async function fetchCompetitionsFromSupabase() {
  */
 
 export async function fetchTeamsFromSupabase(): Promise<Team[]> {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        console.error("CRITICAL: NEXT_PUBLIC_SUPABASE_URL is not defined in the environment!");
+        return [];
+    }
+
     const { data, error } = await supabase
         .from('teams')
         .select(`
@@ -39,6 +44,12 @@ export async function fetchTeamsFromSupabase(): Promise<Team[]> {
 
     if (error) {
         console.error('Error fetching teams RAW:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+        });
         return [];
     }
 

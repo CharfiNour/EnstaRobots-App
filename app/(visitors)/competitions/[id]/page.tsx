@@ -37,6 +37,7 @@ export default function CompetitionDetailPage() {
     const params = useParams();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('teams');
+    const [showMobileDetail, setShowMobileDetail] = useState(false);
 
     // Data State
     const [teams, setTeams] = useState<Team[]>([]);
@@ -57,9 +58,25 @@ export default function CompetitionDetailPage() {
 
     useEffect(() => {
         setMounted(true);
-        const handleStateUpdate = () => {
+        const handleStateUpdate = async () => {
             // Load and filter teams
-            const allTeams = getTeams();
+            let allTeams = getTeams();
+
+            // Try fetching from Supabase to ensure fresh data
+            try {
+                const supabaseLib = await import('@/lib/supabaseData');
+                const teamsLib = await import('@/lib/teams');
+                const remoteTeams = await supabaseLib.fetchTeamsFromSupabase();
+
+                if (remoteTeams && remoteTeams.length > 0) {
+                    allTeams = remoteTeams;
+                    // Persist the real data to local storage to keep it in sync
+                    teamsLib.saveTeams(remoteTeams);
+                }
+            } catch (e) {
+                console.error("Failed to sync teams from Supabase:", e);
+            }
+
             const filteredTeams = allTeams.filter(t => t.competition === currentCategory);
             setTeams(filteredTeams);
 
@@ -174,7 +191,7 @@ export default function CompetitionDetailPage() {
                             className="grid lg:grid-cols-[350px_1fr] gap-8"
                         >
                             {/* Team List Sidebar */}
-                            <div className="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 no-scrollbar">
+                            <div className={`space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 no-scrollbar lg:block ${showMobileDetail ? 'hidden' : 'block'}`}>
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                     <Shield className="w-5 h-5 text-accent" />
                                     <span className="text-accent">{teams.length}</span> Registered Teams
@@ -182,7 +199,10 @@ export default function CompetitionDetailPage() {
                                 {teams.map((team) => (
                                     <button
                                         key={team.id}
-                                        onClick={() => setSelectedTeam(team)}
+                                        onClick={() => {
+                                            setSelectedTeam(team);
+                                            setShowMobileDetail(true);
+                                        }}
                                         className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 group relative ${selectedTeam?.id === team.id
                                             ? 'bg-accent/10 border-accent shadow-md shadow-accent/5'
                                             : 'bg-card border-card-border hover:border-accent/30'
@@ -201,14 +221,15 @@ export default function CompetitionDetailPage() {
                                             <div className="text-xs text-muted-foreground truncate">{team.university}</div>
                                         </div>
                                         {selectedTeam?.id === team.id && (
-                                            <ChevronRight size={18} className="text-accent" />
+                                            <ChevronRight size={18} className="text-accent lg:block hidden" />
                                         )}
+                                        <ChevronRight size={18} className="text-muted-foreground/30 lg:hidden block" />
                                     </button>
                                 ))}
                             </div>
 
                             {/* Team Detail Pane */}
-                            <div className="flex justify-center">
+                            <div className={`justify-center ${showMobileDetail ? 'flex' : 'hidden lg:flex'}`}>
                                 <AnimatePresence mode="wait">
                                     <motion.div
                                         key={selectedTeam?.id}
@@ -216,8 +237,19 @@ export default function CompetitionDetailPage() {
                                         animate={{ opacity: 1, scale: 1 }}
                                         className="w-full max-w-md bg-card border border-card-border rounded-[2.5rem] overflow-hidden shadow-2xl shadow-black/20"
                                     >
+                                        {/* Mobile Back Button */}
+                                        <div className="lg:hidden p-4 pb-0">
+                                            <button
+                                                onClick={() => setShowMobileDetail(false)}
+                                                className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+                                            >
+                                                <ChevronLeft size={16} />
+                                                Back to Team List
+                                            </button>
+                                        </div>
+
                                         {/* ID Card Top Section */}
-                                        <div className="relative p-6 pt-12 pb-8 bg-gradient-to-br from-accent/20 via-card to-card border-b border-card-border overflow-hidden">
+                                        <div className="relative p-6 pt-8 lg:pt-12 pb-8 bg-gradient-to-br from-accent/20 via-card to-card border-b border-card-border overflow-hidden">
                                             {/* Decorative Elements */}
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                                             <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/5 rounded-full -ml-12 -mb-12 blur-2xl"></div>

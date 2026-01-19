@@ -30,8 +30,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
     // Determine the layout style:
     // Match-based competitions (Fight, All Terrain) show opponents.
     // Single-performance competitions (Line Follower) show lap times/details.
-    const isLineFollower = (currentScore?.competitionType || '').toLowerCase().includes('line_follower') ||
-        ((!matchParticipants || matchParticipants.length === 0) && group.type === 'single');
+    const isLineFollower = (group.competitionType || '').toLowerCase().includes('line_follower');
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -188,9 +187,11 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             {!isLineFollower && hasScore && currentScore.status && (
                                 <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${currentScore.status === 'winner' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
                                     currentScore.status === 'qualified' ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
-                                        'bg-red-500/10 border-red-500/30 text-red-600'
+                                        currentScore.status === 'pending' ? 'bg-muted border-card-border text-muted-foreground' :
+                                            'bg-red-500/10 border-red-500/30 text-red-600'
                                     }`}>
-                                    {currentScore.status === 'winner' && '🏆 '}{currentScore.status}
+                                    {currentScore.status === 'winner' && '🏆 '}
+                                    {currentScore.status}
                                 </div>
                             )}
                         </div>
@@ -364,11 +365,13 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                     </div>
                 </div>
 
-                {/* Verified Results bottom bar */}
-                <div className="bg-green-500/10 p-4 border-t border-green-500/20 flex items-center justify-center gap-2.5">
-                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-                    <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
-                </div>
+                {/* Verified Results bottom bar - Only show if DONE */}
+                {hasScore && currentScore.status !== 'pending' && (
+                    <div className="bg-green-500/10 p-4 border-t border-green-500/20 flex items-center justify-center gap-2.5">
+                        <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                        <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
+                    </div>
+                )}
             </div>
         </motion.div>
     );
