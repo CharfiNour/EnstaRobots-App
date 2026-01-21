@@ -123,7 +123,7 @@ export default function ScheduleCard({
                                             {currentTeam?.order || '--'}
                                         </div>
                                         <span className={`text-sm font-black uppercase italic ${isMyTeamCurrent ? 'text-emerald-500' : 'text-foreground'}`}>
-                                            {currentTeam?.name || 'Searching...'}
+                                            {isMyTeamCurrent ? (currentTeam?.name || 'Searching...') : 'Active Unit'}
                                         </span>
                                     </div>
                                     {isMyTeamCurrent && <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Active Now</span>}
@@ -147,7 +147,7 @@ export default function ScheduleCard({
                                             {nextTeam?.order || '--'}
                                         </div>
                                         <span className={`text-sm font-black uppercase italic ${isMyTeamNext ? 'text-amber-500' : 'text-foreground'}`}>
-                                            {nextTeam?.name || 'Awaiting...'}
+                                            {isMyTeamNext ? (nextTeam?.name || 'Awaiting...') : 'Queued Unit'}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">

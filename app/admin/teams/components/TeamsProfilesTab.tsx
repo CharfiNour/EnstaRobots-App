@@ -25,6 +25,7 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
     const [profilesLocked, setProfilesLocked] = useState(false);
+    const [competitions, setCompetitions] = useState<any[]>([]);
 
     useEffect(() => {
         const checkStatus = () => {
@@ -32,6 +33,14 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
         };
         checkStatus();
         window.addEventListener('competition-state-updated', checkStatus);
+
+        const fetchComps = async () => {
+            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+            const data = await fetchCompetitionsFromSupabase();
+            setCompetitions(data);
+        };
+        fetchComps();
+
         return () => window.removeEventListener('competition-state-updated', checkStatus);
     }, []);
 
@@ -39,7 +48,15 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
         const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.robotName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.id.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCat = selectedCategory === 'all' || t.competition === selectedCategory;
+
+        // Resolution Logic: Match by UUID or slug
+        let matchesCat = selectedCategory === 'all';
+        if (!matchesCat) {
+            const comp = competitions.find(c => c.id === t.competition);
+            const teamCategory = comp ? comp.type : t.competition;
+            matchesCat = teamCategory === selectedCategory;
+        }
+
         return matchesSearch && matchesCat;
     });
 
@@ -112,7 +129,7 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
                 </div>
 
                 {/* Team List Sidebar */}
-                <div className="flex-1 overflow-y-auto space-y-2 max-h-[60vh] lg:max-h-[500px] pr-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto space-y-2 max-h-[440px] pr-2 custom-scrollbar">
                     <label className="text-[10px] uppercase font-bold text-muted-foreground/40 px-2 mb-2 block tracking-widest">Teams ({sidebarTeams.length})</label>
                     {sidebarTeams.map(team => (
                         <button

@@ -22,15 +22,19 @@ interface ScoreCardProps {
     isAdmin?: boolean;
     onDelete?: () => void;
     matchParticipants?: { teamId: string; team?: any; submissions: OfflineScore[] }[];
+    allCompetitions?: any[];
 }
 
-export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete, matchParticipants }: ScoreCardProps) {
+export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete, matchParticipants, allCompetitions }: ScoreCardProps) {
     const currentScore = group.submissions.find((s) => s.phase === activePhase) || group.submissions[0];
+
+    // Resolve competition name
+    const competitionName = allCompetitions?.find(c => c.id === group.competitionType)?.name || group.competitionType.replace(/_/g, ' ');
 
     // Determine the layout style:
     // Match-based competitions (Fight, All Terrain) show opponents.
     // Single-performance competitions (Line Follower) show lap times/details.
-    const isLineFollower = (group.competitionType || '').toLowerCase().includes('line_follower');
+    const isLineFollower = competitionName.toLowerCase().includes('line follower');
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -87,7 +91,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Official Record</span>
                         </div>
                         <h2 className="text-xl md:text-2xl font-black text-foreground uppercase italic leading-none">
-                            {(group.competitionType || '').replace(/_/g, ' ')}
+                            {competitionName}
                         </h2>
                     </div>
 
@@ -171,7 +175,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                 <div className="text-xl font-black text-foreground uppercase mb-1.5 leading-tight truncate">
                                     {group.team?.name || group.teamId}
                                 </div>
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                                     <div className="flex items-center gap-1.5 text-muted-foreground">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
                                         <span className="font-semibold">{group.team?.club || 'Robotics Club'}</span>
@@ -336,8 +340,10 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                             <div className="text-sm font-black text-foreground uppercase truncate">
                                                                 {participant.team?.name || participant.teamId}
                                                             </div>
-                                                            <div className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">
-                                                                {participant.team?.university || 'Engineering University'}
+                                                            <div className="text-[11px] font-bold text-muted-foreground uppercase opacity-60 flex items-center gap-1.5">
+                                                                <span className="text-accent/80 whitespace-nowrap">{participant.team?.club || 'Robotics Club'}</span>
+                                                                <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
+                                                                <span className="truncate">{participant.team?.university || 'Engineering University'}</span>
                                                             </div>
                                                         </div>
 

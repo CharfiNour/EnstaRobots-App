@@ -72,19 +72,17 @@ export function saveTeams(teams: Team[]): void {
 }
 
 // Helper to update team order
-export function reorderTeams(startIndex: number, endIndex: number): Team[] {
-    const teams = getTeams();
+// Note: This logic now needs to be handled by the UI + Supabase updates
+export function reorderTeams(teams: Team[], startIndex: number, endIndex: number): Team[] {
     const result = Array.from(teams);
     const [removed] = result.splice(startIndex, 1);
     result.splice(endIndex, 0, removed);
-    saveTeams(result);
     return result;
 }
 
-// Generate a specific number of team slots
+// Generate a specific number of team slots (Pure function)
 export function generateEmptyTeams(count: number): Team[] {
-    const currentTeams = getTeams();
-    const newTeams: Team[] = [...currentTeams];
+    const newTeams: Team[] = [];
 
     for (let i = 0; i < count; i++) {
         const id = `slot-${Math.random().toString(36).substring(2, 7)}`;
@@ -101,17 +99,15 @@ export function generateEmptyTeams(count: number): Team[] {
         });
     }
 
-    saveTeams(newTeams);
     return newTeams;
 }
 
 /**
  * Adds a specific number of team slots for a given club.
- * The codes will have the club name (first 3-4 chars) as a prefix.
+ * Returns the NEW teams only.
  */
-export function addClubSlots(clubName: string, count: number): Team[] {
-    const currentTeams = getTeams();
-    const newTeams: Team[] = [...currentTeams];
+export function generateClubSlots(clubName: string, count: number): Team[] {
+    const newTeams: Team[] = [];
 
     // Create a clean prefix from club name (e.g. "RoboKnights" -> "ROBO")
     const prefix = clubName.trim().toUpperCase().replace(/\s+/g, '').substring(0, 4) || 'TEAM';
@@ -134,50 +130,11 @@ export function addClubSlots(clubName: string, count: number): Team[] {
         });
     }
 
-    saveTeams(newTeams);
     return newTeams;
 }
 
-// Update a specific team
-export function updateTeam(id: string, data: Partial<Team>): void {
-    const teams = getTeams();
-    const index = teams.findIndex(t => t.id === id);
-    if (index !== -1) {
-        teams[index] = { ...teams[index], ...data, isPlaceholder: false };
-        saveTeams(teams);
-    }
-}
-
-// Update logo for all teams in a club
-export function updateClubLogo(clubName: string, logoUrl: string): void {
-    const teams = getTeams();
-    const updatedTeams = teams.map(t => {
-        if (t.club === clubName) {
-            return { ...t, logo: logoUrl };
-        }
-        return t;
-    });
-    saveTeams(updatedTeams);
-}
-
 // Check if a team is complete
-export function isTeamProfileComplete(teamId: string): boolean {
-    const teams = getTeams();
-    const team = teams.find(t => t.id === teamId);
+export function isTeamProfileComplete(team: Team): boolean {
     if (!team) return false;
     return !team.isPlaceholder && !!team.name && !!team.university && team.members.length > 0;
-}
-
-export function deleteTeam(id: string): Team[] {
-    const teams = getTeams();
-    const updatedTeams = teams.filter(t => t.id !== id);
-    saveTeams(updatedTeams);
-    return updatedTeams;
-}
-
-export function deleteClub(clubName: string): Team[] {
-    const teams = getTeams();
-    const updatedTeams = teams.filter(t => t.club !== clubName);
-    saveTeams(updatedTeams);
-    return updatedTeams;
 }

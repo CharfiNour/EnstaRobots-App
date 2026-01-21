@@ -24,50 +24,40 @@ export const COMPETITIONS = [
     { id: 'junior_all_terrain', title: 'Junior All Terrain' },
     { id: 'line_follower', title: 'Line Follower' },
     { id: 'all_terrain', title: 'All Terrain' },
-    { id: 'fight', title: 'Fight (Battle Robots)' },
+    { id: 'fight', title: 'Fight' },
 ];
 
 export const fetchRealCompetitions = async () => {
     try {
-        // Environment diagnostic
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-            console.error('Supabase environment variables are missing');
-            return [];
-        }
-
-
         const { data, error } = await supabase
             .from('competitions')
-            .select('*');
+            .select('id, name')
+            .order('name');
 
         if (error) {
             console.error('Supabase Error:', error);
-            return [];
+            return [{ id: 'all', title: 'Global (All Competitions)' }];
         }
 
-        // If Supabase table is empty, fallback to hardcoded list
         if (!data || data.length === 0) {
-
-            return COMPETITIONS;
+            console.warn('No competitions found in database');
+            return [{ id: 'all', title: 'Global (All Competitions)' }];
         }
 
-        const comps = (data || []) as any[];
-
-        return [
+        // Map database competitions with proper UUID ids
+        const competitions = [
             { id: 'all', title: 'Global (All Competitions)' },
-            ...comps.map(comp => ({
-                id: comp.id,
-                // Try multiple possible column names
-                title: comp.name || comp.title || comp.competition_name || `Competition ${comp.id}`
+            ...(data as any[]).map(comp => ({
+                id: comp.id, // This is the UUID
+                title: comp.name
             }))
         ];
 
+        return competitions;
+
     } catch (err) {
         console.error('Network or initialization error:', err);
-        return [];
+        return [{ id: 'all', title: 'Global (All Competitions)' }];
     }
 };
 
@@ -77,12 +67,8 @@ export const publishAnnouncement = async (formData: any) => {
         message: formData.message as string,
         type: formData.type as string,
         visible_to: formData.visibleTo as string,
-        // Ensure competitionId is a valid UUID or null
-        competition_id: (formData.competitionId === 'all' ||
-            typeof formData.competitionId !== 'string' ||
-            !formData.competitionId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i))
-            ? null
-            : formData.competitionId,
+        // Allow both UUIDs and system slugs (now that DB is TEXT)
+        competition_id: formData.competitionId === 'all' ? null : formData.competitionId,
     };
 
     const { error } = await (supabase.from('announcements') as any).insert(insertData);

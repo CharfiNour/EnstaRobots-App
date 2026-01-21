@@ -4,15 +4,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Trophy, Users, Calendar, ChevronLeft,
-    ChevronRight, MapPin, ExternalLink, Shield,
-    User, School, Building2, Crown, Cpu
+    Trophy, Users, ChevronLeft,
+    ChevronRight, MapPin, Shield,
+    Building2, Crown, Cpu
 } from 'lucide-react';
-import { getTeams, Team, TeamMember } from '@/lib/teams';
+import { getTeams, Team, saveTeams } from '@/lib/teams';
 import { getCompetitionState, CompetitionState, INITIAL_STATE } from '@/lib/competitionState';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase } from '@/lib/supabaseData';
 import { updateCompetitionState } from '@/lib/competitionState';
 
 // Mock data for the demonstration
@@ -24,15 +24,6 @@ const COMPETITIONS = {
     '5': { title: 'Fight', color: 'text-red-400', banner: 'bg-red-500/10' },
 };
 
-const MATCHES = [
-    {
-        phase: 'Phase 1: Qualifiers', matches: [
-            { id: 1, teamA: 'RoboKnights', teamB: 'CyberDragons', scoreA: 25, scoreB: 20, status: 'Completed' },
-            { id: 2, teamA: 'Steel Panthers', teamB: 'Alpha Bots', scoreA: null, scoreB: null, status: 'Upcoming' },
-        ]
-    },
-];
-
 export default function CompetitionDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -41,10 +32,11 @@ export default function CompetitionDetailPage() {
 
     // Data State
     const [teams, setTeams] = useState<Team[]>([]);
+    const [competitions, setCompetitions] = useState<any[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [compState, setCompState] = useState<CompetitionState>(INITIAL_STATE);
-    const [activeTeam, setActiveTeam] = useState<Team | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     const compId = params.id as string;
     const CATEGORY_MAP: Record<string, string> = {
@@ -58,26 +50,34 @@ export default function CompetitionDetailPage() {
 
     useEffect(() => {
         setMounted(true);
-        const handleStateUpdate = async () => {
-            // Load and filter teams
-            let allTeams = getTeams();
 
-            // Try fetching from Supabase to ensure fresh data
-            try {
-                const supabaseLib = await import('@/lib/supabaseData');
-                const teamsLib = await import('@/lib/teams');
-                const remoteTeams = await supabaseLib.fetchTeamsFromSupabase();
+        const loadContent = async () => {
+            setLoading(true);
 
-                if (remoteTeams && remoteTeams.length > 0) {
-                    allTeams = remoteTeams;
-                    // Persist the real data to local storage to keep it in sync
-                    teamsLib.saveTeams(remoteTeams);
-                }
-            } catch (e) {
-                console.error("Failed to sync teams from Supabase:", e);
+            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+
+            // Parallel Fetching
+            const [remoteTeams, sessions, remoteComps] = await Promise.all([
+                fetchTeamsFromSupabase(),
+                fetchLiveSessionsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+
+            setCompetitions(remoteComps);
+
+            // Process Teams
+            let allTeams = getTeams(); // Fallback to local
+            if (remoteTeams && remoteTeams.length > 0) {
+                allTeams = remoteTeams;
+                saveTeams(allTeams); // Cache for next time
             }
 
-            const filteredTeams = allTeams.filter(t => t.competition === currentCategory);
+            const filteredTeams = allTeams.filter(t => {
+                if (!t.competition) return false;
+                const comp = remoteComps.find((c: any) => c.id === t.competition);
+                const category = comp ? comp.type : t.competition;
+                return category === currentCategory;
+            });
             setTeams(filteredTeams);
 
             // Initial selection if none
@@ -85,28 +85,34 @@ export default function CompetitionDetailPage() {
                 setSelectedTeam(filteredTeams[0]);
             }
 
-            // Load State
-            const state = getCompetitionState();
-            setCompState(state);
-
-            // Load Active Team details
-            const liveSess = state.liveSessions[currentCategory];
-            if (liveSess && liveSess.teamId) {
-                const liveTeam = allTeams.find(t => t.id === liveSess.teamId);
-                setActiveTeam(liveTeam || null);
-            } else {
-                setActiveTeam(null);
-            }
-        };
-
-        handleStateUpdate();
-
-        // Initial fetch from DB for accurate live state
-        fetchLiveSessionsFromSupabase().then(sessions => {
+            // Process State
             if (Object.keys(sessions).length > 0) {
                 updateCompetitionState({ liveSessions: sessions });
             }
-        });
+            setCompState(getCompetitionState());
+
+            setLoading(false);
+        };
+
+        loadContent();
+
+        const handleStateUpdate = async () => {
+            setCompState(getCompetitionState());
+            const { fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+            const [remoteTeams, remoteComps] = await Promise.all([
+                fetchTeamsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+
+            setCompetitions(remoteComps);
+            const filteredTeams = remoteTeams.filter(t => {
+                if (!t.competition) return false;
+                const comp = remoteComps.find((c: any) => c.id === t.competition);
+                const category = comp ? comp.type : t.competition;
+                return category === currentCategory;
+            });
+            setTeams(filteredTeams);
+        };
 
         window.addEventListener('competition-state-updated', handleStateUpdate);
         window.addEventListener('storage', handleStateUpdate);
@@ -125,19 +131,13 @@ export default function CompetitionDetailPage() {
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
 
     const competition = COMPETITIONS[compId as keyof typeof COMPETITIONS] || { title: 'Competition Details', color: 'text-accent', banner: 'bg-accent/5' };
-
-    // Logic to check if THIS specific competition is the one currently live
     const isActuallyLive = !!compState.liveSessions[currentCategory];
 
     return (
         <div className="min-h-screen">
             {/* Minimal Header */}
             <div className="container mx-auto px-4 pt-8 pb-4">
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-6"
-                >
+                <div className="mb-6">
                     <div className="flex items-start gap-4">
                         <div className="relative">
                             <Trophy className={`w-10 h-10 md:w-12 md:h-12 ${competition.color} mt-1`} />
@@ -160,7 +160,7 @@ export default function CompetitionDetailPage() {
                             </div>
                         </div>
                     </div>
-                </motion.div>
+                </div>
 
                 {/* Navigation Tabs */}
                 <div className="flex gap-2 border-b border-card-border">
@@ -181,59 +181,66 @@ export default function CompetitionDetailPage() {
 
             {/* Content Area */}
             <div className="container mx-auto px-4 py-4">
-                <AnimatePresence mode="wait">
-                    {activeTab === 'teams' && (
-                        <motion.div
-                            key="teams"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="grid lg:grid-cols-[350px_1fr] gap-8"
-                        >
-                            {/* Team List Sidebar */}
-                            <div className={`space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 no-scrollbar lg:block ${showMobileDetail ? 'hidden' : 'block'}`}>
-                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                    <Shield className="w-5 h-5 text-accent" />
-                                    <span className="text-accent">{teams.length}</span> Registered Teams
-                                </h3>
-                                {teams.map((team) => (
-                                    <button
-                                        key={team.id}
-                                        onClick={() => {
-                                            setSelectedTeam(team);
-                                            setShowMobileDetail(true);
-                                        }}
-                                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 group relative ${selectedTeam?.id === team.id
-                                            ? 'bg-accent/10 border-accent shadow-md shadow-accent/5'
-                                            : 'bg-card border-card-border hover:border-accent/30'
-                                            }`}
-                                    >
-                                        {/* RED DOT INDICATOR */}
-                                        {mounted && compState.liveSessions[currentCategory]?.teamId === team.id && (
-                                            <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)] z-10" />
-                                        )}
+                {activeTab === 'teams' && (
+                    <div className="grid lg:grid-cols-[350px_1fr] gap-8">
+                        {/* Team List Sidebar */}
+                        <div className={`space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 no-scrollbar lg:block ${showMobileDetail ? 'hidden' : 'block'}`}>
+                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-accent" />
+                                <span className="text-accent">{loading ? '...' : teams.length}</span> Registered Teams
+                            </h3>
 
-                                        <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0 overflow-hidden border border-card-border group-hover:scale-110 transition-transform">
-                                            <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-foreground truncate">{team.name}</div>
-                                            <div className="text-xs text-muted-foreground truncate">{team.university}</div>
-                                        </div>
-                                        {selectedTeam?.id === team.id && (
-                                            <ChevronRight size={18} className="text-accent lg:block hidden" />
-                                        )}
-                                        <ChevronRight size={18} className="text-muted-foreground/30 lg:hidden block" />
-                                    </button>
-                                ))}
-                            </div>
+                            {loading ? (
+                                <div className="space-y-4 animate-pulse">
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <div key={i} className="h-20 bg-muted rounded-xl w-full" />
+                                    ))}
+                                </div>
+                            ) : teams.map((team) => (
+                                <button
+                                    key={team.id}
+                                    onClick={() => {
+                                        setSelectedTeam(team);
+                                        setShowMobileDetail(true);
+                                    }}
+                                    className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 group relative ${selectedTeam?.id === team.id
+                                        ? 'bg-accent/10 border-accent shadow-md shadow-accent/5'
+                                        : 'bg-card border-card-border hover:border-accent/30'
+                                        }`}
+                                >
+                                    {mounted && compState.liveSessions[currentCategory]?.teamId === team.id && (
+                                        <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)] z-10" />
+                                    )}
 
-                            {/* Team Detail Pane */}
-                            <div className={`justify-center ${showMobileDetail ? 'flex' : 'hidden lg:flex'}`}>
+                                    <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0 overflow-hidden border border-card-border group-hover:scale-110 transition-transform">
+                                        <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-foreground truncate uppercase text-sm tracking-tight">{team.name}</div>
+                                        <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5 font-bold uppercase opacity-70">
+                                            <span className="text-accent">{team.club}</span>
+                                            {team.university && (
+                                                <>
+                                                    <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
+                                                    <span className="truncate">{team.university}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-muted-foreground/30" />
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Team Detail Pane */}
+                        <div className={`justify-center ${showMobileDetail ? 'flex' : 'hidden lg:flex'}`}>
+                            {loading ? (
+                                <div className="w-full max-w-md h-[400px] bg-muted rounded-[2.5rem] animate-pulse" />
+                            ) : (
                                 <AnimatePresence mode="wait">
                                     <motion.div
                                         key={selectedTeam?.id}
-                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        initial={{ opacity: 0, scale: 0.98 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         className="w-full max-w-md bg-card border border-card-border rounded-[2.5rem] overflow-hidden shadow-2xl shadow-black/20"
                                     >
@@ -250,11 +257,9 @@ export default function CompetitionDetailPage() {
 
                                         {/* ID Card Top Section */}
                                         <div className="relative p-6 pt-8 lg:pt-12 pb-8 bg-gradient-to-br from-accent/20 via-card to-card border-b border-card-border overflow-hidden">
-                                            {/* Decorative Elements */}
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                                             <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/5 rounded-full -ml-12 -mb-12 blur-2xl"></div>
 
-                                            {/* Centered Profile Identity */}
                                             <div className="relative flex flex-col items-center text-center">
                                                 <div className="relative group mb-6">
                                                     <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] bg-card border-4 border-accent shadow-xl overflow-hidden transform group-hover:rotate-3 transition-transform relative">
@@ -267,7 +272,6 @@ export default function CompetitionDetailPage() {
                                                             </div>
                                                         )}
 
-                                                        {/* Secondary Logo Overlay */}
                                                         {selectedTeam?.logo && (
                                                             <div className="absolute bottom-2 right-2 w-8 h-8 bg-card rounded-lg border border-accent/30 p-1 shadow-md">
                                                                 <img src={selectedTeam.logo} alt="Club" className="w-full h-full object-contain" />
@@ -316,55 +320,29 @@ export default function CompetitionDetailPage() {
                                                                 Leader
                                                             </span>
                                                         )}
-                                                        {!(member.role === 'Leader' || member.isLeader) && (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground bg-card px-2 py-0.5 rounded border border-card-border">
-                                                                {member.role || 'Member'}
-                                                            </span>
-                                                        )}
                                                     </div>
                                                 ))}
-                                            </div>
-
-                                            {/* Hardware Spec footer */}
-                                            <div className="mt-8 pt-6 border-t border-card-border flex items-center justify-between opacity-50">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                                                    <span className="text-[9px] font-black uppercase tracking-widest">Systems Clear</span>
-                                                </div>
-                                                <span className="text-[9px] font-mono">T-ID: {selectedTeam?.id.slice(0, 8).toUpperCase()}</span>
                                             </div>
                                         </div>
                                     </motion.div>
                                 </AnimatePresence>
-                            </div>
-                        </motion.div>
-                    )}
+                            )}
+                        </div>
+                    </div>
+                )}
 
-
-
-
-
-                    {activeTab === 'matches' && (
-                        <motion.div
-                            key="matches"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="w-full"
-                        >
-                            <ScoreHistoryView
-                                initialCompetition={
-                                    compId === '1' ? 'junior_line_follower' :
-                                        compId === '2' ? 'junior_all_terrain' :
-                                            compId === '3' ? 'line_follower' :
-                                                compId === '4' ? 'all_terrain' :
-                                                    compId === '5' ? 'fight' : 'all'
-                                }
-                                showFilter={false}
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {activeTab === 'matches' && (
+                    <ScoreHistoryView
+                        initialCompetition={
+                            compId === '1' ? 'junior_line_follower' :
+                                compId === '2' ? 'junior_all_terrain' :
+                                    compId === '3' ? 'line_follower' :
+                                        compId === '4' ? 'all_terrain' :
+                                            compId === '5' ? 'fight' : 'all'
+                        }
+                        showFilter={false}
+                    />
+                )}
             </div>
         </div >
     );

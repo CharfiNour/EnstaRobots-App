@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Activity } from 'lucide-react';
 import { COMPETITION_CONFIG } from '../services/teamDashboardService';
@@ -10,6 +11,39 @@ interface DashboardHeaderProps {
 }
 
 export default function DashboardHeader({ teamData, session }: DashboardHeaderProps) {
+    const [competitionName, setCompetitionName] = useState<string>("");
+
+    useEffect(() => {
+        const resolveComp = async () => {
+            if (!teamData?.competition) return;
+
+            // Check hardcoded config first (slugs)
+            if (COMPETITION_CONFIG[teamData.competition]) {
+                setCompetitionName(COMPETITION_CONFIG[teamData.competition].name);
+                return;
+            }
+
+            // Fallback to DB lookup for UUIDs
+            try {
+                const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+                const comps = await fetchCompetitionsFromSupabase();
+                const match = comps.find((c: any) => c.id === teamData.competition);
+                if (match) {
+                    setCompetitionName(match.name);
+                } else {
+                    setCompetitionName(teamData.competition.replace(/_/g, ' '));
+                }
+            } catch (err) {
+                setCompetitionName(teamData.competition.replace(/_/g, ' '));
+            }
+        };
+        resolveComp();
+    }, [teamData]);
+
+    const compColor = teamData?.competition && COMPETITION_CONFIG[teamData.competition]
+        ? COMPETITION_CONFIG[teamData.competition].color
+        : 'bg-role-primary/10 text-role-primary border-role-primary/20';
+
     return (
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
             <motion.div
@@ -28,8 +62,8 @@ export default function DashboardHeader({ teamData, session }: DashboardHeaderPr
                         <span className="text-[10px] font-black uppercase text-foreground">{teamData?.robotName || teamData?.name || 'My Unit'}</span>
                     </div>
                     {teamData?.competition && (
-                        <div className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border ${COMPETITION_CONFIG[teamData.competition]?.color || 'bg-role-primary/10 text-role-primary border-role-primary/20'}`}>
-                            {COMPETITION_CONFIG[teamData.competition]?.name || teamData.competition.replace(/_/g, ' ')}
+                        <div className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border ${compColor}`}>
+                            {competitionName || (COMPETITION_CONFIG[teamData.competition]?.name || teamData.competition.replace(/_/g, ' '))}
                         </div>
                     )}
                     <div className="px-3 py-1 bg-muted/50 rounded-lg border border-card-border text-[10px] font-black text-muted-foreground uppercase">
@@ -37,7 +71,6 @@ export default function DashboardHeader({ teamData, session }: DashboardHeaderPr
                     </div>
                 </div>
             </motion.div>
-
         </div>
     );
 }

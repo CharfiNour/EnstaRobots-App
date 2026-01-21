@@ -13,7 +13,7 @@ import { getTeams, Team } from '@/lib/teams';
 import { startLiveSession, stopLiveSession, getCompetitionState, updateCompetitionState } from '@/lib/competitionState';
 import { updateCompetitionStatus } from '../../admin/competitions/services/competitionService';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
 
 // Local project structure imports
 import {
@@ -61,6 +61,7 @@ export default function ScoreCardPage() {
     const [competitionTeams, setCompetitionTeams] = useState<Team[]>([]);
     const [currentTeamIndex, setCurrentTeamIndex] = useState(0);
     const [isLive, setIsLive] = useState(false);
+    const [competitionsFromSupabase, setCompetitionsFromSupabase] = useState<any[]>([]);
 
     // Performance fields
     const [timeMinutes, setTimeMinutes] = useState('');
@@ -75,9 +76,15 @@ export default function ScoreCardPage() {
     const isLineFollower = ['line_follower', 'junior_line_follower'].includes(competition.value);
 
     useEffect(() => {
-        // Load sorted teams
-        const loaded = getTeams();
-        setAllTeams(loaded);
+        const loadInitialData = async () => {
+            const [remoteTeams, remoteComps] = await Promise.all([
+                fetchTeamsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+            setAllTeams(remoteTeams);
+            setCompetitionsFromSupabase(remoteComps);
+        };
+        loadInitialData();
 
         if (!competition) return;
 
@@ -106,8 +113,6 @@ export default function ScoreCardPage() {
         window.addEventListener('competition-state-updated', syncState);
         window.addEventListener('storage', syncState);
 
-        window.addEventListener('storage', syncState);
-
         // Initial fetch from supabase
         fetchLiveSessionsFromSupabase().then(sessions => {
             if (Object.keys(sessions).length > 0) {
@@ -127,11 +132,23 @@ export default function ScoreCardPage() {
         updateCompetitionState({ liveSessions: sessions }, false);
     };
 
+    const handleTeamsUpdate = async () => {
+        const remoteTeams = await fetchTeamsFromSupabase();
+        setAllTeams(remoteTeams);
+    };
+
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
+    useSupabaseRealtime('teams', handleTeamsUpdate);
 
     // Filter teams when competition or allTeams changes
     useEffect(() => {
-        const filtered = allTeams.filter(t => t.competition === competition.value);
+        const filtered = allTeams.filter(t => {
+            if (!t.competition) return false;
+            // Handle both UUIDs and slugs
+            const comp = competitionsFromSupabase.find((c: any) => c.id === t.competition);
+            const teamCategory = comp ? comp.type : t.competition;
+            return teamCategory === competition.value;
+        });
         setCompetitionTeams(filtered);
 
         // If we have teams and the current input is empty, pre-fill with the first team (if NOT live)
@@ -157,7 +174,7 @@ export default function ScoreCardPage() {
                 setTeams(newTeams);
             }
         }
-    }, [competition, allTeams, isLive, isLineFollower]); // Removed 'teams' dependency to break possible loops and added careful manual checks if needed
+    }, [competition, allTeams, isLive, isLineFollower, competitionsFromSupabase]);
 
     useEffect(() => {
         const currentSession = getSession();
@@ -169,23 +186,28 @@ export default function ScoreCardPage() {
         setLoading(false);
 
         // Lock competition and load judges if assigned
-        if (currentSession.competition) {
-            const assignedComp = COMPETITIONS.find(c => c.value === currentSession.competition);
-            if (assignedComp) {
-                setCompetition(assignedComp);
+        if (currentSession.competition && competitionsFromSupabase.length > 0) {
+            // Find competition by ID (UUID) or by slug (value)
+            const compFromDb = competitionsFromSupabase.find((c: any) => c.id === currentSession.competition || c.type === currentSession.competition);
 
-                // Fetch available juries for this competition
-                try {
-                    const storedCodes = localStorage.getItem('enstarobots_staff_codes');
-                    if (storedCodes) {
-                        const parsed: any[] = JSON.parse(storedCodes);
-                        const juryNames = parsed
-                            .filter(c => c.role === 'jury' && c.competition === currentSession.competition)
-                            .map(c => c.name);
-                        setAvailableJuries(juryNames);
+            if (compFromDb) {
+                const assignedComp = COMPETITIONS.find(c => c.value === compFromDb.type);
+                if (assignedComp) {
+                    setCompetition(assignedComp);
+
+                    // Fetch available juries for this competition
+                    try {
+                        const storedCodes = localStorage.getItem('enstarobots_staff_codes');
+                        if (storedCodes) {
+                            const parsed: any[] = JSON.parse(storedCodes);
+                            const juryNames = parsed
+                                .filter(c => c.role === 'jury' && (c.competition === currentSession.competition || c.competition === compFromDb.type))
+                                .map(c => c.name);
+                            setAvailableJuries(juryNames);
+                        }
+                    } catch (e) {
+                        console.error("Failed to load jury names", e);
                     }
-                } catch (e) {
-                    console.error("Failed to load jury names", e);
                 }
             }
         }
@@ -200,7 +222,7 @@ export default function ScoreCardPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [router]);
+    }, [router, competitionsFromSupabase]);
 
     // Logic for single vs multi-team based on competition
     useEffect(() => {
@@ -408,7 +430,7 @@ export default function ScoreCardPage() {
             const dbPayload = {
                 match_id: payload.matchId,
                 team_id: payload.teamId,
-                competition_type: payload.competitionType,
+                competition_id: payload.competitionType, // Note: using competition_id as in supabaseData.ts
                 phase: payload.phase,
                 time_ms: payload.timeMs,
                 penalties: 0,
@@ -417,8 +439,7 @@ export default function ScoreCardPage() {
                 judge_points: payload.juryPoints,
                 damage_score: payload.damageScore,
                 judge_id: payload.juryId,
-                judge_names: payload.juryNames,
-                is_completed: payload.completedRoad,
+                completed_road: payload.completedRoad, // Adjusted to match library
                 total_points: payload.totalPoints,
                 is_sent_to_team: true,
                 status: payload.status
@@ -477,14 +498,6 @@ export default function ScoreCardPage() {
         setSubmitting(false);
     };
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-            </div>
-        );
-    }
-
     return (
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-2xl">
@@ -519,79 +532,88 @@ export default function ScoreCardPage() {
                 />
 
                 {/* Main Card */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-card border border-card-border rounded-2xl p-4 md:p-6 shadow-2xl relative"
-                >
-                    {!isLive && (
-                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 rounded-2xl flex items-center justify-center">
-                            <div className="bg-card border border-card-border p-4 rounded-xl shadow-xl flex items-center gap-2 text-muted-foreground font-bold">
-                                <Info size={18} />
-                                <span>Press Start to unlock score card</span>
+                <div className="bg-card border border-card-border rounded-2xl p-4 md:p-6 shadow-2xl relative min-h-[400px]">
+                    {loading ? (
+                        <div className="space-y-6 animate-pulse">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="h-10 bg-muted rounded-xl w-full" />
+                                <div className="h-10 bg-muted rounded-xl w-full" />
                             </div>
+                            <div className="h-24 bg-muted rounded-xl w-full" />
+                            <div className="h-48 bg-muted rounded-xl w-full" />
+                            <div className="h-14 bg-muted rounded-xl w-full" />
                         </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className={`space-y-6 transition-opacity duration-300 ${!isLive ? 'opacity-40 pointer-events-none' : ''}`}>
-
-                        <JuryInputs
-                            jury1={jury1} setJury1={setJury1}
-                            jury2={jury2} setJury2={setJury2}
-                            availableJuries={availableJuries}
-                        />
-
-                        <div className="w-full h-px bg-card-border" />
-
-                        <TeamSelectSection
-                            isLineFollower={isLineFollower}
-                            teams={teams}
-                            handleTeamChange={handleTeamChange}
-                            competitionTeams={competitionTeams}
-                            globalPhase={globalPhase}
-                            setGlobalPhase={setGlobalPhase}
-                            numberOfTeams={numberOfTeams}
-                            setNumberOfTeams={setNumberOfTeams}
-                            isPhaseSubmitted={isPhaseSubmitted}
-                            PHASES_LINE_FOLLOWER={PHASES_LINE_FOLLOWER}
-                            PHASES_DEFAULT={PHASES_DEFAULT}
-                            STATUS_OPTIONS={STATUS_OPTIONS}
-                        />
-
-                        <div className="w-full h-px bg-card-border" />
-
-                        <PerformanceDataForm
-                            isLineFollower={isLineFollower}
-                            timeMinutes={timeMinutes} setTimeMinutes={setTimeMinutes}
-                            timeSeconds={timeSeconds} setTimeSeconds={setTimeSeconds}
-                            timeMillis={timeMillis} setTimeMillis={setTimeMillis}
-                            completedRoad={completedRoad} setCompletedRoad={setCompletedRoad}
-                            homologationPoints={homologationPoints} setHomologationPoints={setHomologationPoints}
-                            knockouts={knockouts} setKnockouts={setKnockouts}
-                            juryPoints={juryPoints} setJuryPoints={setJuryPoints}
-                            damageScore={damageScore} setDamageScore={setDamageScore}
-                        />
-
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${submitting ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-accent text-slate-900 hover:bg-accent/90 shadow-accent/20'
-                                }`}
-                        >
-                            {submitting ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : success ? (
-                                <>
-                                    <CheckCircle className="w-5 h-5" />
-                                    Data Synchronized
-                                </>
-                            ) : (
-                                'Submit Score Card'
+                    ) : (
+                        <>
+                            {!isLive && (
+                                <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 rounded-2xl flex items-center justify-center">
+                                    <div className="bg-card border border-card-border p-4 rounded-xl shadow-xl flex items-center gap-2 text-muted-foreground font-bold">
+                                        <Info size={18} />
+                                        <span>Press Start to unlock score card</span>
+                                    </div>
+                                </div>
                             )}
-                        </button>
-                    </form>
-                </motion.div>
+
+                            <form onSubmit={handleSubmit} className={`space-y-6 transition-opacity duration-300 ${!isLive ? 'opacity-40 pointer-events-none' : ''}`}>
+
+                                <JuryInputs
+                                    jury1={jury1} setJury1={setJury1}
+                                    jury2={jury2} setJury2={setJury2}
+                                    availableJuries={availableJuries}
+                                />
+
+                                <div className="w-full h-px bg-card-border" />
+
+                                <TeamSelectSection
+                                    isLineFollower={isLineFollower}
+                                    teams={teams}
+                                    handleTeamChange={handleTeamChange}
+                                    competitionTeams={competitionTeams}
+                                    globalPhase={globalPhase}
+                                    setGlobalPhase={setGlobalPhase}
+                                    numberOfTeams={numberOfTeams}
+                                    setNumberOfTeams={setNumberOfTeams}
+                                    isPhaseSubmitted={isPhaseSubmitted}
+                                    PHASES_LINE_FOLLOWER={PHASES_LINE_FOLLOWER}
+                                    PHASES_DEFAULT={PHASES_DEFAULT}
+                                    STATUS_OPTIONS={STATUS_OPTIONS}
+                                />
+
+                                <div className="w-full h-px bg-card-border" />
+
+                                <PerformanceDataForm
+                                    isLineFollower={isLineFollower}
+                                    timeMinutes={timeMinutes} setTimeMinutes={setTimeMinutes}
+                                    timeSeconds={timeSeconds} setTimeSeconds={setTimeSeconds}
+                                    timeMillis={timeMillis} setTimeMillis={setTimeMillis}
+                                    completedRoad={completedRoad} setCompletedRoad={setCompletedRoad}
+                                    homologationPoints={homologationPoints} setHomologationPoints={setHomologationPoints}
+                                    knockouts={knockouts} setKnockouts={setKnockouts}
+                                    juryPoints={juryPoints} setJuryPoints={setJuryPoints}
+                                    damageScore={damageScore} setDamageScore={setDamageScore}
+                                />
+
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${submitting ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-accent text-slate-900 hover:bg-accent/90 shadow-accent/20'
+                                        }`}
+                                >
+                                    {submitting ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : success ? (
+                                        <>
+                                            <CheckCircle className="w-5 h-5" />
+                                            Data Synchronized
+                                        </>
+                                    ) : (
+                                        'Submit Score Card'
+                                    )}
+                                </button>
+                            </form>
+                        </>
+                    )}
+                </div>
 
                 {/* Success Indicator */}
                 <AnimatePresence>

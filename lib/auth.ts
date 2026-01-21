@@ -24,30 +24,30 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
     try {
         const trimmedCode = code.trim().toUpperCase();
 
-        // Fetch staff codes from local storage
-        const stored = localStorage.getItem(STAFF_CODES_KEY);
-        let staffCodes: any[] = [];
+        const { data, error } = await supabase
+            .from('staff_codes')
+            .select('id, role, competition_id')
+            .eq('code', trimmedCode)
+            .maybeSingle();
 
-        if (stored) {
-            staffCodes = JSON.parse(stored);
-        } else {
-            // Default fallback if storage is empty (should match StaffCodesTab defaults)
-            staffCodes = [
-                { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
-                { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024' },
-            ];
+        if (error) {
+            console.error('Login Error (Supabase):', error);
+            console.error('Attempted Code:', trimmedCode);
+            return { success: false, error: 'Database error' };
         }
 
-        const match = staffCodes.find(s => s.code === trimmedCode);
-
-        if (!match) {
-            return { success: false, error: 'Invalid access code' };
+        if (!data) {
+            console.warn('Login Failed: No match found for code', trimmedCode);
+            return { success: false, error: 'Invalid or inactive access code' };
         }
+
+        // Type assertion for staff code data
+        const staffData = data as { id: string; role: string; competition_id: string | null };
 
         const session: AuthSession = {
-            userId: match.id,
-            role: match.role,
-            competition: match.role === 'jury' ? match.competition : undefined,
+            userId: staffData.id,
+            role: staffData.role as UserRole,
+            competition: staffData.role === 'jury' && staffData.competition_id ? staffData.competition_id : undefined,
             expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
         };
 
@@ -55,6 +55,7 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
         return { success: true, session };
 
     } catch (err) {
+        console.error('Login Exception:', err);
         return { success: false, error: 'Login processing failed' };
     }
 }
@@ -63,40 +64,26 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
     try {
         const trimmedCode = teamCode.trim().toUpperCase();
 
-        // 1. Check local storage teams (Primary for this demo/local setup)
-        const localTeams = getTeams();
-        const localMatch = localTeams.find(t => t.code?.toUpperCase() === trimmedCode);
-
-        if (localMatch) {
-            const session: AuthSession = {
-                userId: localMatch.id,
-                role: 'team',
-                teamId: localMatch.id,
-                teamCode: localMatch.code,
-                teamName: localMatch.name,
-                expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-            };
-            if (typeof window !== 'undefined') localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-            return { success: true, session };
-        }
-
-        // 2. Fallback to Supabase if not found locally
-        const { data: team, error } = await (supabase
+        // Query team code from Supabase
+        const { data: team, error } = await supabase
             .from('teams')
-            .select('id, name, code, competition_id')
-            .eq('code', trimmedCode)
-            .single() as any);
+            .select('id, name, team_code, competition_id')
+            .eq('team_code', trimmedCode)
+            .single();
 
         if (error || !team) {
             return { success: false, error: 'Invalid team code' };
         }
 
+        const teamData = team as any; // Explicit cast
+
         const session: AuthSession = {
-            userId: team.id,
+            userId: teamData.id,
             role: 'team',
-            teamId: team.id,
-            teamCode: team.code,
-            teamName: team.name,
+            teamId: teamData.id,
+            teamCode: teamData.team_code,
+            teamName: teamData.name,
+            competition: teamData.competition_id || undefined,
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
 

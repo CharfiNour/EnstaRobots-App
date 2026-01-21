@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { getTeams } from '@/lib/teams';
-import { getCompetitionState } from '@/lib/competitionState';
+import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
 import { getTeamDashboardData } from '../services/teamDashboardService';
 import { TeamDashboardData } from '../types';
 
@@ -24,7 +23,7 @@ export function useTeamDashboard() {
     const router = useRouter();
 
     useEffect(() => {
-        const fetchDashboardData = () => {
+        const fetchDashboardData = async () => {
             const currentSession = getSession();
             if (!currentSession || currentSession.role !== 'team') {
                 router.push('/auth/team');
@@ -32,8 +31,8 @@ export function useTeamDashboard() {
             }
             setSession(currentSession);
 
-            const teams = getTeams();
-            const compState = getCompetitionState();
+            const teams = await fetchTeamsFromSupabase();
+            const liveSessions = await fetchLiveSessionsFromSupabase();
             const team = teams.find(t => t.id === currentSession.teamId);
 
             if (team) {
@@ -50,8 +49,8 @@ export function useTeamDashboard() {
                 let nextT = null;
                 let phase = null;
 
-                if (team.competition && compState.liveSessions?.[team.competition]) {
-                    const sessionInfo = compState.liveSessions[team.competition];
+                if (team.competition && liveSessions?.[team.competition]) {
+                    const sessionInfo = liveSessions[team.competition];
                     isLive = true;
                     phase = sessionInfo.phase;
 

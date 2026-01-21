@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
-import { getTeams, Team, saveTeams } from '@/lib/teams';
+import { Team, saveTeams } from '@/lib/teams';
+import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
 import TeamsCodesTab from '../teams/components/TeamsCodesTab';
 import StaffCodesTab from './components/StaffCodesTab';
 
@@ -12,23 +12,19 @@ export default function AdminCodesPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const currentTeams = getTeams();
-        setTeams(currentTeams);
-        setLoading(false);
+        const load = async () => {
+            setLoading(true);
+            const currentTeams = await fetchTeamsFromSupabase();
+            setTeams(currentTeams);
+            setLoading(false);
+        };
+        load();
     }, []);
 
     const handleSetTeams = (updatedTeams: Team[]) => {
         setTeams(updatedTeams);
         saveTeams(updatedTeams);
     };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-background relative overflow-hidden flex flex-col py-10 md:py-16">
@@ -54,26 +50,23 @@ export default function AdminCodesPage() {
 
                 <div className="space-y-12">
                     {/* Staff Codes Section */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
-                    >
+                    <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500/20 via-accent/20 to-amber-500/20" />
                         <StaffCodesTab />
-                    </motion.div>
+                    </div>
 
                     {/* Team Codes Section */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
-                    >
+                    <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
-                        <TeamsCodesTab teams={teams} setTeams={handleSetTeams} />
-                    </motion.div>
+                        {loading && teams.length === 0 ? (
+                            <div className="space-y-4 animate-pulse">
+                                <div className="h-12 bg-muted rounded-xl w-full" />
+                                <div className="h-64 bg-muted rounded-2xl w-full" />
+                            </div>
+                        ) : (
+                            <TeamsCodesTab teams={teams} setTeams={handleSetTeams} />
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

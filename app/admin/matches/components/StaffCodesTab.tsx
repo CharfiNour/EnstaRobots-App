@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Key, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
 
 interface StaffCode {
     id: string;
@@ -10,6 +12,7 @@ interface StaffCode {
     name: string;
     code: string;
     competition?: string;
+    competition_name?: string;
 }
 
 const COMPETITION_CATEGORIES = [
@@ -24,52 +27,166 @@ const STORAGE_KEY = 'enstarobots_staff_codes';
 
 const DEFAULT_CODES: StaffCode[] = [
     { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
-    { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024' },
+    { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024', competition_name: 'Line Follower' },
 ];
+
 
 export default function StaffCodesTab() {
     const [codes, setCodes] = useState<StaffCode[]>([]);
+    const [realCompetitions, setRealCompetitions] = useState<any[]>([]);
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
     const [newRole, setNewRole] = useState<'admin' | 'jury'>('jury');
-    const [selectedComp, setSelectedComp] = useState(COMPETITION_CATEGORIES[0].id);
+    const [selectedComp, setSelectedComp] = useState('');
+    const [dbMissing, setDbMissing] = useState(false);
 
     useEffect(() => {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                setCodes(JSON.parse(stored));
-            } catch {
-                setCodes(DEFAULT_CODES);
-            }
-        } else {
-            setCodes(DEFAULT_CODES);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CODES));
-        }
+        loadInitialData();
     }, []);
+
+    const loadInitialData = async () => {
+        // Load real competitions first
+        const comps = await fetchCompetitionsFromSupabase();
+        setRealCompetitions(comps);
+        if (comps.length > 0) {
+            setSelectedComp(comps[0].id);
+        }
+
+        // Then load codes
+        loadCodesFromSupabase();
+    };
+
+    const loadCodesFromSupabase = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('staff_codes')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('Error loading staff codes:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
+
+                // Check if it's a "table doesn't exist" error
+                const errorMessage = error.message || '';
+                const errorCode = (error as any).code || '';
+
+                if (errorMessage.includes('relation') && errorMessage.includes('does not exist') || errorCode === '42P01') {
+                    console.warn('⚠️ staff_codes table does not exist in Supabase!');
+                    setDbMissing(true);
+                }
+
+                // Fallback to localStorage
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    setCodes(JSON.parse(stored));
+                } else {
+                    setCodes(DEFAULT_CODES);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CODES));
+                }
+                return;
+            }
+
+            if (data && data.length > 0) {
+                const formattedCodes: StaffCode[] = data.map((item: any) => ({
+                    id: item.id,
+                    role: item.role as 'admin' | 'jury',
+                    name: item.name,
+                    code: item.code,
+                    competition: item.competition_id || undefined,
+                    competition_name: item.competition_name || undefined
+                }));
+                setCodes(formattedCodes);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(formattedCodes));
+            } else {
+                setCodes(DEFAULT_CODES);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CODES));
+            }
+        } catch (err) {
+            console.error('Exception loading staff codes:', err);
+            setCodes(DEFAULT_CODES);
+        }
+    };
 
     const saveCodes = (newCodes: StaffCode[]) => {
         setCodes(newCodes);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newCodes));
     };
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         if (!newName.trim()) return;
-        const newCode: StaffCode = {
-            id: Math.random().toString(36).substring(2, 9),
-            role: newRole,
-            name: newName.trim(),
-            code: `${newRole.toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-            competition: newRole === 'jury' ? selectedComp : undefined
-        };
-        saveCodes([...codes, newCode]);
-        setNewName('');
-        setShowAdd(false);
+
+        const generatedCode = `${newRole.toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+        try {
+            // Find competition details for jury
+            const comp = newRole === 'jury' ? realCompetitions.find(c => c.id === selectedComp) : null;
+
+            const { data, error } = await supabase
+                .from('staff_codes')
+                .insert({
+                    role: newRole,
+                    name: newName.trim(),
+                    code: generatedCode,
+                    competition_id: newRole === 'jury' ? selectedComp : null, // This is now the real UUID
+                    competition_name: comp?.name || undefined
+                } as any)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error creating staff code:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
+                const errorMsg = error.message || 'Unknown error';
+                const errorCode = (error as any).code || '';
+                alert(`Failed to create staff code.\n\nError: ${errorMsg}\n${errorCode ? `Code: ${errorCode}` : ''}\n\nCheck browser console for details.`);
+                return;
+            }
+
+            if (data) {
+                const staffCodeData = data as any;
+                const newCode: StaffCode = {
+                    id: staffCodeData.id,
+                    role: staffCodeData.role as 'admin' | 'jury',
+                    name: staffCodeData.name,
+                    code: staffCodeData.code,
+                    competition: staffCodeData.competition_id || undefined,
+                    competition_name: staffCodeData.competition_name || undefined
+                };
+
+                const updatedCodes = [...codes, newCode];
+                saveCodes(updatedCodes);
+                setNewName('');
+                setShowAdd(false);
+            }
+        } catch (err) {
+            console.error('Exception creating staff code:', err);
+            alert('An error occurred while creating the staff code.');
+        }
     };
 
-    const handleDelete = (id: string) => {
-        if (confirm('Are you sure you want to revoke this access code?')) {
-            saveCodes(codes.filter(c => c.id !== id));
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to revoke this access code?')) return;
+
+        try {
+            // Delete from Supabase
+            const { error } = await supabase
+                .from('staff_codes')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error deleting staff code:', error);
+                alert('Failed to delete staff code. Please try again.');
+                return;
+            }
+
+            // Update local state
+            const updatedCodes = codes.filter(c => c.id !== id);
+            saveCodes(updatedCodes);
+        } catch (err) {
+            console.error('Exception deleting staff code:', err);
+            alert('An error occurred while deleting the staff code.');
         }
     };
 
@@ -86,7 +203,12 @@ export default function StaffCodesTab() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {staffList.map((staff) => {
-                    const compConfig = COMPETITION_CATEGORIES.find(c => c.id === staff.competition);
+                    // 1. Find the actual competition row from state
+                    const realComp = realCompetitions.find(rc => rc.id === staff.competition);
+                    // 2. Map the comp type/category to our UI config for colors
+                    const compType = realComp?.type || staff.competition;
+                    const compConfig = COMPETITION_CATEGORIES.find(c => c.id === compType);
+
                     return (
                         <motion.div
                             key={staff.id}
@@ -103,12 +225,12 @@ export default function StaffCodesTab() {
                                     <Shield size={20} />
                                 </div>
                                 <div>
-                                    <div className="font-bold text-sm tracking-tight uppercase text-foreground/90">{staff.name}</div>
+                                    <div className="font-bold text-sm tracking-tight uppercase text-foreground/90">{staff.name.split('(')[0].trim()}</div>
                                     {staff.role === 'admin' ? (
                                         <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Admin Privilege</div>
-                                    ) : compConfig ? (
-                                        <div className={`mt-1 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-lg border inline-block ${compConfig.color}`}>
-                                            {compConfig.name}
+                                    ) : (staff.competition_name || compConfig) ? (
+                                        <div className={`mt-1 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-lg border inline-block ${compConfig?.color || 'bg-muted text-muted-foreground border-card-border'}`}>
+                                            {staff.competition_name || compConfig?.name || 'Assigned Sector'}
                                         </div>
                                     ) : (
                                         <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Jury Privilege</div>
@@ -157,6 +279,43 @@ export default function StaffCodesTab() {
                 </button>
             </div>
 
+            {dbMissing && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-6 backdrop-blur-sm"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center flex-shrink-0">
+                            <span className="text-2xl">⚠️</span>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-sm font-black uppercase tracking-wide text-amber-500 mb-2">
+                                Database Table Missing
+                            </h3>
+                            <p className="text-xs text-foreground/70 mb-3 leading-relaxed">
+                                The <code className="px-2 py-0.5 bg-background/40 rounded border border-card-border font-mono text-[10px]">staff_codes</code> table doesn't exist in your Supabase database yet.
+                                <br />
+                                Staff codes are currently stored in localStorage only. To enable full functionality, you need to run the SQL migration.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <a
+                                    href="/STAFF_CODE_FIX_SUMMARY.md"
+                                    target="_blank"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-background rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-amber-600 transition-colors"
+                                >
+                                    <span>📖</span>
+                                    View Setup Instructions
+                                </a>
+                                <span className="text-[9px] text-muted-foreground uppercase tracking-widest">
+                                    See: supabase/migrations/add_staff_codes_table.sql
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
             {showAdd && (
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -202,9 +361,12 @@ export default function StaffCodesTab() {
                                             onChange={(e) => setSelectedComp(e.target.value)}
                                             className="flex-[1.5] px-5 py-3 bg-background/40 border border-card-border rounded-xl text-xs font-bold uppercase outline-none cursor-pointer hover:bg-background/60 transition-all appearance-none text-center"
                                         >
-                                            {COMPETITION_CATEGORIES.map(comp => (
+                                            {realCompetitions.map(comp => (
                                                 <option key={comp.id} value={comp.id}>{comp.name}</option>
                                             ))}
+                                            {realCompetitions.length === 0 && (
+                                                <option value="" disabled>No Units Found</option>
+                                            )}
                                         </motion.select>
                                     ) : (
                                         <div className="flex-[1.5] px-5 py-3 bg-background/10 border border-dashed border-card-border rounded-xl text-[10px] font-bold uppercase text-muted-foreground/30 flex items-center justify-center italic tracking-widest">

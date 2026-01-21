@@ -101,6 +101,16 @@ CREATE TABLE announcements (
   expires_at TIMESTAMP WITH TIME ZONE
 );
 
+-- Staff Codes (for jury/admin login without email/password)
+CREATE TABLE staff_codes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'jury')),
+  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL,
+  competition_id UUID REFERENCES competitions(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Row Level Security Policies
 
 -- Enable RLS on all tables
@@ -111,6 +121,7 @@ ALTER TABLE arenas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_codes ENABLE ROW LEVEL SECURITY;
 
 -- Competitions: Public read, admin write
 CREATE POLICY "Competitions are viewable by everyone" ON competitions FOR SELECT USING (true);
@@ -153,14 +164,23 @@ CREATE POLICY "Admins can manage announcements" ON announcements FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
+-- Staff Codes: Public read for login, admin write
+CREATE POLICY "Staff codes are readable by everyone" ON staff_codes FOR SELECT USING (true);
+CREATE POLICY "Allow anonymous insert for initial setup" ON staff_codes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous update for management" ON staff_codes FOR UPDATE WITH CHECK (true);
+CREATE POLICY "Allow anonymous delete for management" ON staff_codes FOR DELETE USING (true);
+
 -- Indexes for performance
 CREATE INDEX idx_matches_competition ON matches(competition_id);
 CREATE INDEX idx_matches_status ON matches(status);
 CREATE INDEX idx_scores_match ON scores(match_id);
 CREATE INDEX idx_teams_competition ON teams(competition_id);
 CREATE INDEX idx_teams_code ON teams(team_code);
+CREATE INDEX idx_staff_codes_code ON staff_codes(code);
+CREATE INDEX idx_staff_codes_role ON staff_codes(role);
 
 -- Realtime subscriptions
 ALTER PUBLICATION supabase_realtime ADD TABLE matches;
 ALTER PUBLICATION supabase_realtime ADD TABLE scores;
 ALTER PUBLICATION supabase_realtime ADD TABLE announcements;
+ALTER PUBLICATION supabase_realtime ADD TABLE staff_codes;

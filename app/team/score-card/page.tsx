@@ -8,6 +8,7 @@ import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 
 export default function TeamScoreHistoryPage() {
     const [loading, setLoading] = useState(true);
+    const [session, setSession] = useState<any>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -16,6 +17,7 @@ export default function TeamScoreHistoryPage() {
             router.push('/auth/team');
             return;
         }
+        setSession(currentSession);
         setLoading(false);
     }, [router]);
 
@@ -54,7 +56,9 @@ export default function TeamScoreHistoryPage() {
                     </div>
                 </div>
 
-                <ScoreHistoryView isSentToTeamOnly={true} />
+                <ScoreHistoryView
+                    isSentToTeamOnly={true}
+                />
             </div>
         </div>
     );

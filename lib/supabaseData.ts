@@ -15,14 +15,14 @@ export async function fetchCompetitionsFromSupabase() {
     console.log("Supabase URL Check:", process.env.NEXT_PUBLIC_SUPABASE_URL ? 'DEFINED' : 'MISSING');
     const { data, error } = await supabase
         .from('competitions')
-        .select('*');
+        .select('id, name, type, profiles_locked, current_phase, created_at');
 
     if (error) {
         console.error('Error fetching competitions RAW:', error);
         console.error('Error fetching competitions MSG:', error.message || 'No message');
         return [];
     }
-    return data;
+    return data as any;
 }
 
 /**
@@ -38,77 +38,133 @@ export async function fetchTeamsFromSupabase(): Promise<Team[]> {
     const { data, error } = await supabase
         .from('teams')
         .select(`
-            *,
-            team_members (*)
+            id, name, robot_name, club, university, logo_url, photo_url, team_code, competition_id, is_placeholder, visuals_locked,
+            team_members (team_id, name, role, is_leader)
         `);
 
     if (error) {
-        console.error('Error fetching teams RAW:', error);
-        console.error('Error details:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint
-        });
+        console.error('--- SUPABASE TEAMS FETCH ERROR ---');
+        console.error('Code:', error.code);
+        console.error('Message:', error.message);
+        console.error('Details:', error.details);
+        console.error('Hint:', error.hint);
+        if (error.message.includes('relation') && error.message.includes('does not exist')) {
+            console.warn('⚠️ Missing table detected! Please run fix_teams_and_registration.sql in Supabase SQL Editor.');
+        }
         return [];
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data || []).map((t: any) => ({
         id: t.id,
-        name: t.name, // Robot name in DB
+        name: t.name,
         robotName: t.robot_name || t.name,
         club: t.club || '',
         university: t.university || '',
         logo: t.logo_url || '',
         photo: t.photo_url || '',
-        code: t.code || '',
+        code: t.team_code || '',
         competition: t.competition_id || '',
         isPlaceholder: t.is_placeholder,
         visualsLocked: t.visuals_locked,
-        members: (t.team_members || []).map((m: DBTeamMember) => ({
+        members: (t.team_members || []).map((m: any) => ({
             name: m.name,
             role: m.role || '',
             isLeader: m.is_leader
-        }))
+        })),
+        // Additional field required for UI coherence
+        organization: t.university || '',
     }));
 }
 
 export async function upsertTeamToSupabase(team: Team) {
-    // 1. Upsert Team
-    const { error: teamError } = await (supabase.from('teams') as any)
-        .upsert({
-            id: team.id.startsWith('slot-') || team.id.startsWith('club-') ? undefined : team.id,
-            name: team.name,
-            robot_name: team.robotName || team.name,
-            club: team.club,
-            university: team.university,
-            logo_url: team.logo,
-            photo_url: team.photo,
-            code: team.code,
-            competition_id: team.competition,
-            is_placeholder: team.isPlaceholder,
-            visuals_locked: team.visualsLocked
-        });
+    const isNew = team.id.startsWith('slot-') || team.id.startsWith('club-') || team.id.includes('temp');
 
-    if (teamError) throw teamError;
+    // Construct payload
+    const teamPayload: any = {
+        name: team.name || 'Slot',
+        robot_name: team.robotName || team.name || '',
+        club: team.club,
+        university: team.university || '',
+        logo_url: team.logo,
+        photo_url: team.photo || '',
+        team_code: team.code,
+        competition_id: team.competition || null,
+        is_placeholder: !!team.isPlaceholder,
+        visuals_locked: !!team.visualsLocked
+    };
+
+    // Only include ID if it's NOT a new slot (update existing)
+    if (!isNew) {
+        teamPayload.id = team.id;
+    }
+
+    console.log(`🚀 ${isNew ? 'INSERTING' : 'UPDATING'} TEAM:`, teamPayload);
+
+    // 1. Upsert Team
+    const { data: inserted, error: teamError } = await (supabase.from('teams') as any)
+        .upsert(teamPayload)
+        .select('id')
+        .single();
+
+    if (teamError) {
+        console.group('--- SUPABASE TEAM UPSERT ERROR ---');
+        console.error('Code:', teamError.code);
+        console.error('Message:', teamError.message);
+        console.error('Payload:', teamPayload);
+        console.groupEnd();
+        throw teamError;
+    }
+
+    // Get the real ID (either existing or newly generated)
+    const realId = inserted.id;
 
     // 2. Refresh Members
-    // Note: We use the team ID. For new teams (slots), we might need to fetch the generated UUID first
-    // but here we assume the team.id passed is the one to use if not a temporary slot ID.
-    if (!team.id.startsWith('slot-') && !team.id.startsWith('club-')) {
-        await (supabase.from('team_members') as any).delete().eq('team_id', team.id);
+    if (realId) {
+        try {
+            // Delete existing members
+            await (supabase.from('team_members') as any).delete().eq('team_id', realId);
 
-        if (team.members.length > 0) {
-            const { error: memberError } = await (supabase.from('team_members') as any)
-                .insert(team.members.map(m => ({
-                    team_id: team.id,
-                    name: m.name,
-                    role: m.role,
-                    is_leader: m.isLeader || false
-                })));
-            if (memberError) throw memberError;
+            // Insert new members if any
+            if (team.members && team.members.length > 0) {
+                const { error: memberError } = await (supabase.from('team_members') as any)
+                    .insert(team.members.map(m => ({
+                        team_id: realId,
+                        name: m.name,
+                        role: m.role || '',
+                        is_leader: !!m.isLeader
+                    })));
+                if (memberError) {
+                    console.error("Member Insert Error:", memberError);
+                    // We don't throw here to avoid failing the whole team update for members
+                }
+            }
+        } catch (mErr) {
+            console.warn("Non-critical error updating members:", mErr);
         }
+    }
+}
+
+export async function deleteTeamFromSupabase(teamId: string) {
+    const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', teamId);
+
+    if (error) {
+        console.error('Error deleting team from Supabase:', error);
+        throw error;
+    }
+}
+
+export async function updateClubLogoInSupabase(clubName: string, logoUrl: string) {
+    const { error } = await (supabase.from('teams') as any)
+        .update({ logo_url: logoUrl })
+        .eq('club', clubName);
+
+    if (error) {
+        console.error('Error updating club logo:', error);
+        throw error;
     }
 }
 
@@ -119,7 +175,7 @@ export async function upsertTeamToSupabase(team: Team) {
 export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
     const { data, error } = await supabase
         .from('scores')
-        .select('*')
+        .select('id, match_id, team_id, competition_id, phase, time_ms, bonus_points, completed_road, knockouts, judge_points, damage_score, total_points, judge_id, status, is_sent_to_team, created_at')
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -177,12 +233,6 @@ export async function pushScoreToSupabase(score: OfflineScore) {
 
     if (error) {
         console.group('--- SUPABASE PUSH ERROR ---');
-        console.error('Status:', error.code);
-        console.error('Message:', error.message);
-        console.error('Details:', error.details);
-        console.error('Hint:', error.hint);
-        console.log('Object:', error);
-        console.log('Attempted Data:', scoreData);
         console.groupEnd();
         throw error;
     }
@@ -228,7 +278,7 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
         if (sessionEntries.length > 0) {
             // Use upsert to be robust against race conditions
             const { error: insertError } = await (supabase.from('live_sessions') as any)
-                .upsert(sessionEntries, { onConflict: 'competition_id,team_id' });
+                .upsert(sessionEntries, { onConflict: 'competition_id' });
 
             if (insertError) {
                 console.group('--- SUPABASE LIVE SYNC ERROR ---');
@@ -251,10 +301,10 @@ export async function deleteLiveSessionFromSupabase(competitionId: string) {
             .eq('competition_id', competitionId);
 
         if (error) {
-            console.error('Error deleting live session from Supabase:', error);
+            console.error('Error deleting live session from Supabase:', error.message, error.code);
         }
-    } catch (e) {
-        console.error("Critical error in deleteLiveSessionFromSupabase:", e);
+    } catch (e: any) {
+        console.error("Critical error in deleteLiveSessionFromSupabase:", e?.message || e);
     }
 }
 
@@ -276,7 +326,7 @@ export async function clearAllLiveSessionsFromSupabase() {
 export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, any>> {
     const { data, error } = await supabase
         .from('live_sessions')
-        .select('*');
+        .select('competition_id, team_id, phase, start_time');
 
     if (error) {
         console.group('--- SUPABASE LIVE FETCH ERROR ---');

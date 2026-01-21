@@ -19,15 +19,25 @@ export default function CompetitionsPage() {
     const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
     const [compState, setCompState] = useState(getCompetitionState());
     const [mounted, setMounted] = useState(false);
+    const [allTeams, setAllTeams] = useState<Team[]>([]);
+    const [dbComps, setDbComps] = useState<any[]>([]);
 
     useEffect(() => {
         setMounted(true);
-        const handleStateUpdate = () => {
+        const handleStateUpdate = async () => {
             const state = getCompetitionState();
             setCompState(state);
 
             // Sync competitions list as well
             setCompetitions(getAdminCompetitions());
+
+            const { fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+            const [teams, comps] = await Promise.all([
+                fetchTeamsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+            setAllTeams(teams);
+            setDbComps(comps);
         };
 
         handleStateUpdate();
@@ -35,12 +45,6 @@ export default function CompetitionsPage() {
         // Initial fetch from DB for accurate live state
         fetchLiveSessionsFromSupabase().then(sessions => {
             if (Object.keys(sessions).length > 0) {
-                // Update local state without triggering another sync (avoid loop ideally, but updateCompetitionState will sync back)
-                // Actually, for visitors, updateCompetitionState relies on localStorage, which is distinct from DB.
-                // We should update the local view state. 
-                // However, compState is derived from getCompetitionState().
-                // We need to inject this DB state into the local 'compState' variable or update the store.
-                // Updating the store 'updateCompetitionState' will write to localStorage. This is fine for the visitor's session.
                 updateCompetitionState({ liveSessions: sessions });
             }
         });
@@ -61,7 +65,7 @@ export default function CompetitionsPage() {
         });
 
         // Periodic check as a fallback (keep this for reliability)
-        const interval = setInterval(handleStateUpdate, 5000); // Reduced frequency
+        const interval = setInterval(handleStateUpdate, 10000);
 
         return () => {
             window.removeEventListener('competition-state-updated', handleStateUpdate);
@@ -73,17 +77,19 @@ export default function CompetitionsPage() {
 
     // Instant Update System
     const handleRealtimeUpdate = async () => {
-        // When any relevant table changes, re-fetch live sessions
-        console.log("Realtime update received");
-        const sessions = await fetchLiveSessionsFromSupabase();
+        // When any relevant table changes, re-fetch live sessions and teams
+        const { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase } = await import('@/lib/supabaseData');
+        const [sessions, teams] = await Promise.all([
+            fetchLiveSessionsFromSupabase(),
+            fetchTeamsFromSupabase()
+        ]);
         updateCompetitionState({ liveSessions: sessions });
+        setAllTeams(teams);
     };
 
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
+    useSupabaseRealtime('teams', handleRealtimeUpdate);
     useSupabaseRealtime('scores', () => {
-        // Scores updated - maybe refresh competitions list if it affects status, or just logs
-        // For now, knowing a score was added might imply activity.
-        // We could re-fetch matches if we displayed them.
         console.log("New score detected");
     });
 
@@ -118,12 +124,19 @@ export default function CompetitionsPage() {
 
                         const displayPhase = isActuallyLive ? getLivePhaseLabel() : comp.status;
 
+                        // Calculate real statistics
+                        const realComp = dbComps.find(c => c.type === comp.category);
+                        const realTeamsInComp = allTeams.filter(t => {
+                            if (!t.competition) return false;
+                            const tComp = dbComps.find(c => c.id === t.competition);
+                            return (tComp ? tComp.type : t.competition) === comp.category;
+                        });
+
                         return (
                             <Link href={`/competitions/${comp.id}`} key={comp.id} className="block group">
                                 <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
+                                    initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.1 }}
                                     whileHover={{ scale: 1.01 }}
                                     className={`p-6 md:p-8 rounded-[2rem] border backdrop-blur-sm transition-all bg-gradient-to-br ${comp.color} ${comp.borderColor} shadow-xl relative overflow-hidden`}
                                 >
@@ -161,7 +174,7 @@ export default function CompetitionsPage() {
 
                                     {/* Stats Grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                                        <StatItem icon={Users} label="Teams" value={comp.totalTeams.toString()} />
+                                        <StatItem icon={Users} label="Teams" value={realTeamsInComp.length.toString()} />
                                         <StatItem icon={Trophy} label="Matches" value={comp.totalMatches.toString()} />
                                         <StatItem icon={MapPin} label="Arena" value={comp.arena} />
                                         <StatItem icon={Calendar} label="Schedule" value={comp.schedule} />

@@ -1,19 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Plus, Check, X, Trash2, ChevronDown, Shield
 } from 'lucide-react';
-import { Team, addClubSlots, deleteTeam, deleteClub } from '@/lib/teams';
-
-const COMPETITION_CATEGORIES = [
-    { id: 'junior_line_follower', name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
-    { id: 'junior_all_terrain', name: 'Junior All Terrain', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' },
-    { id: 'line_follower', name: 'Line Follower', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
-    { id: 'all_terrain', name: 'All Terrain', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' },
-    { id: 'fight', name: 'Fight', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
-];
+import { Team, generateClubSlots } from '@/lib/teams';
+import { upsertTeamToSupabase, deleteTeamFromSupabase, fetchTeamsFromSupabase } from '@/lib/supabaseData';
+import { supabase } from '@/lib/supabase';
 
 interface TeamsCodesTabProps {
     teams: Team[];
@@ -26,9 +20,49 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
     const [showSlotsInput, setShowSlotsInput] = useState(false);
     const [newTeamCount, setNewTeamCount] = useState(1);
     const [errorMessage, setErrorMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [competitions, setCompetitions] = useState<any[]>([]);
 
-    const handleConfirmSlots = () => {
+    // Fetch competitions from database
+    useEffect(() => {
+        const fetchCompetitions = async () => {
+            const { data } = await supabase
+                .from('competitions')
+                .select('id, name')
+                .order('name');
+
+            if (data) {
+                // Map to the format the UI expects
+                const mapped = data.map((c: any) => ({
+                    id: c.id, // UUID
+                    name: c.name,
+                    color: getCompetitionColor(c.name)
+                }));
+                setCompetitions(mapped);
+            }
+        };
+        fetchCompetitions();
+    }, []);
+
+    // Helper to assign colors based on competition name
+    const getCompetitionColor = (name: string) => {
+        const lower = name.toLowerCase();
+        if (lower.includes('junior') && lower.includes('line')) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+        if (lower.includes('junior') && lower.includes('terrain')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+        if (lower.includes('line')) return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+        if (lower.includes('terrain')) return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+        if (lower.includes('fight')) return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+        return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+    };
+
+    const refreshTeams = async () => {
+        const updated = await fetchTeamsFromSupabase();
+        setTeams(updated);
+    };
+
+    const handleConfirmSlots = async () => {
         if (newTeamCount < 1) return;
+        if (isSubmitting) return;
 
         const exists = teams.some(t => t.club.toLowerCase() === newClubName.trim().toLowerCase());
         if (exists) {
@@ -37,29 +71,53 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
             return;
         }
 
-        const newTeams = addClubSlots(newClubName.trim(), newTeamCount);
-        setTeams(newTeams);
-        setNewClubName('');
-        setShowSlotsInput(false);
-        setNewTeamCount(1);
-    };
+        setIsSubmitting(true);
+        try {
+            const newTeams = generateClubSlots(newClubName.trim(), newTeamCount);
 
-    const handleAddSlotToClub = (clubName: string) => {
-        const newTeams = addClubSlots(clubName, 1);
-        setTeams(newTeams);
-    };
+            // Save all new teams to Supabase
+            await Promise.all(newTeams.map(t => upsertTeamToSupabase(t)));
 
-    const handleDeleteTeam = (id: string) => {
-        if (confirm('Are you sure you want to remove this slot?')) {
-            const updated = deleteTeam(id);
-            setTeams(updated);
+            await refreshTeams();
+            setNewClubName('');
+            setShowSlotsInput(false);
+            setNewTeamCount(1);
+        } catch (error: any) {
+            alert('Failed to create club: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    const handleDeleteClub = (clubName: string) => {
+    const handleAddSlotToClub = async (clubName: string) => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            const newTeams = generateClubSlots(clubName, 1);
+
+            // Save to Supabase
+            await Promise.all(newTeams.map(t => upsertTeamToSupabase(t)));
+
+            await refreshTeams();
+        } catch (error: any) {
+            alert('Failed to add slot: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteTeam = async (id: string) => {
+        if (confirm('Are you sure you want to remove this slot?')) {
+            await deleteTeamFromSupabase(id);
+            await refreshTeams();
+        }
+    };
+
+    const handleDeleteClub = async (clubName: string) => {
         if (confirm(`Are you sure you want to delete the whole club "${clubName}"?`)) {
-            const updated = deleteClub(clubName);
-            setTeams(updated);
+            const clubTeams = teams.filter(t => t.club === clubName);
+            await Promise.all(clubTeams.map(t => deleteTeamFromSupabase(t.id)));
+            await refreshTeams();
         }
     };
 
@@ -100,37 +158,52 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                             <Plus size={20} />
                         </button>
                     ) : (
-                        <div className="absolute top-6 right-6 z-20">
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex gap-3 items-end bg-card p-2 border border-card-border rounded-2xl shadow-xl"
-                            >
-                                <div>
-                                    <input
-                                        type="text"
-                                        value={newClubName}
-                                        onChange={(e) => setNewClubName(e.target.value)}
-                                        placeholder="CLUB NAME"
-                                        className="px-4 py-2 bg-muted/50 border border-card-border rounded-xl text-xs font-bold outline-none"
-                                        autoFocus
-                                    />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex gap-2 items-center bg-card p-1.5 border border-card-border rounded-xl shadow-xl"
+                        >
+                            <input
+                                type="text"
+                                value={newClubName}
+                                onChange={(e) => setNewClubName(e.target.value)}
+                                placeholder="CLUB NAME"
+                                className="w-32 px-3 py-2 bg-muted/50 border border-card-border rounded-lg text-xs font-bold outline-none placeholder:opacity-50"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleConfirmSlots()}
+                            />
+                            <div className="flex items-center gap-1 bg-muted/50 border border-card-border rounded-lg px-2">
+                                <span className="text-[10px] font-black opacity-30">QTY:</span>
+                                <input
+                                    type="number"
+                                    value={newTeamCount}
+                                    onChange={(e) => setNewTeamCount(parseInt(e.target.value) || 1)}
+                                    min="1"
+                                    max="50"
+                                    className="w-10 py-2 bg-transparent text-xs font-bold outline-none text-center"
+                                />
+                            </div>
+                            <div className="flex gap-1 ml-1">
+                                <button
+                                    onClick={handleConfirmSlots}
+                                    disabled={isSubmitting || !newClubName.trim()}
+                                    className="p-2 bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
+                                >
+                                    <Check size={14} />
+                                </button>
+                                <button
+                                    onClick={() => setShowSlotsInput(false)}
+                                    className="p-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                            {errorMessage && (
+                                <div className="absolute top-full right-0 text-[9px] text-red-500 font-black mt-2 bg-red-500/10 px-2 py-1 rounded border border-red-500/20 whitespace-nowrap">
+                                    {errorMessage}
                                 </div>
-                                <div>
-                                    <input
-                                        type="number"
-                                        value={newTeamCount}
-                                        onChange={(e) => setNewTeamCount(parseInt(e.target.value))}
-                                        className="w-16 px-4 py-2 bg-muted/50 border border-card-border rounded-xl text-xs font-bold"
-                                    />
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={handleConfirmSlots} className="p-2 bg-accent text-white rounded-lg"><Check size={16} /></button>
-                                    <button onClick={() => setShowSlotsInput(false)} className="p-2 bg-muted rounded-lg"><X size={16} /></button>
-                                </div>
-                                {errorMessage && <div className="absolute top-full right-0 text-[10px] text-red-500 font-bold mt-2">{errorMessage}</div>}
-                            </motion.div>
-                        </div>
+                            )}
+                        </motion.div>
                     )}
                 </div>
             </div>
@@ -162,7 +235,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                             </div>
                             <div className="flex flex-col gap-3">
                                 {clubTeams.map((team, idx) => {
-                                    const compConfig = COMPETITION_CATEGORIES.find(c => c.id === team.competition);
+                                    const compConfig = competitions.find((c: any) => c.id === team.competition);
                                     return (
                                         <motion.div
                                             key={team.id}

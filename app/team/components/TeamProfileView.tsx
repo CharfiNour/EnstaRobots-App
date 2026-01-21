@@ -7,7 +7,8 @@ import {
     Image as ImageIcon, Upload, ShieldCheck, Lock,
     Cpu, Info, Users, Settings, Zap, Globe, Box, Target, ChevronRight
 } from 'lucide-react';
-import { updateTeam, updateClubLogo, Team } from '@/lib/teams';
+import { upsertTeamToSupabase, updateClubLogoInSupabase } from '@/lib/supabaseData';
+import { Team } from '@/lib/teams';
 import { getCompetitionState } from '@/lib/competitionState';
 
 const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: any }> = {
@@ -34,7 +35,18 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     const logoInputRef = useRef<HTMLInputElement>(null);
     const robotInputRef = useRef<HTMLInputElement>(null);
 
+    const [availableCompetitions, setAvailableCompetitions] = useState<{ id: string, name: string }[]>([]);
+
     useEffect(() => {
+        const loadComps = async () => {
+            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+            const data = await fetchCompetitionsFromSupabase();
+            if (data && data.length > 0) {
+                setAvailableCompetitions(data);
+            }
+        };
+        loadComps();
+
         const checkLock = () => {
             setProfilesLocked(getCompetitionState().profilesLocked);
         };
@@ -70,6 +82,26 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         }
     }, [team]);
 
+    const getCompetitionDisplayColor = (competitionId: string) => {
+        // First check if it matches old slugs
+        if (COMPETITION_CONFIG[competitionId]) {
+            return COMPETITION_CONFIG[competitionId].color;
+        }
+
+        // Otherwise, look up by name in database competitions
+        const comp = availableCompetitions.find(c => c.id === competitionId);
+        if (comp) {
+            const lower = comp.name.toLowerCase();
+            if (lower.includes('junior') && lower.includes('line')) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+            if (lower.includes('junior') && lower.includes('terrain')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+            if (lower.includes('line')) return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+            if (lower.includes('terrain')) return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+            if (lower.includes('fight')) return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+        }
+
+        return 'bg-role-primary/10 text-role-primary border-role-primary/20';
+    };
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'robot') => {
         if (visualsLocked && !isAdmin) return;
         const file = e.target.files?.[0];
@@ -83,16 +115,19 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         reader.readAsDataURL(file);
     };
 
-    const handleLockVisuals = () => {
+    const handleLockVisuals = async () => {
         if (!formData.photo || !formData.logo) {
             alert("Please upload both a robot photo and club logo before confirming.");
             return;
         }
         if (confirm("Are you sure? Once confirmed, you will no longer be able to modify your robot photo or club logo.")) {
-            updateTeam(team!.id, { visualsLocked: true });
-            setVisualsLocked(true);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
+            if (team) {
+                const updatedTeam = { ...team, visualsLocked: true };
+                await upsertTeamToSupabase(updatedTeam);
+                setVisualsLocked(true);
+                setSaved(true);
+                setTimeout(() => setSaved(false), 3000);
+            }
         }
     };
 
@@ -104,37 +139,31 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         try {
             // Update club logo if it changed
             if (formData.logo !== team.logo) {
-                updateClubLogo(formData.club, formData.logo);
+                await updateClubLogoInSupabase(formData.club, formData.logo);
             }
 
-            updateTeam(team.id, {
+            const updatedTeam: Team = {
+                ...team,
+                name: formData.robotName || `Team ${team.id}`, // Maintain robot name as name
                 robotName: formData.robotName,
                 club: formData.club,
                 university: formData.university,
                 competition: formData.competition,
                 members: formData.members,
-                name: formData.robotName || `Team ${team.id}`,
                 isPlaceholder: false,
                 photo: formData.photo,
-                logo: formData.logo
-            });
+                logo: formData.logo,
+                visualsLocked: visualsLocked
+            };
+
+            await upsertTeamToSupabase(updatedTeam);
+
             setIsEditing(false);
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
 
             // Trigger refresh in parent
-            onUpdate({
-                ...team,
-                robotName: formData.robotName,
-                club: formData.club,
-                university: formData.university,
-                competition: formData.competition,
-                members: formData.members,
-                name: formData.robotName || `Team ${team.id}`,
-                isPlaceholder: false,
-                photo: formData.photo,
-                logo: formData.logo
-            });
+            onUpdate(updatedTeam);
         } catch (err) {
             console.error(err);
         } finally {
@@ -195,9 +224,11 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                 </div>
 
                 {(() => {
-                    const canEdit = isAdmin || !profilesLocked;
+                    if (!isAdmin) {
+                        return null; // Don't show anything for non-owners
+                    }
 
-                    if (!canEdit && !isAdmin) {
+                    if (profilesLocked) {
                         return (
                             <div className="flex items-center gap-3 px-6 py-3 bg-muted/40 border border-card-border rounded-2xl text-muted-foreground">
                                 <Lock size={14} className="opacity-50" />
@@ -365,13 +396,15 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                                 className="w-full px-5 py-3 bg-muted/30 border border-role-primary/30 rounded-xl text-sm font-bold text-foreground"
                                             >
                                                 <option value="" disabled>Select Protocol</option>
-                                                {Object.entries(COMPETITION_CONFIG).map(([val, cfg]) => (
-                                                    <option key={val} value={val}>{cfg.name}</option>
+                                                {availableCompetitions.map((comp) => (
+                                                    <option key={comp.id} value={comp.id}>{comp.name}</option>
                                                 ))}
                                             </select>
                                         ) : (
-                                            <div className={`w-fit px-4 py-2 rounded-xl font-black uppercase text-xs tracking-widest border ${formData.competition ? COMPETITION_CONFIG[formData.competition].color : 'bg-muted/20 border-muted-foreground/10 text-muted-foreground opacity-40'}`}>
-                                                {formData.competition ? COMPETITION_CONFIG[formData.competition].name : 'NOT DEPLOYED'}
+                                            <div className={`w-fit px-4 py-2 rounded-xl font-black uppercase text-xs tracking-widest border ${getCompetitionDisplayColor(formData.competition)}`}>
+                                                {availableCompetitions.find(c => c.id === formData.competition)?.name ||
+                                                    COMPETITION_CONFIG[formData.competition]?.name ||
+                                                    formData.competition || 'NOT DEPLOYED'}
                                             </div>
                                         )}
                                     </div>

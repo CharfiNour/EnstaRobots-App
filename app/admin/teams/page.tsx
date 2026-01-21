@@ -3,36 +3,88 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Shield, Key, ListOrdered, UserCircle } from 'lucide-react';
+import { Shield, Key, ListOrdered, UserCircle, WifiOff, AlertTriangle } from 'lucide-react';
 import { getTeams, Team } from '@/lib/teams';
+import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
 import { getSession } from '@/lib/auth';
-import { TeamsCodesTab, TeamsOrderTab, TeamsProfilesTab } from './components';
+import { TeamsOrderTab, TeamsProfilesTab } from './components';
 import { getCompetitionCategories } from './services/teamsFeatureService';
 import { AdminTeamsTab } from './types';
+import { supabase } from '@/lib/supabase';
+
+function ConnectionDiagnostics() {
+    const [status, setStatus] = useState<'checking' | 'ok' | 'env-missing' | 'connection-failed'>('checking');
+
+    useEffect(() => {
+        const check = async () => {
+            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+            if (!url || !key) {
+                setStatus('env-missing');
+                return;
+            }
+
+            const { error } = await supabase.from('teams').select('count', { count: 'exact', head: true });
+            if (error) {
+                console.error("DIAGNOSTIC ERROR:", error);
+                setStatus('connection-failed');
+            } else {
+                setStatus('ok');
+            }
+        };
+        check();
+    }, []);
+
+    if (status === 'ok' || status === 'checking') return null;
+
+    return (
+        <div className="bg-red-500/10 border-b border-red-500/20 p-4 relative z-50">
+            <div className="container mx-auto max-w-7xl flex items-center gap-4 text-red-500">
+                <WifiOff size={24} />
+                <div>
+                    <h3 className="font-bold uppercase tracking-widest text-sm">System Malfunction</h3>
+                    <p className="text-xs font-mono mt-1">
+                        {status === 'env-missing'
+                            ? "CRITICAL: Environment variables missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+                            : "CONNECTION FAILURE: Unable to reach database node. Check internet connection or credentials."}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function AdminTeamsPage() {
     const [teams, setTeams] = useState<Team[]>([]);
     const [activeTab, setActiveTab] = useState<AdminTeamsTab>('order');
     const [selectedCategory, setSelectedCategory] = useState('all');
+    const [loading, setLoading] = useState(true);
     const router = useRouter();
     const categories = getCompetitionCategories();
 
     useEffect(() => {
         const session = getSession();
-        if (!session || session.role !== 'admin') {
-            // Uncomment to enforce admin
-            // router.push('/auth/login');
-        }
-        const currentTeams = getTeams();
-        setTeams(currentTeams);
+        // Auth check commented out for dev ease, can restore later
+        // if (!session || session.role !== 'admin') router.push('/auth/login');
+
+        const loadTeams = async () => {
+            setLoading(true);
+            const currentTeams = await fetchTeamsFromSupabase();
+            setTeams(currentTeams);
+            setLoading(false);
+        };
+        loadTeams();
 
         if (activeTab === 'order' && selectedCategory === 'all') {
             setSelectedCategory(categories[0].id);
         }
-    }, [selectedCategory, activeTab, categories]);
+    }, [activeTab, selectedCategory]); // Removed categories dependency to avoid weird loops
 
     return (
         <div className="min-h-screen bg-background relative overflow-hidden flex flex-col">
+            <ConnectionDiagnostics />
+
             {/* Background Decorative Elements */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[120px]" />
@@ -86,31 +138,36 @@ export default function AdminTeamsPage() {
 
                 {/* Tab Content */}
                 <div className="flex-1">
-
-
                     {activeTab === 'order' && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="max-w-4xl mx-auto bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden"
-                        >
+                        <div className="max-w-4xl mx-auto bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
-                            <TeamsOrderTab
-                                teams={teams}
-                                setTeams={setTeams}
-                                selectedCategory={selectedCategory}
-                                setSelectedCategory={setSelectedCategory}
-                            />
-                        </motion.div>
+                            {loading && teams.length === 0 ? (
+                                <div className="space-y-4 animate-pulse">
+                                    <div className="h-12 bg-muted rounded-xl w-full" />
+                                    <div className="h-64 bg-muted rounded-2xl w-full" />
+                                </div>
+                            ) : (
+                                <TeamsOrderTab
+                                    teams={teams}
+                                    setTeams={setTeams}
+                                    selectedCategory={selectedCategory}
+                                    setSelectedCategory={setSelectedCategory}
+                                />
+                            )}
+                        </div>
                     )}
 
                     {activeTab === 'profiles' && (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                        >
-                            <TeamsProfilesTab teams={teams} setTeams={setTeams} />
-                        </motion.div>
+                        <div>
+                            {loading && teams.length === 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
+                                    <div className="h-96 bg-muted rounded-2xl col-span-1" />
+                                    <div className="h-96 bg-muted rounded-2xl col-span-2" />
+                                </div>
+                            ) : (
+                                <TeamsProfilesTab teams={teams} setTeams={setTeams} />
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

@@ -4,4 +4,4 @@ export interface CompetitionCategory {
     color: string;
 }
 
-export type AdminTeamsTab = 'order' | 'profiles';
+export type AdminTeamsTab = 'codes' | 'order' | 'profiles';

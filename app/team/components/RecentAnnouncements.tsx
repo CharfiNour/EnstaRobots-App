@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame } from 'lucide-react';
+import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw } from 'lucide-react'; // Added RefreshCcw, though primarily using auto-sync
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 
 interface Announcement {
     id: string;
@@ -24,19 +25,45 @@ export default function RecentAnnouncements() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let channel: any;
+
         const fetchAnnouncements = async () => {
+            const targetSession = getSession();
+            if (!targetSession) {
+                setLoading(false);
+                return;
+            }
+
             try {
+                const teamComp = targetSession.competition;
+
+                // Fetch ALL team-visible announcements first
                 const { data, error } = await supabase
                     .from('announcements')
                     .select('*')
-                    .or(`visible_to.eq.all,visible_to.eq.teams`)
-                    .order('created_at', { ascending: false })
-                    .limit(3);
+                    .or('visible_to.eq.all,visible_to.eq.teams')
+                    .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                setAnnouncements(data && data.length > 0 ? data : [FALLBACK_ANNOUNCEMENT]);
-            } catch (err) {
-                console.error('Error fetching dashboard announcements:', err);
+
+                // Performance client-side filtering for competition category
+                // Use type casting to avoid 'never' type errors
+                const announcementsData = (data || []) as any[];
+                const filtered = announcementsData.filter((ann) => {
+                    // Global announcements have null/empty competition_id
+                    if (!ann.competition_id) return true;
+
+                    const annCompId = String(ann.competition_id).toLowerCase().trim();
+                    const teamCompId = String(teamComp).toLowerCase().trim();
+
+                    return annCompId === teamCompId;
+                });
+
+                setAnnouncements(filtered.slice(0, 3).length > 0 ? filtered.slice(0, 3) : [FALLBACK_ANNOUNCEMENT]);
+            } catch (err: any) {
+                console.group('Dashboard Announcement Fetch Failure');
+                console.error('Core Error:', err?.message || err);
+                console.groupEnd();
                 setAnnouncements([FALLBACK_ANNOUNCEMENT]);
             } finally {
                 setLoading(false);
@@ -44,6 +71,22 @@ export default function RecentAnnouncements() {
         };
 
         fetchAnnouncements();
+
+        // Real-time subscription for dashboard
+        channel = supabase
+            .channel('dashboard-announcements')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'announcements' },
+                () => {
+                    fetchAnnouncements();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            if (channel) supabase.removeChannel(channel);
+        };
     }, []);
 
     const getTimeAgo = (dateString: string) => {
@@ -66,7 +109,10 @@ export default function RecentAnnouncements() {
                     </div>
                     <div>
                         <h3 className="text-base font-black text-foreground uppercase tracking-tight italic">Latest Intel</h3>
-                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">HQ Broadcasts</p>
+                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Live Feed
+                        </p>
                     </div>
                 </div>
                 <Link href="/team/announcements" className="text-[10px] font-black text-role-primary uppercase hover:underline bg-role-primary/5 px-3 py-1.5 rounded-lg border border-role-primary/10">
@@ -75,7 +121,7 @@ export default function RecentAnnouncements() {
             </div>
 
             <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2">
-                {announcements.map((ann) => (
+                {announcements.map((ann: Announcement) => (
                     <div key={ann.id} className="relative pl-5 border-l-2 border-role-primary/20 hover:border-role-primary transition-all py-1 group cursor-pointer hover:translate-x-1 duration-300">
                         <div className="flex justify-between items-start mb-2 gap-3">
                             <p className="font-black text-foreground uppercase text-xs tracking-tight group-hover:text-role-primary transition-colors leading-tight">

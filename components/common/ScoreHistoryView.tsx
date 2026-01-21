@@ -28,6 +28,7 @@ interface ScoreHistoryViewProps {
     initialCompetition?: string;
     showFilter?: boolean;
     lockedCompetitionId?: string;
+    teamId?: string;
 }
 
 export default function ScoreHistoryView({
@@ -35,7 +36,8 @@ export default function ScoreHistoryView({
     isAdmin = false,
     initialCompetition = 'all',
     showFilter = true,
-    lockedCompetitionId
+    lockedCompetitionId,
+    teamId
 }: ScoreHistoryViewProps) {
     const [loading, setLoading] = useState(true);
     const [isDrawLoading, setIsDrawLoading] = useState(false);
@@ -275,9 +277,6 @@ export default function ScoreHistoryView({
             const matchesComp = slug === 'all' || gComp === slug || gComp === resolvedId;
 
             // Phase filtering: 
-            // 1. If filter is 'all', matches.
-            // 2. If team has NO submissions, it matches (to show the participant in the list).
-            // 3. Otherwise, check if ANY submission matches the phase.
             const matchesPhase = selectedPhaseFilter === 'all' ||
                 (g.type === 'single' && (g.submissions?.length || 0) === 0) ||
                 (g.type === 'match' && (g.participants?.every((p: any) => p.submissions?.length === 0) || false)) ||
@@ -286,7 +285,14 @@ export default function ScoreHistoryView({
                     : g.participants.some((p: any) => p.submissions.some((s: any) => s.phase === selectedPhaseFilter))
                 );
 
-            if (!matchesComp || !matchesPhase) return false;
+            // Team ID filtering (Strict for team role)
+            const matchesTeamId = !teamId || (
+                g.type === 'single'
+                    ? String(g.teamId) === String(teamId)
+                    : g.participants.some((p: any) => String(p.teamId) === String(teamId))
+            );
+
+            if (!matchesComp || !matchesPhase || !matchesTeamId) return false;
 
             if (g.type === 'match') {
                 // Search in participants
@@ -694,7 +700,7 @@ export default function ScoreHistoryView({
                 <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-4 flex flex-col h-full overflow-hidden">
                     {/* Admin Actions */}
                     {isAdmin && (
-                        <div className="flex justify-end -mb-2">
+                        <div className="flex justify-end mb-2">
                             <button
                                 onClick={handleClearAll}
                                 className="px-2 py-1 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-black uppercase tracking-widest transition-all"
@@ -729,7 +735,8 @@ export default function ScoreHistoryView({
                                             onChange={(e) => setSelectedCompetition(e.target.value)}
                                             className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
                                         >
-                                            {COMPETITION_CATEGORIES.map(cat => (
+                                            <option value="all">ALL CATEGORIES</option>
+                                            {competitions.map(cat => (
                                                 <option key={cat.id} value={cat.id}>
                                                     {cat.name.toUpperCase()} {liveSessions[cat.id] ? '(LIVE)' : ''}
                                                 </option>
@@ -830,7 +837,7 @@ export default function ScoreHistoryView({
                                                                             }`}>
                                                                             {participant.team?.name || participant.teamId}
                                                                         </div>
-                                                                        <div className="text-[8px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
+                                                                        <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
                                                                             {participant.team?.club || 'Club Unknown'}
                                                                         </div>
                                                                     </div>
@@ -870,11 +877,11 @@ export default function ScoreHistoryView({
                                                         {group.team?.name || group.teamId}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <div className="text-[8px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
+                                                        <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
                                                             {group.team?.club || 'Club Unknown'}
                                                         </div>
                                                         <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30 shrink-0" />
-                                                        <div className="text-[7px] font-bold text-muted-foreground uppercase opacity-40 truncate">
+                                                        <div className="text-[9px] font-bold text-muted-foreground uppercase opacity-40 truncate">
                                                             {group.team?.university || 'University Unknown'}
                                                         </div>
                                                     </div>
@@ -1016,6 +1023,7 @@ export default function ScoreHistoryView({
                                 isAdmin={isAdmin}
                                 onDelete={() => handleScoresUpdate()}
                                 matchParticipants={selectedGroup?.type === 'match' ? selectedGroup.participants : undefined}
+                                allCompetitions={competitions}
                             />
                         </motion.div>
                     ) : (

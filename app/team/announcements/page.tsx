@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame } from 'lucide-react';
+import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -33,21 +33,72 @@ export default function TeamAnnouncementsPage() {
             return;
         }
         setSession(currentSession);
-        fetchAnnouncements();
+        fetchAnnouncements(currentSession);
+
+        // REAL-TIME SUBSCRIPTION
+        const channel = supabase
+            .channel('public:announcements')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'announcements' },
+                () => {
+                    console.log('[REALTIME] Announcements updated, refreshing...');
+                    fetchAnnouncements(currentSession);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [router]);
 
-    const fetchAnnouncements = async () => {
+    const fetchAnnouncements = async (activeSession?: any) => {
+        const targetSession = activeSession || session || getSession();
+        if (!targetSession) {
+            setLoading(false);
+            return;
+        }
+
         try {
+            const teamComp = targetSession.competition;
+
+            // Fetch ALL team-visible announcements first
             const { data, error } = await supabase
                 .from('announcements')
                 .select('*')
-                .or(`visible_to.eq.all,visible_to.eq.teams`)
+                .or('visible_to.eq.all,visible_to.eq.teams')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setAnnouncements(data && data.length > 0 ? data : FALLBACK_ANNOUNCEMENTS);
-        } catch (err) {
-            console.error('Error fetching announcements:', err);
+
+            // Performance client-side filtering for competition category
+            const announcementsData = (data || []) as any[];
+            console.log(`[DEBUG] Received ${announcementsData.length} team-visible announcements`);
+            console.log(`[DEBUG] Filtering for team competition: "${teamComp}"`);
+
+            const filtered = announcementsData.filter(ann => {
+                // Global announcements have null/empty competition_id
+                if (!ann.competition_id) return true;
+
+                const annCompId = String(ann.competition_id).toLowerCase().trim();
+                const teamCompId = String(teamComp).toLowerCase().trim();
+
+                const isMatch = annCompId === teamCompId;
+
+                if (isMatch) {
+                    console.log(`[DEBUG] MATCH FOUND: "${ann.title}" (ID: ${ann.id}) matches ${teamCompId}`);
+                }
+
+                return isMatch;
+            });
+
+            console.log(`[DEBUG] Filter complete. Result: ${filtered.length} announcements`);
+            setAnnouncements(filtered.length > 0 ? filtered : FALLBACK_ANNOUNCEMENTS);
+        } catch (err: any) {
+            console.group('Announcement Fetch Failure');
+            console.error('Core Error:', err?.message || err);
+            console.groupEnd();
             setAnnouncements(FALLBACK_ANNOUNCEMENTS);
         } finally {
             setLoading(false);
@@ -68,22 +119,38 @@ export default function TeamAnnouncementsPage() {
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-10 text-center md:text-left"
+                    className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6"
                 >
-                    <div className="inline-flex items-center gap-3 mb-4 bg-role-primary/10 px-6 py-3 rounded-full border border-role-primary/20">
-                        <Bell className="w-6 h-6 text-role-primary" />
-                        <h1 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight">
-                            Team Announcements
-                        </h1>
+                    <div className="text-center md:text-left">
+                        <div className="inline-flex items-center gap-3 mb-4 bg-role-primary/10 px-6 py-3 rounded-full border border-role-primary/20 shadow-sm shadow-role-primary/5">
+                            <Bell className="w-6 h-6 text-role-primary" />
+                            <h1 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight italic">
+                                Team Announcements
+                            </h1>
+                        </div>
+                        <p className="text-muted-foreground max-w-lg font-medium">
+                            Stay informed with the latest updates from the organization team. Important notifications will appear here.
+                        </p>
                     </div>
-                    <p className="text-muted-foreground max-w-lg">
-                        Stay informed with the latest updates from the organization team. Important notifications will appear here.
-                    </p>
+
+                    <div className="flex items-center justify-center md:justify-end gap-3">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg border border-card-border/50">
+                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest whitespace-nowrap">Live Intel Sync</span>
+                        </div>
+                        <button
+                            onClick={() => fetchAnnouncements(session)}
+                            className="p-3 bg-card border border-role-primary/20 rounded-xl text-role-primary hover:bg-role-primary hover:text-white transition-all shadow-lg shadow-role-primary/5 hover:scale-110 active:scale-95 group"
+                            title="Force Refresh"
+                        >
+                            <RefreshCcw className="w-5 h-5 group-active:rotate-180 transition-transform duration-500" />
+                        </button>
+                    </div>
                 </motion.div>
 
                 <div className="space-y-6">
                     <AnimatePresence mode="popLayout">
-                        {announcements.map((ann, i) => {
+                        {announcements.map((ann: any, i: number) => {
                             const config = TYPE_CONFIG[ann.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.info;
                             const Icon = config.icon;
 

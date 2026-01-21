@@ -24,6 +24,16 @@ interface TeamsOrderTabProps {
 export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSelectedCategory }: TeamsOrderTabProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [isOrdered, setIsOrdered] = useState(false);
+    const [competitions, setCompetitions] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchComps = async () => {
+            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+            const data = await fetchCompetitionsFromSupabase();
+            setCompetitions(data);
+        };
+        fetchComps();
+    }, []);
 
     useEffect(() => {
         const checkOrdered = () => {
@@ -40,7 +50,16 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
     };
 
     const mainDisplayTeams = teams
-        .filter(t => t.competition === selectedCategory)
+        .filter(t => {
+            // Resolution Logic: Match by UUID or slug
+            if (!t.competition) return false;
+
+            // If it's a UUID, look up the slug (type)
+            const comp = competitions.find(c => c.id === t.competition);
+            const teamCategory = comp ? comp.type : t.competition;
+
+            return teamCategory === selectedCategory;
+        })
         .filter(t => {
             if (!searchQuery) return true;
             const query = searchQuery.toLowerCase();
@@ -134,7 +153,7 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
                 </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="max-h-[440px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
                 {mainDisplayTeams.map((team, index) => {
                     const compConfig = COMPETITION_CATEGORIES.find(c => c.id === team.competition);
                     return (
