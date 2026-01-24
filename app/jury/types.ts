@@ -17,3 +17,20 @@ export interface JuryDashboardData {
     activeMatches: MatchData[];
     guidelines: string[];
 }
+
+export interface TeamScoreEntry {
+    id: string;
+    phase?: string;
+    status?: string;
+}
+
+export interface ScoreState {
+    timeMinutes: string;
+    timeSeconds: string;
+    timeMillis: string;
+    completedRoad: boolean;
+    homologationPoints: string;
+    knockouts: string;
+    juryPoints: string;
+    damageScore: string;
+}

@@ -18,13 +18,11 @@ export const VISIBILITY_OPTIONS: VisibilityOption[] = [
     { value: 'admins', label: 'Admins Only' },
 ];
 
+import { COMPETITION_CATEGORIES } from '@/lib/constants';
+
 export const COMPETITIONS = [
     { id: 'all', title: 'Global (All Competitions)' },
-    { id: 'junior_line_follower', title: 'Junior Line Follower' },
-    { id: 'junior_all_terrain', title: 'Junior All Terrain' },
-    { id: 'line_follower', title: 'Line Follower' },
-    { id: 'all_terrain', title: 'All Terrain' },
-    { id: 'fight', title: 'Fight' },
+    ...COMPETITION_CATEGORIES.map(c => ({ id: c.type, title: c.name }))
 ];
 
 export const fetchRealCompetitions = async () => {

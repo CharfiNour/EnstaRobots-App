@@ -1,26 +1,21 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronRight, ChevronLeft, Search, Filter, Trophy, Timer, Swords,
-    Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield
+    Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield, Trash2
 } from 'lucide-react';
 import { getOfflineScores, clearAllOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
 import ScoreCard from '@/components/jury/ScoreCard';
-import { getCompetitionState } from '@/lib/competitionState';
-import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
+import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP } from '@/lib/constants';
+import DrawInterface from './DrawInterface';
 
-const COMPETITION_CATEGORIES = [
-    { id: 'all', name: 'All Categories' },
-    { id: 'junior_line_follower', name: 'Junior Line Follower' },
-    { id: 'junior_all_terrain', name: 'Junior All Terrain' },
-    { id: 'line_follower', name: 'Line Follower' },
-    { id: 'all_terrain', name: 'All Terrain' },
-    { id: 'fight', name: 'Fight' },
-];
+const COMPETITION_CATEGORIES = GLOBAL_CATEGORIES;
 
 interface ScoreHistoryViewProps {
     isSentToTeamOnly?: boolean;
@@ -29,15 +24,17 @@ interface ScoreHistoryViewProps {
     showFilter?: boolean;
     lockedCompetitionId?: string;
     teamId?: string;
+    isJury?: boolean;
 }
 
 export default function ScoreHistoryView({
     isSentToTeamOnly = false,
     isAdmin = false,
-    initialCompetition = 'all',
+    initialCompetition = GLOBAL_CATEGORIES[0].id,
     showFilter = true,
     lockedCompetitionId,
-    teamId
+    teamId,
+    isJury = false
 }: ScoreHistoryViewProps) {
     const [loading, setLoading] = useState(true);
     const [isDrawLoading, setIsDrawLoading] = useState(false);
@@ -47,21 +44,77 @@ export default function ScoreHistoryView({
     const [activePhase, setActivePhase] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCompetition, setSelectedCompetition] = useState(lockedCompetitionId || initialCompetition);
-    const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('all');
+    const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('');
     const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
     const [drawTeamsCount, setDrawTeamsCount] = useState(2);
     const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
+    const [isCompMenuOpen, setIsCompMenuOpen] = useState(false);
 
     const [competitions, setCompetitions] = useState<any[]>([]);
+    const [allTeams, setAllTeams] = useState<any[]>([]);
     const [drawState, setDrawState] = useState<'idle' | 'counting' | 'success'>('idle');
     const [countdown, setCountdown] = useState<number>(3);
 
-    // Resolve slug to UUID if needed
+    // Resolve slug and type from UUID or slug
     const selectedCompData = useMemo(() => {
         return competitions.find(c => c.id === selectedCompetition || c.type === selectedCompetition);
     }, [competitions, selectedCompetition]);
 
     const resolvedCompId = selectedCompData?.id || selectedCompetition;
+    const selectedCompType = (selectedCompData?.type || selectedCompData?.category || selectedCompetition || '').toLowerCase();
+
+    const isMatchBasedComp = useMemo(() => {
+        const matchBasedTypes = ['fight', 'all_terrain', 'junior_all_terrain'];
+        return matchBasedTypes.some(t => selectedCompType.includes(t));
+    }, [selectedCompType]);
+
+    // Simplified phase calculation using centralized logic
+    const allCompetitionPhases = useMemo(() => {
+        return getPhasesForCategory(selectedCompType);
+    }, [selectedCompType]);
+
+    // 1. Identify and deduplicate teams for the selected competition
+    const trulyUniqueTeams = useMemo(() => {
+        const competitionId = resolvedCompId;
+        const competitionType = (selectedCompData?.category || selectedCompData?.type || selectedCompetition).toLowerCase();
+
+        const compTeams = allTeams.filter(t => {
+            const teamComp = (t.competition || '').toLowerCase();
+            return teamComp === selectedCompetition.toLowerCase() ||
+                teamComp === competitionId.toLowerCase() ||
+                teamComp === competitionType;
+        });
+
+        // Deduplicate teams by ID AND Robot Name to ensure accurate bracket generation
+        const uniqueCompTeams = Array.from(
+            new Map(
+                compTeams
+                    .filter(t => !t.isPlaceholder)
+                    .map(t => [`${t.id}-${(t.robotName || t.name).toLowerCase().trim()}`, t])
+            ).values()
+        );
+
+        // Final secondary pass to ensure robots with the same name don't get two spots if ID varies
+        return Array.from(
+            new Map(uniqueCompTeams.map(t => [(t.robotName || t.name).toLowerCase().trim(), t])).values()
+        );
+    }, [selectedCompetition, resolvedCompId, selectedCompData, allTeams]);
+
+    // 2. Calculate match plan preview
+    const drawPlan = useMemo(() => {
+        if (!trulyUniqueTeams.length || !isMatchBasedComp) return null;
+        const K = drawTeamsCount;
+        const N = trulyUniqueTeams.length;
+        const numGroups = Math.ceil(N / K);
+        let sizes: number[] = [];
+        let currentIndex = 0;
+        for (let i = 0; i < numGroups; i++) {
+            const groupSize = Math.ceil((N - currentIndex) / (numGroups - i));
+            sizes.push(groupSize);
+            currentIndex += groupSize;
+        }
+        return { total: N, sizes, groups: numGroups };
+    }, [trulyUniqueTeams, drawTeamsCount, isMatchBasedComp]);
 
     // Sync state when props change (navigation)
     useEffect(() => {
@@ -86,32 +139,57 @@ export default function ScoreHistoryView({
 
     // Realtime Updates
     const handleScoresUpdate = async () => {
-        // Fetch latest from DB
-        const scores = await fetchScoresFromSupabase();
-        // Update view
-        processScores(scores);
+        try {
+            const [scores, teams, comps] = await Promise.all([
+                fetchScoresFromSupabase(),
+                fetchTeamsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+            const order = COMPETITION_CATEGORIES.map(c => c.id);
+            const sortedComps = (comps || []).sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+
+            setCompetitions(sortedComps);
+            setAllTeams(teams);
+            processScores(scores, teams, sortedComps);
+        } catch (e) {
+            console.error("Realtime sync failed", e);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useSupabaseRealtime('scores', handleScoresUpdate);
+    useSupabaseRealtime('teams', handleScoresUpdate);
+    useSupabaseRealtime('competitions', handleScoresUpdate);
 
-    // Initial Load - try to fetch from DB first (for visitors), falling back to local
+    const handleLiveUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
+
+    useSupabaseRealtime('live_sessions', handleLiveUpdate);
+
+    // Initial Load
     useEffect(() => {
         const init = async () => {
             setLoading(true);
             try {
-                // Fetch competitions first to resolve slugs
-                const comps = await fetchCompetitionsFromSupabase() as any[];
-                setCompetitions(comps);
+                const [comps, teams, scores] = await Promise.all([
+                    fetchCompetitionsFromSupabase(),
+                    fetchTeamsFromSupabase(),
+                    fetchScoresFromSupabase()
+                ]);
 
-                const scores = await fetchScoresFromSupabase();
-                if (scores && scores.length > 0) {
-                    processScores(scores);
-                } else {
-                    processScores(getOfflineScores());
-                }
+                const order = COMPETITION_CATEGORIES.map(c => c.id);
+                const sortedComps = (comps || []).sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+
+                setCompetitions(sortedComps);
+                setAllTeams(teams);
+                processScores(scores, teams, sortedComps);
             } catch (e) {
-                console.error("Failed to fetch initial scores", e);
-                processScores(getOfflineScores());
+                console.error("Failed to fetch initial data", e);
+                // Fallback to local
+                processScores(getOfflineScores(), getTeams(), []);
             } finally {
                 setLoading(false);
             }
@@ -120,18 +198,28 @@ export default function ScoreHistoryView({
     }, []);
 
     // Replaces loadScores but keeps the processing logic
-    const processScores = (scoresList: any[], forceSelectId?: string) => {
-        let offlineScores = scoresList;
+    const processScores = (scoresList: any[], teamsList: any[], compsList: any[], forceSelectId?: string) => {
+        // Merge offline scores with local ones to ensure immediate visibility
+        const localScores = getOfflineScores();
+
+        // Use a map to deduplicate by ID, prioritizing remote scores
+        const scoreMap = new Map();
+        localScores.forEach(s => scoreMap.set(s.id, { ...s, synced: false }));
+        scoresList.forEach(s => scoreMap.set(s.id, { ...s, synced: true }));
+
+        let allProcessedScores = Array.from(scoreMap.values());
+
         if (isSentToTeamOnly) {
-            offlineScores = offlineScores.filter(s => s.isSentToTeam);
+            // Keep scores sent to team OR pending matches (the draw structure)
+            allProcessedScores = allProcessedScores.filter(s => s.isSentToTeam || (s.matchId && s.status === 'pending'));
         }
 
-        const allTeams = getTeams();
+        const allTeams = teamsList;
 
-        // Helper to check if a comp is match based (using resolved data or slugs)
+        // Helper to check if a comp is match based (using provided data)
         const checkIsMatchBased = (compId: string) => {
             if (['fight', 'all_terrain', 'junior_all_terrain'].includes(compId)) return true;
-            const comp = competitions.find(c => c.id === compId || c.type === compId);
+            const comp = compsList.find((c: any) => c.id === compId || c.type === compId);
             const category = comp?.category || comp?.type;
             return category && ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
         };
@@ -139,12 +227,15 @@ export default function ScoreHistoryView({
         const groups: Record<string, any> = {};
 
         // 1. Process existing scores
-        offlineScores.forEach(score => {
-            const isMatch = checkIsMatchBased(score.competitionType);
+        allProcessedScores.forEach(score => {
+            const team = allTeams.find((t: any) => t.id === score.teamId || t.code === score.teamId);
 
-            // Normalize competitionType to slug if possible for consistent grouping
-            const comp = competitions.find(c => c.id === score.competitionType || c.type === score.competitionType);
-            const normalizedCompType = comp?.type || score.competitionType;
+            // USE TEAM'S CURRENT COMPETITION if they have one, otherwise fallback to score competition
+            const effectiveCompId = team?.competition || score.competitionType;
+            const comp = compsList.find((c: any) => c.id === effectiveCompId || c.type === effectiveCompId);
+            const normalizedCompType = comp?.type || effectiveCompId;
+
+            const isMatch = checkIsMatchBased(normalizedCompType);
 
             if (isMatch && score.matchId) {
                 // Group by matchId
@@ -153,7 +244,7 @@ export default function ScoreHistoryView({
                     groups[key] = {
                         type: 'match',
                         matchId: key,
-                        competitionType: normalizedCompType, // Store normalized
+                        competitionType: normalizedCompType,
                         participants: [],
                         latestTimestamp: 0
                     };
@@ -161,7 +252,6 @@ export default function ScoreHistoryView({
 
                 let participant = groups[key].participants.find((p: any) => p.teamId === score.teamId);
                 if (!participant) {
-                    const team = allTeams.find(t => t.id === score.teamId || t.code === score.teamId);
                     participant = {
                         teamId: score.teamId,
                         team,
@@ -178,7 +268,6 @@ export default function ScoreHistoryView({
                 const groupKey = `single-${score.teamId}-${normalizedCompType}`;
 
                 if (!groups[groupKey]) {
-                    const team = allTeams.find(t => t.id === score.teamId || t.code === score.teamId);
                     groups[groupKey] = {
                         type: 'single',
                         teamId: score.teamId,
@@ -196,13 +285,12 @@ export default function ScoreHistoryView({
         });
 
         // 2. Inject teams with no scores
-        allTeams.forEach(team => {
+        allTeams.forEach((team: any) => {
             if (!team.competition) return;
 
-            // Check if this team is already present in ANY group for THIS competition
-            // We normalize both types for comparison
-            const teamCompSlug = team.competition;
-            const teamCompUUID = competitions.find(c => c.type === teamCompSlug)?.id;
+            const teamCompObj = compsList.find((c: any) => c.id === team.competition || c.type === team.competition);
+            const teamCompSlug = teamCompObj?.type || team.competition;
+            const teamCompUUID = teamCompObj?.id || team.competition;
 
             const exists = Object.values(groups).some((g: any) => {
                 const gComp = g.competitionType;
@@ -214,23 +302,31 @@ export default function ScoreHistoryView({
             });
 
             if (!exists) {
-                const key = `injected-${team.id}-${team.competition}`;
+                const key = `injected-${team.id}-${teamCompSlug}`;
                 groups[key] = {
                     type: 'single',
                     teamId: team.id,
                     team,
-                    competitionType: team.competition,
+                    competitionType: teamCompSlug,
                     submissions: [],
                     latestTimestamp: 0
                 };
             }
         });
 
-        // 3. Sort groups: Active ones first (by timestamp), then alphabetical for empty ones
+        // 3. Sort groups: Full groups first, then by activity (timestamp), then alphabetical
         const sortedGroups = Object.values(groups).sort((a: any, b: any) => {
-            if (b.latestTimestamp !== a.latestTimestamp) {
-                return b.latestTimestamp - a.latestTimestamp;
+            // If they are match groups, prioritize the ones with MORE participants (the full ones)
+            if (a.type === 'match' && b.type === 'match') {
+                const sizeA = a.participants?.length || 0;
+                const sizeB = b.participants?.length || 0;
+                if (sizeA !== sizeB) return sizeB - sizeA; // Descending order: 4, 4, 3
             }
+
+            if (a.latestTimestamp !== b.latestTimestamp) {
+                return a.latestTimestamp - b.latestTimestamp;
+            }
+
             const nameA = a.team?.name || a.matchId || "";
             const nameB = b.team?.name || b.matchId || "";
             return nameA.localeCompare(nameB);
@@ -264,25 +360,25 @@ export default function ScoreHistoryView({
     };
 
     const loadScores = (forceSelectId?: string) => {
-        processScores(getOfflineScores(), forceSelectId);
+        processScores(getOfflineScores(), getTeams(), competitions, forceSelectId);
     };
 
     const filteredGroups = useMemo(() => {
-        const resolvedId = resolvedCompId.toLowerCase();
-        const slug = selectedCompetition.toLowerCase();
+        const targetType = selectedCompType.toLowerCase();
+        const targetId = resolvedCompId.toLowerCase();
 
-        return groupedScores.filter(g => {
+        const filtered = groupedScores.filter(g => {
             // Match slug OR UUID
             const gComp = (g.competitionType || '').toLowerCase();
-            const matchesComp = slug === 'all' || gComp === slug || gComp === resolvedId;
+            const matchesComp = gComp === targetType || gComp === targetId;
 
             // Phase filtering: 
             const matchesPhase = selectedPhaseFilter === 'all' ||
                 (g.type === 'single' && (g.submissions?.length || 0) === 0) ||
                 (g.type === 'match' && (g.participants?.every((p: any) => p.submissions?.length === 0) || false)) ||
                 (g.type === 'single'
-                    ? g.submissions.some((s: any) => s.phase === selectedPhaseFilter)
-                    : g.participants.some((p: any) => p.submissions.some((s: any) => s.phase === selectedPhaseFilter))
+                    ? g.submissions.some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())
+                    : g.participants.some((p: any) => p.submissions.some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase()))
                 );
 
             // Team ID filtering (Strict for team role)
@@ -309,49 +405,50 @@ export default function ScoreHistoryView({
                 return matchesSearch;
             }
         });
-    }, [groupedScores, searchQuery, selectedCompetition, selectedPhaseFilter, resolvedCompId]);
+
+        // NEW: If match-based and ANY match group exists, remove 'single' entries for this specific competition
+        const hasMatchGroups = filtered.some(g => g.type === 'match');
+        if (hasMatchGroups) {
+            return filtered.filter(g => g.type === 'match');
+        }
+
+        return filtered;
+    }, [groupedScores, searchQuery, selectedCompType, selectedPhaseFilter, resolvedCompId]);
 
     // Synchronize selection when competition changes
     useEffect(() => {
+        // Reset specific selection states to avoid mismatching data
+        setSelectedGroup(null);
+        setSelectedTeamInGroup(null);
+        setActivePhase('');
+        setSelectedPhaseFilter(''); // Will be auto-picked by the other useEffect
+
         if (filteredGroups.length > 0) {
-            const stillExists = filteredGroups.some(g =>
-                (g.type === 'single' && g.teamId === selectedGroup?.teamId && g.competitionType === selectedGroup?.competitionType) ||
-                (g.type === 'match' && g.matchId === selectedGroup?.matchId)
-            );
-            if (!stillExists) {
-                const first = filteredGroups[0];
-                setSelectedGroup(first);
-                if (first.type === 'single') {
-                    // Default to filtered phase if available, else first submission phase, else empty
-                    const targetPhase = selectedPhaseFilter !== 'all' && first.submissions.some((s: any) => s.phase === selectedPhaseFilter)
-                        ? selectedPhaseFilter
-                        : (first.submissions[0]?.phase || '');
-                    setActivePhase(targetPhase);
-                    setSelectedTeamInGroup(null);
-                } else if (first.participants?.length > 0) {
-                    setSelectedTeamInGroup(first.participants[0].teamId);
-                    const targetPhase = selectedPhaseFilter !== 'all' && first.participants[0].submissions.some((s: any) => s.phase === selectedPhaseFilter)
-                        ? selectedPhaseFilter
-                        : first.participants[0].submissions[0]?.phase || '';
-                    setActivePhase(targetPhase);
-                }
-            } else if (selectedPhaseFilter !== 'all') {
-                // If current selection still visible but phase changed, try to match it
-                let hasFilteredPhase = false;
-                if (selectedGroup.type === 'single') {
-                    hasFilteredPhase = selectedGroup.submissions.some((s: any) => s.phase === selectedPhaseFilter);
-                } else if (selectedTeamInGroup) {
-                    const participant = selectedGroup.participants.find((p: any) => p.teamId === selectedTeamInGroup);
-                    hasFilteredPhase = participant?.submissions.some((s: any) => s.phase === selectedPhaseFilter);
-                }
-                if (hasFilteredPhase) setActivePhase(selectedPhaseFilter);
+            const first = filteredGroups[0];
+            setSelectedGroup(first);
+            if (first.type === 'single') {
+                setActivePhase(first.submissions[0]?.phase || '');
+                setSelectedTeamInGroup(null);
+            } else if (first.participants?.length > 0) {
+                setSelectedTeamInGroup(first.participants[0].teamId);
+                setActivePhase(first.participants[0].submissions[0]?.phase || '');
             }
-        } else {
-            setSelectedGroup(null);
-            setActivePhase('');
-            setSelectedTeamInGroup(null);
         }
-    }, [selectedCompetition, selectedPhaseFilter, filteredGroups]);
+    }, [selectedCompetition]);
+
+    // Secondary sync for phase filter and internal selection
+    useEffect(() => {
+        if (!selectedGroup && filteredGroups.length > 0) {
+            const first = filteredGroups[0];
+            setSelectedGroup(first);
+            if (first.type === 'single') {
+                setActivePhase(first.submissions[0]?.phase || '');
+            } else if (first.participants?.length > 0) {
+                setSelectedTeamInGroup(first.participants[0].teamId);
+                setActivePhase(first.participants[0].submissions[0]?.phase || '');
+            }
+        }
+    }, [filteredGroups, selectedPhaseFilter]);
 
     // Get current score data for display
     const currentScoreGroup = useMemo(() => {
@@ -395,56 +492,17 @@ export default function ScoreHistoryView({
         return [...new Set(phases)] as string[];
     }, [currentScoreGroup]);
 
-    const allCompetitionPhases = useMemo(() => {
-        const phases = new Set<string>();
-        const resolvedId = (resolvedCompId || "").toLowerCase();
-        const slug = (selectedCompetition || "").toLowerCase();
-
-        groupedScores.forEach(g => {
-            const gComp = (g.competitionType || '').toLowerCase();
-            if (slug === 'all' || gComp === slug || gComp === resolvedId) {
-                if (g.type === 'single') {
-                    g.submissions.forEach((s: any) => {
-                        if (s.phase) phases.add(s.phase);
-                    });
-                } else {
-                    g.participants.forEach((p: any) => p.submissions.forEach((s: any) => {
-                        if (s.phase) phases.add(s.phase);
-                    }));
-                }
-            }
-        });
-
-        // Ensure default phases for Line Follower even if no scores exist
-        const isLF = slug.includes('line_follower') || resolvedId.includes('line_follower');
-        if (isLF) {
-            phases.add('essay_1');
-            phases.add('essay_2');
-        }
-
-        return Array.from(phases).sort();
-    }, [groupedScores, selectedCompetition, resolvedCompId]);
-
-    const isMatchBasedComp = useMemo(() => {
-        if (!selectedCompetition) return false;
-        // Check hardcoded slug
-        if (['fight', 'all_terrain', 'junior_all_terrain'].includes(selectedCompetition)) return true;
-        // Check resolved category from DB
-        const category = selectedCompData?.category || selectedCompData?.type;
-        if (category && ['fight', 'all_terrain', 'junior_all_terrain'].includes(category)) return true;
-        return false;
-    }, [selectedCompetition, selectedCompData]);
 
     // Draw Logic: Should we show the "Start the Draw" initializer?
     const hasAnyScoresForCompetition = useMemo(() => {
-        if (!selectedCompetition || selectedCompetition === 'all') return true; // Hide for 'all'
+        if (!selectedCompType) return true;
 
-        const resolvedId = resolvedCompId.toLowerCase();
-        const slug = selectedCompetition.toLowerCase();
+        const targetId = resolvedCompId.toLowerCase();
+        const targetType = selectedCompType.toLowerCase();
 
         const compGroups = groupedScores.filter(g => {
             const gComp = (g.competitionType || '').toLowerCase();
-            return gComp === slug || gComp === resolvedId;
+            return gComp === targetType || gComp === targetId;
         });
 
         if (isMatchBasedComp) {
@@ -454,20 +512,18 @@ export default function ScoreHistoryView({
             // For single, it's set if anyone has a score (or just teams exist)
             return compGroups.some(g => g.submissions && g.submissions.length > 0);
         }
-    }, [groupedScores, selectedCompetition, isMatchBasedComp, resolvedCompId]);
+    }, [groupedScores, selectedCompType, isMatchBasedComp, resolvedCompId]);
 
-    // Auto-select first phase if none selected or if current filter is invalid for current competition
+    // Auto-select first phase when competition type changes or if current filter is invalid
     useEffect(() => {
         if (allCompetitionPhases.length > 0) {
-            // If current filter is 'all' OR it's not in the available phases for this competition:
-            const isInvalid = selectedPhaseFilter !== 'all' && !allCompetitionPhases.includes(selectedPhaseFilter);
+            const isInvalid = selectedPhaseFilter !== 'all' && selectedPhaseFilter !== '' && !allCompetitionPhases.includes(selectedPhaseFilter);
 
-            if (selectedPhaseFilter === 'all' || isInvalid) {
-                console.log(`Phase filter '${selectedPhaseFilter}' is reset to '${allCompetitionPhases[0]}'`);
+            if (selectedPhaseFilter === '' || isInvalid) {
                 setSelectedPhaseFilter(allCompetitionPhases[0]);
             }
         }
-    }, [allCompetitionPhases, selectedPhaseFilter]);
+    }, [allCompetitionPhases, selectedCompType]);
 
     if (loading) {
         return (
@@ -532,74 +588,31 @@ export default function ScoreHistoryView({
         };
 
         try {
-            // Use the already resolved ID from useMemo
             const competitionId = resolvedCompId;
-            const competitionType = (selectedCompData?.category || selectedCompData?.type || selectedCompetition).toLowerCase();
 
-            console.log("Auto-draw starting for competition:", {
-                selected: selectedCompetition,
-                resolvedId: competitionId,
-                type: competitionType
-            });
-
-            const allTeams = getTeams();
-            // Filter teams by the resolved competition ID OR the slug OR the category name (case-insensitive)
-            const compTeams = allTeams.filter(t => {
-                const teamComp = (t.competition || '').toLowerCase();
-                return teamComp === selectedCompetition.toLowerCase() ||
-                    teamComp === competitionId.toLowerCase() ||
-                    teamComp === competitionType;
-            });
-
-            console.log(`Found ${compTeams.length} teams for competition`);
-
-            if (compTeams.length < 2) {
-                alert(`Insufficient teams found for ${selectedCompData?.name || selectedCompetition} (Found ${compTeams.length}). Need at least 2 teams to perform a draw.`);
+            if (trulyUniqueTeams.length < 2) {
+                alert(`Insufficient unique teams found (Found ${trulyUniqueTeams.length}). Need at least 2 teams to perform a draw.`);
                 setIsDrawLoading(false);
                 return;
             }
 
             // Shuffle
-            const shuffled = [...compTeams];
+            const shuffled = [...trulyUniqueTeams];
             for (let i = shuffled.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
             }
 
             const K = drawTeamsCount;
-            // 1. Initial chunking (Primary K-sized matches)
+            const N = shuffled.length;
+            const numGroups = Math.ceil(N / K);
             let chunks: any[][] = [];
-            for (let i = 0; i < shuffled.length; i += K) {
-                chunks.push([...shuffled.slice(i, i + K)]);
-            }
+            let currentIndex = 0;
 
-            // 2. Adjust last groups based on user's specific iterative rules
-            if (chunks.length > 1) {
-                const lastIdx = chunks.length - 1;
-                const r = chunks[lastIdx].length;
-
-                if (r === 3) {
-                    // "if it is 3 teams remaining make the last match with these 3 teams instead of 4"
-                    // (Action: None needed, it's already 3)
-                } else if (r === 2 && lastIdx >= 1) {
-                    // "if it is 2 teams remaining then make the last two matches with 3 teams instead of 4"
-                    // (K, 2) -> (K-1, 3)
-                    const team = chunks[lastIdx - 1].pop();
-                    if (team) chunks[lastIdx].unshift(team);
-                } else if (r === 1) {
-                    // "if it iis 1 team remaining then make the last 3 matches with 3 teams instead of 4"
-                    if (lastIdx >= 2) {
-                        // (K, K, 1) -> (K-1, K-1, 3)
-                        const team1 = chunks[lastIdx - 1].pop();
-                        const team2 = chunks[lastIdx - 2].pop();
-                        if (team1) chunks[lastIdx].unshift(team1);
-                        if (team2) chunks[lastIdx].unshift(team2);
-                    } else if (lastIdx === 1) {
-                        // Fallback for only 2 matches: (K, 1) -> (K-1, 2)
-                        const team = chunks[lastIdx - 1].pop();
-                        if (team) chunks[lastIdx].unshift(team);
-                    }
-                }
+            for (let i = 0; i < numGroups; i++) {
+                const groupSize = Math.ceil((N - currentIndex) / (numGroups - i));
+                chunks.push(shuffled.slice(currentIndex, currentIndex + groupSize));
+                currentIndex += groupSize;
             }
 
             const numMatches = chunks.length;
@@ -620,7 +633,33 @@ export default function ScoreHistoryView({
                     // Wait 1.5s to show "matches are set" then process
                     setTimeout(async () => {
                         try {
-                            // OPTIMISTIC UPDATE: Create the local objects first to update UI instantly
+                            // 0. COMPREHENSIVE CLEAR: Identify all possible ID variants for this competition
+                            const variants = new Set<string>();
+                            if (competitionId) variants.add(competitionId);
+                            const slug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition).toLowerCase();
+                            if (slug) variants.add(slug);
+
+                            // Map legacy numeric IDs if they exist in the display map
+                            const legacyMap: Record<string, string> = {
+                                'junior_line_follower': '1',
+                                'junior_all_terrain': '2',
+                                'line_follower': '3',
+                                'all_terrain': '4',
+                                'fight': '5'
+                            };
+                            if (legacyMap[slug]) variants.add(legacyMap[slug]);
+
+                            console.log("Clearing all pending matches for variants:", Array.from(variants));
+
+                            await Promise.all(
+                                Array.from(variants).map(v => clearCategoryMatchesFromSupabase(v))
+                            );
+
+                            // 1. RE-USE CALCULATED CHUNKS
+                            // Using the chunks calculated at the start of handleAutoDraw to ensure
+                            // the preview match plan perfectly matches the applied result.
+
+                            // 2. CREATE DATABASE ENTRIES
                             const newScores: any[] = [];
                             const pushPromises: Promise<any>[] = [];
 
@@ -632,11 +671,11 @@ export default function ScoreHistoryView({
                                         matchId: matchId,
                                         teamId: team.id,
                                         competitionType: competitionId,
-                                        phase: 'qualifications',
+                                        phase: 'Qualifications',
                                         timestamp: Date.now(),
                                         totalPoints: 0,
                                         synced: true,
-                                        isSentToTeam: false,
+                                        isSentToTeam: true,
                                         status: 'pending'
                                     };
                                     newScores.push(scoreObj);
@@ -645,18 +684,30 @@ export default function ScoreHistoryView({
                             });
 
                             // 1. Instantly update the local UI using current scores + new ones
+                            // We merge newScores with existing scores from fetchScoresFromSupabase (mocked or real)
+                            // to ensure old scores don't disappear during the update.
                             console.log("Applying optimistic update to UI...");
-                            processScores(newScores); // We use newScores here to force the UI to show matches immediately
+                            const currentScores = await fetchScoresFromSupabase();
+                            const combinedScores = [...currentScores.filter((s: any) => {
+                                // Filter out old pending matches for this competition type to avoid duplicates
+                                const matchesThisComp = s.competitionType === competitionId || s.competitionType === slug;
+                                return !(matchesThisComp && s.status === 'pending');
+                            }), ...newScores];
+
+                            processScores(combinedScores, allTeams, competitions);
+
+                            // AUTO-SWITCH PHASE: Ensure the user sees the new draw immediately
+                            if (newScores.length > 0) {
+                                setSelectedPhaseFilter('Qualifications');
+                            }
 
                             // 2. Perform DB sync in background
                             console.log(`Syncing ${pushPromises.length} entries to Supabase...`);
                             await Promise.all(pushPromises);
 
-                            // 3. Final sync to refresh everything from DB
+                            // 3. Final sync to refresh everything from DB and ensure total consistency
                             await handleScoresUpdate();
 
-                            // Reset state so it's ready for next time (though view will likely change)
-                            // setTimeout(() => setDrawState('idle'), 500);
                         } catch (e: any) {
                             console.error("Draw failed:", e);
                             alert("Digital draw failed. Please check your network connection.");
@@ -676,36 +727,55 @@ export default function ScoreHistoryView({
     };
 
     const handleClearAll = async () => {
-        if (confirm("DANGER: This will delete ALL score records from the database. This cannot be undone. Proceed?")) {
+        const targetTitle = (selectedCompData?.name || selectedCompetition);
+
+        const confirmMsg = `DANGER: This will delete ALL score records and matches for ${targetTitle}. Proceed?`;
+
+        if (confirm(confirmMsg)) {
             setLoading(true);
             try {
-                // Clear both remote and local storage
-                await clearAllScoresFromSupabase();
+                // Context-aware Clear (Multi-variant logic)
+                const compSlug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition).toLowerCase();
+                const variants = new Set([resolvedCompId.toLowerCase(), compSlug]);
+                if (LEGACY_ID_MAP[compSlug]) variants.add(LEGACY_ID_MAP[compSlug]);
+
+                console.log("Clearing registry for variants:", Array.from(variants));
+
+                await Promise.all(
+                    Array.from(variants).map(v => clearCategoryScoresFromSupabase(v))
+                );
+
+                // Combined Functionality: Also clear local browser buffer
                 clearAllOfflineScores();
 
                 await handleScoresUpdate();
-                alert("Records cleared successfully.");
+                alert("Records and local buffer cleared successfully.");
             } catch (e) {
-                alert("Failed to clear records.");
+                console.error("Clear failed:", e);
+                alert("Failed to clear records. Please check your connection.");
             } finally {
                 setLoading(false);
             }
         }
     };
 
+    // Calculate match group indices for display ("GROUP 1", "GROUP 2"...)
+    const matchGroups = filteredGroups.filter(g => g.type === 'match');
+
     return (
         <div className="flex flex-col lg:flex-row gap-8 w-full">
             {/* Sidebar: Tactical Log List */}
             <div className={`w-full lg:w-80 flex-col shrink-0 h-[600px] lg:h-[650px] ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-4 flex flex-col h-full overflow-hidden">
-                    {/* Admin Actions */}
+                    {/* Admin Maintenance Actions */}
                     {isAdmin && (
-                        <div className="flex justify-end mb-2">
+                        <div className="flex flex-col gap-2 mb-2">
                             <button
                                 onClick={handleClearAll}
-                                className="px-2 py-1 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-black uppercase tracking-widest transition-all"
+                                className="w-full px-2 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
                             >
-                                Reset Registry
+                                <Trash2 size={14} />
+                                <span>Factory Reset Category</span>
                             </button>
                         </div>
                     )}
@@ -729,36 +799,92 @@ export default function ScoreHistoryView({
                                         <Target size={12} className="text-role-primary" />
                                         Deployment Category
                                     </h2>
-                                    <div className="relative group/select">
-                                        <select
-                                            value={selectedCompetition}
-                                            onChange={(e) => setSelectedCompetition(e.target.value)}
-                                            className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-role-primary/30 appearance-none cursor-pointer transition-all"
+                                    <div className="relative group/custom-select">
+                                        <button
+                                            onClick={() => setIsCompMenuOpen(!isCompMenuOpen)}
+                                            className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none flex items-center justify-between transition-all hover:bg-muted/70 hover:border-role-primary/30"
                                         >
-                                            <option value="all">ALL CATEGORIES</option>
-                                            {competitions.map(cat => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.name.toUpperCase()} {liveSessions[cat.id] ? '(LIVE)' : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground group-hover/select:text-role-primary transition-colors">
-                                            <ChevronRight size={14} className="rotate-90" />
-                                        </div>
+                                            <div className="flex items-center gap-3 truncate">
+                                                <div className={`w-2 h-2 rounded-full ${(() => {
+                                                    const type = selectedCompData?.type || selectedCompetition;
+                                                    if (type.includes('junior_line')) return 'bg-cyan-500';
+                                                    if (type.includes('junior_all')) return 'bg-emerald-500';
+                                                    if (type.includes('line_follower')) return 'bg-indigo-500';
+                                                    if (type.includes('all_terrain')) return 'bg-orange-500';
+                                                    if (type.includes('fight')) return 'bg-rose-500';
+                                                    return 'bg-role-primary';
+                                                })()}`} />
+                                                <span className="truncate">{selectedCompData?.name || selectedCompetition}</span>
+                                            </div>
+                                            <ChevronRight size={14} className={`transition-transform duration-300 ${isCompMenuOpen ? 'rotate-[-90deg]' : 'rotate-90'}`} />
+                                        </button>
+
+                                        <AnimatePresence>
+                                            {isCompMenuOpen && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                                    className="absolute top-full left-0 right-0 mt-2 z-[100] bg-card border border-card-border rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden backdrop-blur-xl"
+                                                >
+                                                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1.5">
+                                                        {competitions.map((cat) => {
+                                                            const isSelected = selectedCompetition === cat.id;
+                                                            const isLive = !!liveSessions[cat.id];
+
+                                                            return (
+                                                                <button
+                                                                    key={cat.id}
+                                                                    onClick={() => {
+                                                                        setSelectedCompetition(cat.id);
+                                                                        setIsCompMenuOpen(false);
+                                                                    }}
+                                                                    className={`w-full p-3 rounded-lg text-left transition-all flex items-center justify-between group ${isSelected ? 'bg-role-primary/10 text-role-primary' : 'hover:bg-muted/50'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <div className={`w-2 h-2 rounded-full shrink-0 ${(() => {
+                                                                            if (cat.type.includes('junior_line')) return 'bg-cyan-500';
+                                                                            if (cat.type.includes('junior_all')) return 'bg-emerald-500';
+                                                                            if (cat.type.includes('line_follower')) return 'bg-indigo-500';
+                                                                            if (cat.type.includes('all_terrain')) return 'bg-orange-500';
+                                                                            if (cat.type.includes('fight')) return 'bg-rose-500';
+                                                                            return 'bg-role-primary';
+                                                                        })()}`} />
+                                                                        <span className="text-[10px] font-black uppercase tracking-widest truncate">
+                                                                            {cat.name}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {isLive && (
+                                                                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
+                                                                            <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                                                                            <span className="text-[8px] font-black text-red-500 uppercase">Live</span>
+                                                                        </span>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
 
-                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-4 mb-3 px-1 flex items-center gap-2">
-                                        <Layers size={12} className="text-role-primary" />
-                                        {selectedCompetition.includes('line_follower') ? 'Phase Selection' : 'Strategic Phase'}
+                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-6 mb-3 px-1 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Layers size={12} className="text-role-primary" />
+                                            {selectedCompetition.includes('line_follower') ? 'Session Phase' : 'Strategic Phase'}
+                                        </div>
                                     </h2>
-                                    <div className="flex flex-wrap gap-1.5 bg-muted/30 p-1.5 rounded-xl border border-card-border/50">
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1 snap-x">
                                         {allCompetitionPhases.map((phase: string) => (
                                             <button
                                                 key={phase}
                                                 onClick={() => setSelectedPhaseFilter(phase)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedPhaseFilter === phase
-                                                    ? 'bg-accent text-slate-900 shadow-sm'
-                                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/10'
+                                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap ${selectedPhaseFilter === phase
+                                                    ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20 scale-105'
+                                                    : 'bg-card/50 text-muted-foreground border-card-border/50 hover:bg-muted/50 hover:text-foreground'
                                                     }`}
                                             >
                                                 {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
@@ -788,6 +914,7 @@ export default function ScoreHistoryView({
                                     // MATCH GROUP RENDERING
                                     if (group.type === 'match') {
                                         const groupSelected = isGroupSelected(group);
+                                        const groupIndex = matchGroups.findIndex(mg => mg.matchId === group.matchId) + 1;
 
                                         return (
                                             <div
@@ -800,7 +927,7 @@ export default function ScoreHistoryView({
                                                 {/* Match Header */}
                                                 <div className="px-3 py-2 bg-muted/30 border-b border-card-border/50 flex justify-between items-center">
                                                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                                                        Match Group
+                                                        GROUP {groupIndex}
                                                     </span>
                                                     <span className="text-[8px] font-mono text-muted-foreground/60">
                                                         {new Date(group.latestTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -913,100 +1040,15 @@ export default function ScoreHistoryView({
                 </div>
 
                 <AnimatePresence mode="wait">
-                    {(isAdmin && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
-                        <motion.div
-                            key="draw-interface"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex flex-col items-center justify-center space-y-8 w-full"
-                        >
-                            {drawState === 'idle' && (
-                                <>
-                                    <div className="text-center space-y-2">
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter italic text-foreground">
-                                            Start the Draw
-                                        </h2>
-                                        <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">
-                                            Initialize Match Groupings
-                                        </p>
-                                    </div>
-
-                                    <div className="p-8 bg-card border border-card-border rounded-3xl shadow-xl w-full max-w-md space-y-6 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-24 h-24 bg-role-primary/10 blur-[50px] rounded-full pointer-events-none" />
-
-                                        <div className="space-y-4 relative z-10">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                                                    Teams per Card
-                                                </label>
-                                                <div className="flex items-center gap-4">
-                                                    <button
-                                                        onClick={() => setDrawTeamsCount(Math.max(2, drawTeamsCount - 1))}
-                                                        className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
-                                                    >
-                                                        -
-                                                    </button>
-                                                    <div className="flex-1 h-12 flex items-center justify-center bg-muted/30 rounded-xl border border-card-border">
-                                                        <span className="text-xl font-black font-mono">{drawTeamsCount}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setDrawTeamsCount(drawTeamsCount + 1)}
-                                                        className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
-                                                    >
-                                                        +
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                onClick={handleAutoDraw}
-                                                className="w-full py-4 bg-role-primary hover:bg-role-primary/90 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-role-primary/20 transition-all active:scale-95 flex items-center justify-center gap-3"
-                                            >
-                                                <Layers size={18} />
-                                                Confirm Draw
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <p className="text-[10px] font-bold text-muted-foreground/40 uppercase max-w-[200px] text-center leading-relaxed">
-                                        This action will generate match cards for all registered teams in this category.
-                                    </p>
-                                </>
-                            )}
-
-                            {drawState === 'counting' && (
-                                <motion.div
-                                    key={`count-${countdown}`}
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 1.5, opacity: 0 }}
-                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                    className="flex flex-col items-center justify-center"
-                                >
-                                    <div className="text-[120px] font-black text-role-primary italic leading-none text-shadow-glow">
-                                        {countdown}
-                                    </div>
-                                    <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-xs mt-4">
-                                        Generating Bracket
-                                    </p>
-                                </motion.div>
-                            )}
-
-                            {drawState === 'success' && (
-                                <div className="flex flex-col items-center justify-center animate-in zoom-in duration-300">
-                                    <div className="w-24 h-24 rounded-full bg-role-primary text-white flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(var(--role-primary),0.5)]">
-                                        <ClipboardCheck size={48} />
-                                    </div>
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter italic text-foreground text-center">
-                                        The Matches Are Set
-                                    </h2>
-                                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs mt-2">
-                                        Good Luck To All Units
-                                    </p>
-                                </div>
-                            )}
-                        </motion.div>
+                    {((isAdmin || isJury || !!lockedCompetitionId) && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
+                        <DrawInterface
+                            drawState={drawState}
+                            countdown={countdown}
+                            drawTeamsCount={drawTeamsCount}
+                            setDrawTeamsCount={setDrawTeamsCount}
+                            handleAutoDraw={handleAutoDraw}
+                            drawPlan={drawPlan}
+                        />
                     ) : currentScoreGroup ? (
                         <motion.div
                             key={`${currentScoreGroup.teamId}-${currentScoreGroup.competitionType}-${activePhase}`}

@@ -25,6 +25,26 @@ export async function fetchCompetitionsFromSupabase() {
     return data as any;
 }
 
+export async function updateCompetitionStatusToSupabase(competitionId: string, status: string) {
+    // Check if competitionId is a valid UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(competitionId);
+
+    let query = (supabase.from('competitions') as any).update({ current_phase: status } as any);
+
+    if (isUuid) {
+        query = query.eq('id', competitionId);
+    } else {
+        query = query.eq('type', competitionId);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+        console.error('Error updating competition status:', error);
+        throw error;
+    }
+}
+
 /**
  * TEAMS SERVICE
  */
@@ -77,7 +97,7 @@ export async function fetchTeamsFromSupabase(): Promise<Team[]> {
     }));
 }
 
-export async function upsertTeamToSupabase(team: Team) {
+export async function upsertTeamToSupabase(team: Team): Promise<string> {
     const isNew = team.id.startsWith('slot-') || team.id.startsWith('club-') || team.id.includes('temp');
 
     // Construct payload
@@ -143,6 +163,7 @@ export async function upsertTeamToSupabase(team: Team) {
             console.warn("Non-critical error updating members:", mErr);
         }
     }
+    return realId;
 }
 
 export async function deleteTeamFromSupabase(teamId: string) {
@@ -175,7 +196,7 @@ export async function updateClubLogoInSupabase(clubName: string, logoUrl: string
 export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
     const { data, error } = await supabase
         .from('scores')
-        .select('id, match_id, team_id, competition_id, phase, time_ms, bonus_points, completed_road, knockouts, judge_points, damage_score, total_points, judge_id, status, is_sent_to_team, created_at')
+        .select('id, match_id, team_id, competition_id, phase, time_ms, bonus_points, completed_road, knockouts, judge_points, damage_score, total_points, judge_id, status, is_sent_to_team, created_at, detailed_scores')
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -196,11 +217,12 @@ export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
         phase: s.phase || '',
         timeMs: s.time_ms ?? undefined,
         bonusPoints: s.bonus_points ?? undefined,
-        completed_road: s.completed_road ?? undefined,
+        completedRoad: s.completed_road ?? undefined,
         knockouts: s.knockouts ?? undefined,
         juryPoints: s.judge_points ?? undefined,
         damageScore: s.damage_score ?? undefined,
         totalPoints: s.total_points,
+        detailedScores: s.detailed_scores as Record<string, number> | undefined,
         juryId: s.judge_id || '',
         timestamp: new Date(s.created_at || Date.now()).getTime(),
         synced: true,
@@ -223,6 +245,7 @@ export async function pushScoreToSupabase(score: OfflineScore) {
         judge_points: score.juryPoints ?? null,
         damage_score: score.damageScore ?? null,
         total_points: score.totalPoints || 0,
+        detailed_scores: score.detailedScores || null,
         judge_id: score.juryId && score.juryId !== '' ? String(score.juryId) : null,
         status: score.status || 'pending',
         is_sent_to_team: !!score.isSentToTeam,
@@ -258,6 +281,33 @@ export async function clearAllScoresFromSupabase() {
 
     if (error) {
         console.error('Error clearing all scores:', error);
+        throw error;
+    }
+}
+
+export async function clearCategoryMatchesFromSupabase(competitionId: string) {
+    // Specifically delete 'pending' scores for a competition to "reset" a draw
+    const { error } = await supabase
+        .from('scores')
+        .delete()
+        .eq('competition_id', competitionId)
+        .eq('status', 'pending');
+
+    if (error) {
+        console.error('Error clearing category matches:', error);
+        throw error;
+    }
+}
+
+export async function clearCategoryScoresFromSupabase(competitionId: string) {
+    // Delete ALL scores (pending or confirmed) for a competition
+    const { error } = await supabase
+        .from('scores')
+        .delete()
+        .eq('competition_id', competitionId);
+
+    if (error) {
+        console.error('Error clearing category scores:', error);
         throw error;
     }
 }

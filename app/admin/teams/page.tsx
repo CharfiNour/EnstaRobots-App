@@ -76,10 +76,20 @@ export default function AdminTeamsPage() {
         };
         loadTeams();
 
-        if (activeTab === 'order' && selectedCategory === 'all') {
+        if (activeTab === 'order' && selectedCategory === 'all' && categories.length > 0) {
             setSelectedCategory(categories[0].id);
         }
-    }, [activeTab, selectedCategory]); // Removed categories dependency to avoid weird loops
+
+        window.addEventListener('teams-updated', loadTeams);
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'enstarobots_teams_v1') loadTeams();
+        });
+
+        return () => {
+            window.removeEventListener('teams-updated', loadTeams);
+            window.removeEventListener('storage', loadTeams);
+        };
+    }, [activeTab, selectedCategory]);
 
     return (
         <div className="min-h-screen bg-background relative overflow-hidden flex flex-col">

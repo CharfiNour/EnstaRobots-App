@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -14,15 +14,22 @@ export function useSupabaseRealtime(
     callback: (payload: any) => void,
     event: 'INSERT' | 'UPDATE' | 'DELETE' | '*' = '*'
 ) {
+    const callbackRef = useRef(callback);
+
+    // Keep callback updated without triggering re-subscription
+    useEffect(() => {
+        callbackRef.current = callback;
+    });
+
     useEffect(() => {
         // Create a unique channel for this subscription
         const channel = supabase
-            .channel(`public:${table}`)
+            .channel(`public:${table}-${Math.random().toString(36).substring(7)}`)
             .on(
                 'postgres_changes' as any,
                 { event, schema: 'public', table },
                 (payload: any) => {
-                    callback(payload);
+                    callbackRef.current(payload);
                 }
             )
             .subscribe();
@@ -31,5 +38,5 @@ export function useSupabaseRealtime(
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [table, event, callback]);
+    }, [table, event]);
 }

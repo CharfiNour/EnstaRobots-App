@@ -12,7 +12,7 @@ import { getCompetitionState, updateCompetitionState } from '@/lib/competitionSt
 
 import { PHASES } from '../services/competitionService';
 
-import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
+import { CATEGORY_PHASES } from '@/lib/constants';
 import { getTeams, Team } from '@/lib/teams';
 
 interface CompetitionCardProps {
@@ -77,9 +77,9 @@ export default function CompetitionCard({ comp, index, onUpdate }: CompetitionCa
         const session = compState.liveSessions?.[comp.category];
         if (!session?.phase) return editedComp.status;
 
-        const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
-        const match = allPhases.find(p => p.value === session.phase);
-        if (match) return match.label;
+        const allPhases = [...(CATEGORY_PHASES.line || []), ...(CATEGORY_PHASES.standard || []), ...(CATEGORY_PHASES.fight || [])];
+        const match = allPhases.find(p => p === session.phase);
+        if (match) return match;
         // Fallback for custom/legacy phases
         return session.phase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };

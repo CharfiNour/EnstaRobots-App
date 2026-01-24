@@ -26,15 +26,21 @@ interface ScoreCardProps {
 }
 
 export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete, matchParticipants, allCompetitions }: ScoreCardProps) {
-    const currentScore = group.submissions.find((s) => s.phase === activePhase) || group.submissions[0];
+    const currentScore = group.submissions.find((s) =>
+        (s.phase || '').toLowerCase() === (activePhase || '').toLowerCase()
+    ) || group.submissions[0];
 
-    // Resolve competition name
-    const competitionName = allCompetitions?.find(c => c.id === group.competitionType)?.name || group.competitionType.replace(/_/g, ' ');
+    // Resolve competition metadata
+    const compMetadata = allCompetitions?.find(c => c.id === group.competitionType || c.type === group.competitionType);
+    const competitionName = compMetadata?.name || group.competitionType.replace(/_/g, ' ');
+    const competitionType = (compMetadata?.type || group.competitionType || '').toLowerCase();
+
+    // Get rich styling from constants
+    const { getCategoryMetadata } = require('@/lib/constants');
+    const styleMeta = getCategoryMetadata(competitionType);
 
     // Determine the layout style:
-    // Match-based competitions (Fight, All Terrain) show opponents.
-    // Single-performance competitions (Line Follower) show lap times/details.
-    const isLineFollower = competitionName.toLowerCase().includes('line follower');
+    const isLineFollower = competitionType === 'line_follower' || competitionType === 'junior_line_follower' || competitionName.toLowerCase().includes('line follower');
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -84,9 +90,9 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
             {/* Main Record Card */}
             <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-[0_20px_40px_-8px_rgba(0,0,0,0.15)] relative">
                 {/* Brand Header */}
-                <div className="bg-accent/5 p-4 md:p-5 border-b border-card-border flex justify-between items-center">
+                <div className={`bg-gradient-to-br ${styleMeta?.color || 'from-accent/5 to-card'} p-4 md:p-5 border-b ${styleMeta?.borderColor || 'border-card-border'} flex justify-between items-center`}>
                     <div>
-                        <div className="flex items-center gap-2 text-accent mb-1">
+                        <div className={`flex items-center gap-2 mb-1 ${styleMeta?.badgeColor ? styleMeta.badgeColor.split(' ').find((c: string) => c.startsWith('text-')) : 'text-accent'}`}>
                             <Shield size={14} />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Official Record</span>
                         </div>
@@ -269,26 +275,57 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                     </span>
                                                 )}
                                             </div>
-
-                                            {/* Bonus Points for LF */}
-                                            <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
+                                            {/* Total Summary for LF */}
+                                            <div className="flex items-center justify-between p-4 bg-accent/5 rounded-xl border border-accent/20 mb-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
+                                                    <div className="p-2 bg-accent/20 rounded-lg text-accent">
                                                         <Trophy size={16} />
                                                     </div>
-                                                    <span className="text-xs font-black uppercase tracking-wide text-foreground">Homologation Points</span>
+                                                    <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
                                                 </div>
-                                                {isEditing ? (
-                                                    <input
-                                                        type="number"
-                                                        value={editData.bonusPoints || 0}
-                                                        onChange={(e) => setEditData({ ...editData, bonusPoints: parseInt(e.target.value) })}
-                                                        className="w-20 bg-card border border-card-border p-1 rounded font-bold text-sm text-right"
-                                                    />
-                                                ) : (
-                                                    <span className="text-lg font-black text-foreground">{currentScore.bonusPoints || 0} PTS</span>
-                                                )}
+                                                <span className="text-xl font-black italic text-foreground tracking-tighter">
+                                                    {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">Pts</span>
+                                                </span>
                                             </div>
+
+                                            {/* Itemized Segments Breakdown */}
+                                            {currentScore.detailedScores && Object.keys(currentScore.detailedScores).length > 0 && (
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2 mt-2 mb-3">
+                                                        <div className="h-px flex-1 bg-card-border" />
+                                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">Tactical Analysis</span>
+                                                        <div className="h-px flex-1 bg-card-border" />
+                                                    </div>
+                                                    <div className="grid gap-2">
+                                                        {(() => {
+                                                            const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR } = require('@/lib/constants');
+                                                            const sections = competitionType === 'junior_line_follower' ? LINE_FOLLOWER_SECTIONS_JUNIOR : LINE_FOLLOWER_SECTIONS_STANDARD;
+
+                                                            return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
+                                                                const section = sections.find((s: any) => s.id === id);
+                                                                if (!section) return null;
+
+                                                                return (
+                                                                    <div key={id} className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-card-border/50">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="w-8 h-8 rounded-lg bg-card border border-card-border overflow-hidden">
+                                                                                <img src={section.image} alt="" className="w-full h-full object-cover opacity-80" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <div className="text-[10px] font-black uppercase tracking-tight text-foreground">{section.label}</div>
+                                                                                <div className="text-[8px] font-bold uppercase text-muted-foreground opacity-60">Max {section.maxPoints} Pts</div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-sm font-black italic text-accent">
+                                                                            {pts} <span className="text-[8px] not-italic opacity-40">PTS</span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     ) : (
                                         /* Empty State for Line Follower */
@@ -296,8 +333,8 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                             <div className="w-12 h-12 rounded-full bg-card border border-card-border flex items-center justify-center mb-3 text-muted-foreground/30">
                                                 <Timer size={24} />
                                             </div>
-                                            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">No Local Record</div>
-                                            <div className="text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]">Waiting for jury to broadcast official performance results.</div>
+                                            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Performance Record Required</div>
+                                            <div className="text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]">Waiting for synchronization to tactical registry.</div>
                                         </div>
                                     )}
                                 </div>

@@ -59,6 +59,7 @@ export default function JuryHistoryPage() {
                 <ScoreHistoryView
                     isSentToTeamOnly={false}
                     lockedCompetitionId={session?.competition}
+                    isJury={true}
                 />
             </div>
         </div>

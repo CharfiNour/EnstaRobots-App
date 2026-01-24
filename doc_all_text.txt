@@ -1,0 +1,29 @@
+﻿
+space    #text         
+-----    -----         
+preserve Partie        
+preserve Points Essai 1
+preserve Points Essai 2
+preserve Etat          
+preserve â€¦/20        
+preserve â€¦/20        
+preserve â€¦/20        
+preserve â€¦/20        
+preserve â€¦/30        
+preserve â€¦/30        
+preserve â€¦/20        
+preserve â€¦/20        
+preserve â€¦/10        
+preserve â€¦/10        
+preserve â€¦/30        
+preserve â€¦/30        
+preserve â€¦/30        
+preserve â€¦/30        
+preserve Temps total   
+preserve â€¦           
+preserve â€¦           
+preserve Score total   
+preserve â€¦           
+preserve â€¦           
+
+

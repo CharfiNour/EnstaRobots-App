@@ -1,8 +1,7 @@
-"use client";
-
-import { Shield, ChevronDown, Info } from 'lucide-react';
+import { Shield, Info } from 'lucide-react';
 import { Team } from '@/lib/teams';
-import { TeamScoreEntry } from '../types';
+import { TeamScoreEntry } from '../../types';
+import CustomSelector from '@/components/common/CustomSelector';
 
 interface TeamSelectSectionProps {
     isLineFollower: boolean;
@@ -14,9 +13,11 @@ interface TeamSelectSectionProps {
     numberOfTeams: number;
     setNumberOfTeams: (v: number) => void;
     isPhaseSubmitted: (teamId: string, phase: string) => boolean;
-    PHASES_LINE_FOLLOWER: { value: string; label: string }[];
-    PHASES_DEFAULT: { value: string; label: string }[];
+    competitionPhases: string[];
     STATUS_OPTIONS: { value: string; label: string; color: string }[];
+    selectedGroup?: string;
+    setSelectedGroup?: (v: string) => void;
+    groups?: string[];
 }
 
 export default function TeamSelectSection({
@@ -29,39 +30,56 @@ export default function TeamSelectSection({
     numberOfTeams,
     setNumberOfTeams,
     isPhaseSubmitted,
-    PHASES_LINE_FOLLOWER,
-    PHASES_DEFAULT,
-    STATUS_OPTIONS
+    competitionPhases,
+    STATUS_OPTIONS,
+    selectedGroup,
+    setSelectedGroup,
+    groups = []
 }: TeamSelectSectionProps) {
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-base font-black text-foreground flex items-center gap-2 uppercase tracking-tight">
-                    <Shield size={18} className="text-accent" />
+        <div className="space-y-6">
+            <div className="flex flex-col gap-4">
+                <h2 className="text-xl font-black text-foreground flex items-center gap-3 uppercase tracking-tight italic">
+                    <Shield size={22} className="text-accent" />
                     Teams & Competition Phases
                 </h2>
                 {!isLineFollower && (
-                    <div className="flex gap-2">
-                        <div className="flex items-center bg-muted/50 border border-card-border rounded-lg px-2 py-1 gap-2">
-                            <span className="text-[10px] font-black text-muted-foreground uppercase">Phase</span>
-                            <select
-                                value={globalPhase}
-                                onChange={(e) => setGlobalPhase(e.target.value)}
-                                className="bg-transparent text-xs font-black text-accent outline-none cursor-pointer"
-                            >
-                                {PHASES_DEFAULT.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex items-center bg-muted/50 border border-card-border rounded-lg px-2 py-1 gap-2">
-                            <span className="text-[10px] font-black text-muted-foreground uppercase">Count</span>
-                            <select
-                                value={numberOfTeams}
-                                onChange={(e) => setNumberOfTeams(parseInt(e.target.value))}
-                                className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer"
-                            >
-                                {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Teams</option>)}
-                            </select>
-                        </div>
+                    <div className="flex flex-row flex-wrap items-center gap-2">
+                        <CustomSelector
+                            prefix="Phase"
+                            value={globalPhase}
+                            onChange={(val) => setGlobalPhase(val)}
+                            options={competitionPhases.map((p, idx) => {
+                                let isLocked = false;
+                                if (idx > 0) {
+                                    const prevPhases = competitionPhases.slice(0, idx);
+                                    isLocked = prevPhases.some(prevP =>
+                                        !competitionTeams.every(t => isPhaseSubmitted(t.id, prevP))
+                                    );
+                                }
+                                return {
+                                    value: p,
+                                    label: p + (isLocked ? ' (Locked)' : ''),
+                                    disabled: isLocked
+                                };
+                            })}
+                        />
+
+                        {setSelectedGroup && groups.length > 0 && (
+                            <CustomSelector
+                                prefix="Grp"
+                                value={selectedGroup}
+                                onChange={(val) => setSelectedGroup(val)}
+                                options={groups.map(g => ({ value: g, label: g }))}
+                            />
+                        )}
+
+                        <CustomSelector
+                            prefix="Count"
+                            value={numberOfTeams}
+                            onChange={(val) => setNumberOfTeams(val)}
+                            options={[2, 3, 4, 5, 6].map(n => ({ value: n, label: `${n} Teams` }))}
+                        />
                     </div>
                 )}
             </div>
@@ -72,72 +90,62 @@ export default function TeamSelectSection({
                     const hasSubmitted = isPhaseSubmitted(team.id, phaseToCheck!);
 
                     return (
-                        <div key={index} className="flex flex-col md:flex-row gap-3 p-4 rounded-xl bg-muted/20 border border-card-border group transition-all hover:bg-muted/40 shadow-sm">
+                        <div key={index} className="flex flex-col md:flex-row gap-4 p-5 rounded-[2rem] bg-muted/20 border border-card-border group transition-all hover:bg-muted/30 shadow-sm relative z-0 focus-within:z-50">
                             <div className="flex-1">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase mb-1.5 block tracking-wider">
+                                <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] opacity-60">
                                     {isLineFollower ? 'Robot Name' : `Team ${index + 1} Robot`}
                                 </label>
-                                <div className="relative">
-                                    <select
-                                        value={team.id}
-                                        onChange={(e) => handleTeamChange(index, 'id', e.target.value)}
-                                        className={`w-full px-3 py-2.5 bg-background border rounded-lg focus:ring-2 focus:ring-accent outline-none text-sm font-bold text-foreground appearance-none cursor-pointer ${hasSubmitted ? 'border-red-500 dark:border-red-400' : 'border-card-border'}`}
-                                        required
-                                    >
-                                        <option value="">Select Robot...</option>
-                                        {competitionTeams.map((t) => {
-                                            const isTeamDone = isPhaseSubmitted(t.id, phaseToCheck!);
-                                            return (
-                                                <option key={t.id} value={t.id}>
-                                                    {t.name} {isTeamDone ? '✓' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
-                                        <ChevronDown size={14} />
-                                    </div>
-                                </div>
+
+                                <CustomSelector
+                                    variant="block"
+                                    fullWidth
+                                    placeholder="Select Robot..."
+                                    value={team.id}
+                                    onChange={(val) => handleTeamChange(index, 'id', val)}
+                                    className={hasSubmitted ? 'ring-1 ring-red-500/50 rounded-2xl' : ''}
+                                    options={competitionTeams.map((t) => ({
+                                        value: t.id,
+                                        label: t.name + (isPhaseSubmitted(t.id, phaseToCheck!) ? ' ✓' : ''),
+                                        color: isPhaseSubmitted(t.id, phaseToCheck!) ? 'text-accent' : ''
+                                    }))}
+                                />
+
                                 {hasSubmitted && (
-                                    <div className="text-[9px] font-bold text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
-                                        <Info size={8} /> Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
+                                    <div className="text-[9px] font-bold text-red-500 dark:text-red-400 mt-2 flex items-center gap-1.5 px-1 uppercase tracking-wider">
+                                        <Info size={10} /> Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
                                     </div>
                                 )}
                             </div>
-                            <div className="md:w-48 px-2">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase mb-1.5 block tracking-wider">
+
+                            <div className="md:w-56 shrink-0">
+                                <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] opacity-60">
                                     {isLineFollower ? 'Attempt Phase' : 'Match Outcome'}
                                 </label>
+
                                 {isLineFollower ? (
-                                    <select
+                                    <CustomSelector
+                                        variant="block"
+                                        fullWidth
                                         value={team.phase}
-                                        onChange={(e) => handleTeamChange(index, 'phase', e.target.value)}
-                                        className="w-full px-3 py-2.5 bg-background border border-card-border rounded-lg focus:ring-2 focus:ring-accent outline-none text-sm font-black text-accent cursor-pointer"
-                                    >
-                                        {PHASES_LINE_FOLLOWER.map(p => {
-                                            const isSubmitted = isPhaseSubmitted(team.id, p.value);
-                                            return (
-                                                <option
-                                                    key={p.value}
-                                                    value={p.value}
-                                                    disabled={isSubmitted}
-                                                >
-                                                    {p.label}{isSubmitted ? ' (Submitted)' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
+                                        onChange={(val) => handleTeamChange(index, 'phase', val)}
+                                        options={competitionPhases.map(p => ({
+                                            value: p,
+                                            label: p + (isPhaseSubmitted(team.id, p) ? ' (Submitted)' : ''),
+                                            disabled: isPhaseSubmitted(team.id, p)
+                                        }))}
+                                    />
                                 ) : (
-                                    <select
+                                    <CustomSelector
+                                        variant="block"
+                                        fullWidth
                                         value={team.status}
-                                        onChange={(e) => handleTeamChange(index, 'status', e.target.value)}
-                                        className={`w-full px-3 py-2.5 bg-background border border-card-border rounded-lg focus:ring-2 focus:ring-accent outline-none text-sm font-black uppercase cursor-pointer ${STATUS_OPTIONS.find(o => o.value === team.status)?.color
-                                            }`}
-                                    >
-                                        {STATUS_OPTIONS.map(o => (
-                                            <option key={o.value} value={o.value} className={o.color}>{o.label}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => handleTeamChange(index, 'status', val)}
+                                        options={STATUS_OPTIONS.map(o => ({
+                                            value: o.value,
+                                            label: o.label,
+                                            color: o.color
+                                        }))}
+                                    />
                                 )}
                             </div>
                         </div>

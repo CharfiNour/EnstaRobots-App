@@ -52,13 +52,14 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
     const mainDisplayTeams = teams
         .filter(t => {
             // Resolution Logic: Match by UUID or slug
-            if (!t.competition) return false;
-
-            // If it's a UUID, look up the slug (type)
-            const comp = competitions.find(c => c.id === t.competition);
-            const teamCategory = comp ? comp.type : t.competition;
-
-            return teamCategory === selectedCategory;
+            let matchesCat = selectedCategory === 'all';
+            if (!matchesCat) {
+                if (!t.competition) return false; // Ensure competition exists for non-'all' categories
+                const comp = competitions.find(c => c.id === t.competition || c.type === t.competition);
+                const teamCategory = comp ? comp.type : t.competition;
+                matchesCat = teamCategory === selectedCategory;
+            }
+            return matchesCat;
         })
         .filter(t => {
             if (!searchQuery) return true;

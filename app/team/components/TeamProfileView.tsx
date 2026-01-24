@@ -156,14 +156,14 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                 visualsLocked: visualsLocked
             };
 
-            await upsertTeamToSupabase(updatedTeam);
+            const realId = await upsertTeamToSupabase(updatedTeam);
 
             setIsEditing(false);
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
 
             // Trigger refresh in parent
-            onUpdate(updatedTeam);
+            onUpdate({ ...updatedTeam, id: realId });
         } catch (err) {
             console.error(err);
         } finally {

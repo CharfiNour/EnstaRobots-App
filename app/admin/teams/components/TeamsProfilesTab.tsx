@@ -52,7 +52,7 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
         // Resolution Logic: Match by UUID or slug
         let matchesCat = selectedCategory === 'all';
         if (!matchesCat) {
-            const comp = competitions.find(c => c.id === t.competition);
+            const comp = competitions.find(c => c.id === t.competition || c.type === t.competition);
             const teamCategory = comp ? comp.type : t.competition;
             matchesCat = teamCategory === selectedCategory;
         }
@@ -164,9 +164,12 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
                     <TeamProfileView
                         team={selectedTeam}
                         onUpdate={(updated) => {
-                            const newTeams = teams.map(t => t.id === updated.id ? updated : t);
+                            const newTeams = teams.map(t => (t.id === updated.id || t.id === selectedTeam?.id) ? updated : t);
                             setTeams(newTeams);
                             saveTeams(newTeams);
+                            if (selectedTeamId !== updated.id) {
+                                setSelectedTeamId(updated.id);
+                            }
                         }}
                         isAdmin={true}
                     />

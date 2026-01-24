@@ -10,7 +10,7 @@ import { getAdminCompetitions } from '../../admin/competitions/services/competit
 import { getCompetitionState } from '@/lib/competitionState';
 import { getTeams, Team } from '@/lib/teams';
 import { CompetitionListItem } from '../../admin/competitions/types';
-import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
+import { CATEGORY_PHASES } from '@/lib/constants';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
 import { updateCompetitionState } from '@/lib/competitionState';
@@ -52,6 +52,7 @@ export default function CompetitionsPage() {
         // Listen for internal events (same tab)
         window.addEventListener('competition-state-updated', handleStateUpdate);
         window.addEventListener('competitions-updated', handleStateUpdate);
+        window.addEventListener('teams-updated', handleStateUpdate);
 
         // Listen for storage events (different tabs)
         window.addEventListener('storage', (e) => {
@@ -70,6 +71,7 @@ export default function CompetitionsPage() {
         return () => {
             window.removeEventListener('competition-state-updated', handleStateUpdate);
             window.removeEventListener('competitions-updated', handleStateUpdate);
+            window.removeEventListener('teams-updated', handleStateUpdate);
             window.removeEventListener('storage', handleStateUpdate);
             clearInterval(interval);
         };
@@ -116,9 +118,9 @@ export default function CompetitionsPage() {
 
                         const getLivePhaseLabel = () => {
                             if (!liveSess || !liveSess.phase) return comp.status;
-                            const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
-                            const match = allPhases.find(p => p.value === liveSess.phase);
-                            if (match) return match.label;
+                            const allPhases = [...(CATEGORY_PHASES.line || []), ...(CATEGORY_PHASES.standard || []), ...(CATEGORY_PHASES.fight || [])];
+                            const match = allPhases.find(p => p === liveSess.phase);
+                            if (match) return match;
                             return liveSess.phase.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
                         };
 

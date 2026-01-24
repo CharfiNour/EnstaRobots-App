@@ -17,6 +17,7 @@ export interface Team {
     members: TeamMember[];
     isPlaceholder?: boolean;
     visualsLocked?: boolean;
+    group?: string;
 }
 
 const INITIAL_TEAMS: Team[] = [];
@@ -27,48 +28,27 @@ export function getTeams(): Team[] {
     if (typeof window === 'undefined') return INITIAL_TEAMS;
 
     const stored = localStorage.getItem(TEAMS_STORAGE_KEY);
-    let teams = INITIAL_TEAMS;
+    if (!stored) return INITIAL_TEAMS;
 
-    if (stored) {
-        try {
-            const parsed = JSON.parse(stored);
-            // Self-healing: Patch stored teams with missing static data from INITIAL_TEAMS
-            teams = parsed.map((t: Team) => {
-                const seed = INITIAL_TEAMS.find(i => i.id === t.id);
-                if (seed) {
-                    return {
-                        ...t,
-                        competition: t.competition || seed.competition,
-                        code: t.code || seed.code,
-                        organization: (t as any).organization || t.university,
-                    };
-                }
-                return t;
-            }).filter((t: Team) => !['1', '2', '3', '4'].includes(t.id)); // Purge legacy dummy data
-        } catch {
-            teams = INITIAL_TEAMS;
-        }
+    try {
+        const teams = JSON.parse(stored);
+
+        // Simple deduplication and sanity check
+        const seen = new Set();
+        return teams.filter((team: Team) => {
+            if (!team || !team.id || seen.has(team.id)) return false;
+            seen.add(team.id);
+            return true;
+        });
+    } catch {
+        return INITIAL_TEAMS;
     }
-
-    // Deduplicate by ID to prevent React key errors
-    const seen = new Set();
-    const uniqueTeams = teams.filter(team => {
-        if (seen.has(team.id)) return false;
-        seen.add(team.id);
-        return true;
-    });
-
-    // If storage was updated/patched, save it back
-    if (JSON.stringify(uniqueTeams) !== stored) {
-        saveTeams(uniqueTeams);
-    }
-
-    return uniqueTeams;
 }
 
 export function saveTeams(teams: Team[]): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(teams));
+    window.dispatchEvent(new Event('teams-updated'));
 }
 
 // Helper to update team order

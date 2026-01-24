@@ -74,8 +74,8 @@ export default function CompetitionDetailPage() {
 
             const filteredTeams = allTeams.filter(t => {
                 if (!t.competition) return false;
-                const comp = remoteComps.find((c: any) => c.id === t.competition);
-                const category = comp ? comp.type : t.competition;
+                const teamCompObj = remoteComps.find((c: any) => c.id === t.competition || c.type === t.competition);
+                const category = teamCompObj ? teamCompObj.type : t.competition;
                 return category === currentCategory;
             });
             setTeams(filteredTeams);
@@ -107,18 +107,20 @@ export default function CompetitionDetailPage() {
             setCompetitions(remoteComps);
             const filteredTeams = remoteTeams.filter(t => {
                 if (!t.competition) return false;
-                const comp = remoteComps.find((c: any) => c.id === t.competition);
-                const category = comp ? comp.type : t.competition;
+                const teamCompObj = remoteComps.find((c: any) => c.id === t.competition || c.type === t.competition);
+                const category = teamCompObj ? teamCompObj.type : t.competition;
                 return category === currentCategory;
             });
             setTeams(filteredTeams);
         };
 
         window.addEventListener('competition-state-updated', handleStateUpdate);
+        window.addEventListener('teams-updated', handleStateUpdate);
         window.addEventListener('storage', handleStateUpdate);
 
         return () => {
             window.removeEventListener('competition-state-updated', handleStateUpdate);
+            window.removeEventListener('teams-updated', handleStateUpdate);
             window.removeEventListener('storage', handleStateUpdate);
         };
     }, [compId, currentCategory]);
@@ -337,10 +339,10 @@ export default function CompetitionDetailPage() {
                             compId === '1' ? 'junior_line_follower' :
                                 compId === '2' ? 'junior_all_terrain' :
                                     compId === '3' ? 'line_follower' :
-                                        compId === '4' ? 'all_terrain' :
-                                            compId === '5' ? 'fight' : 'all'
+                                        compId === '4' ? 'all_terrain' : 'fight'
                         }
                         showFilter={false}
+                        isSentToTeamOnly={true}
                     />
                 )}
             </div>

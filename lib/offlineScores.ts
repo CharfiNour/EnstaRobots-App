@@ -22,6 +22,7 @@ export interface OfflineScore {
     damageScore?: number;
 
     totalPoints: number;
+    detailedScores?: Record<string, number>;
     juryId: string;
     timestamp: number;
     synced: boolean;
@@ -147,12 +148,9 @@ export function calculateTotalPoints(
         const damageScore = data.damageScore || 0;
         return knockouts * 10 + juryPoints + damageScore;
     } else if (competitionType.includes('line_follower') || competitionType === 'homologation') {
-        const timeMs = data.timeMs || 0;
-        const bonusPoints = data.bonusPoints || 0;
-
-        // Base points logic for line followers
-        const basePoints = timeMs > 0 ? Math.max(0, 300 - Math.floor(timeMs / 1000)) : 0;
-        return Math.max(0, basePoints + bonusPoints);
+        // Line Follower: The total points are purely the sum of the tactical segments 
+        // (homologationPoints). Time is recorded separately for ranking but not added to the score.
+        return data.bonusPoints || 0;
     } else {
         // All Terrain etc.
         const timeMs = data.timeMs || 0;

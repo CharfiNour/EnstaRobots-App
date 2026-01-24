@@ -1,7 +1,7 @@
-"use client";
-
 import { motion } from 'framer-motion';
-import { Info, Timer } from 'lucide-react';
+import { Info, Timer, Trophy, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import LineFollowerScoreDialog from './LineFollowerScoreDialog';
 
 interface PerformanceDataFormProps {
     isLineFollower: boolean;
@@ -21,6 +21,9 @@ interface PerformanceDataFormProps {
     setJuryPoints: (v: string) => void;
     damageScore: string;
     setDamageScore: (v: string) => void;
+    competitionType: string;
+    detailedScores: Record<string, number>;
+    setDetailedScores: (v: Record<string, number>) => void;
 }
 
 export default function PerformanceDataForm({
@@ -32,8 +35,19 @@ export default function PerformanceDataForm({
     homologationPoints, setHomologationPoints,
     knockouts, setKnockouts,
     juryPoints, setJuryPoints,
-    damageScore, setDamageScore
+    damageScore, setDamageScore,
+    competitionType,
+    detailedScores,
+    setDetailedScores
 }: PerformanceDataFormProps) {
+    const [isScoreOpen, setIsScoreOpen] = useState(false);
+
+    const handleSaveDetailedScores = (scores: Record<string, number>) => {
+        setDetailedScores(scores);
+        const total = Object.values(scores).reduce((a, b) => a + b, 0);
+        setHomologationPoints(total.toString());
+    };
+
     return (
         <div>
             <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2 uppercase tracking-tight">
@@ -106,19 +120,37 @@ export default function PerformanceDataForm({
                             </button>
                         </div>
 
-                        <div className="relative p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm">
-                            <input
-                                type="number"
-                                value={homologationPoints}
-                                onChange={(e) => setHomologationPoints(e.target.value)}
-                                placeholder="Homologation"
-                                className="w-full bg-transparent focus:outline-none font-black text-base text-foreground"
-                            />
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground uppercase opacity-40">
-                                PTS
-                            </div>
+                        <div className="flex flex-col">
+                            <button
+                                type="button"
+                                onClick={() => setIsScoreOpen(true)}
+                                className="w-full flex items-center justify-between p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm group hover:bg-accent/10 hover:border-accent/30 transition-all font-black"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-1.5 bg-accent/20 rounded-lg text-accent">
+                                        <Trophy size={16} />
+                                    </div>
+                                    <span className="text-xs uppercase tracking-wider text-muted-foreground group-hover:text-accent">
+                                        Score
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg font-black italic text-foreground">
+                                        {homologationPoints || '0'} <span className="text-[10px] not-italic opacity-40 uppercase">Pts</span>
+                                    </span>
+                                    <ChevronRight size={16} className="text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all" />
+                                </div>
+                            </button>
                         </div>
                     </div>
+
+                    <LineFollowerScoreDialog
+                        isOpen={isScoreOpen}
+                        onClose={() => setIsScoreOpen(false)}
+                        currentScores={detailedScores}
+                        onSave={handleSaveDetailedScores}
+                        competitionType={competitionType}
+                    />
                 </div>
             ) : (
                 <div className="grid grid-cols-3 gap-4">

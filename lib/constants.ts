@@ -1,0 +1,119 @@
+/**
+ * SHARED CONSTANTS FOR ENSTAROBOTS
+ */
+
+export const COMPETITION_CATEGORIES = [
+    {
+        id: 'junior_line_follower',
+        name: 'Junior Line Follower',
+        type: 'junior_line_follower',
+        color: 'from-cyan-500/20 to-card',
+        borderColor: 'border-cyan-500/50',
+        badgeColor: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20'
+    },
+    {
+        id: 'junior_all_terrain',
+        name: 'Junior All Terrain',
+        type: 'junior_all_terrain',
+        color: 'from-emerald-500/20 to-card',
+        borderColor: 'border-emerald-500/50',
+        badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+    },
+    {
+        id: 'line_follower',
+        name: 'Line Follower',
+        type: 'line_follower',
+        color: 'from-indigo-500/20 to-card',
+        borderColor: 'border-indigo-500/50',
+        badgeColor: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
+    },
+    {
+        id: 'all_terrain',
+        name: 'All Terrain',
+        type: 'all_terrain',
+        color: 'from-orange-500/20 to-card',
+        borderColor: 'border-orange-500/50',
+        badgeColor: 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+    },
+    {
+        id: 'fight',
+        name: 'Fight',
+        type: 'fight',
+        color: 'from-rose-500/20 to-card',
+        borderColor: 'border-rose-500/50',
+        badgeColor: 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+    },
+];
+
+export const CATEGORY_PHASES: Record<string, string[]> = {
+    line: ['Essay 1', 'Essay 2'],
+    standard: ['Qualifications', '1/8 Finals', '1/4 Finals', '1/2 Finals', 'Final'],
+    fight: ['Qualifications', 'Quarter-Finals', 'Semi-Finals', 'Final']
+};
+
+export const ALL_STATUSES = [
+    'upcoming',
+    'Essay 1',
+    'Essay 2',
+    'Qualifications',
+    '1/8 Finals',
+    '1/4 Finals',
+    '1/2 Finals',
+    'Final',
+    'completed'
+];
+
+export const LEGACY_ID_MAP: Record<string, string> = {
+    'junior_line_follower': '1',
+    'junior_all_terrain': '2',
+    'line_follower': '3',
+    'all_terrain': '4',
+    'fight': '5'
+};
+
+export function getPhasesForCategory(categoryType: string): string[] {
+    if (categoryType === 'line_follower' || categoryType === 'junior_line_follower') {
+        return CATEGORY_PHASES.line;
+    }
+    if (categoryType === 'fight') {
+        return CATEGORY_PHASES.fight;
+    }
+    return CATEGORY_PHASES.standard;
+}
+
+export function getCategoryMetadata(categoryOrId: string) {
+    return COMPETITION_CATEGORIES.find(c => c.id === categoryOrId || c.type === categoryOrId);
+}
+
+export const STATUS_OPTIONS = [
+    { value: 'winner', label: 'Winner', color: 'text-yellow-600 dark:text-yellow-400' },
+    { value: 'qualified', label: 'Qualified', color: 'text-blue-600 dark:text-blue-400' },
+    { value: 'eliminated', label: 'Eliminated', color: 'text-red-600 dark:text-red-400' },
+];
+
+export const generateId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+export const LINE_FOLLOWER_SECTIONS_STANDARD = [
+    { id: '1', label: 'Segment 1', maxPoints: 10, image: '/assets/line-follower/image7.png' },
+    { id: '2', label: 'Segment 2', maxPoints: 10, image: '/assets/line-follower/image5.png' },
+    { id: '3', label: 'Segment 3', maxPoints: 20, image: '/assets/line-follower/image6.png' },
+    { id: '4', label: 'Segment 4', maxPoints: 30, image: '/assets/line-follower/image3.png' },
+    { id: '5', label: 'Segment 5', maxPoints: 30, image: '/assets/line-follower/image2.png' },
+    { id: '6', label: 'Segment 6', maxPoints: 40, image: '/assets/line-follower/image8.png' },
+    { id: '7', label: 'Segment 7', maxPoints: 20, image: '/assets/line-follower/image1.png' },
+    { id: '8', label: 'Segment 8', maxPoints: 25, image: '/assets/line-follower/image4.png' },
+    { id: '9', label: 'Segment 9', maxPoints: 30, image: '/assets/line-follower/image9.png' },
+];
+
+export const LINE_FOLLOWER_SECTIONS_JUNIOR = [
+    { id: '1', label: 'Segment 1', maxPoints: 20, image: '/assets/junior-line-follower/image7.png' },
+    { id: '2', label: 'Segment 2', maxPoints: 20, image: '/assets/junior-line-follower/image2.png' },
+    { id: '3', label: 'Segment 3', maxPoints: 30, image: '/assets/junior-line-follower/image6.png' },
+    { id: '4', label: 'Segment 4', maxPoints: 20, image: '/assets/junior-line-follower/image1.png' },
+    { id: '5', label: 'Segment 5', maxPoints: 10, image: '/assets/junior-line-follower/image8.png' },
+    { id: '6', label: 'Segment 6', maxPoints: 30, image: '/assets/junior-line-follower/image3.png' },
+    { id: '7', label: 'Segment 7', maxPoints: 30, image: '/assets/junior-line-follower/image5.png' },
+];
