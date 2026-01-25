@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Activity } from 'lucide-react';
 import { COMPETITION_CONFIG } from '../services/teamDashboardService';
+import { getCompetitionName } from '@/lib/constants';
 
 interface DashboardHeaderProps {
     teamData: any;
@@ -27,14 +28,9 @@ export default function DashboardHeader({ teamData, session }: DashboardHeaderPr
             try {
                 const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
                 const comps = await fetchCompetitionsFromSupabase();
-                const match = comps.find((c: any) => c.id === teamData.competition);
-                if (match) {
-                    setCompetitionName(match.name);
-                } else {
-                    setCompetitionName(teamData.competition.replace(/_/g, ' '));
-                }
+                setCompetitionName(getCompetitionName(teamData.competition, comps));
             } catch (err) {
-                setCompetitionName(teamData.competition.replace(/_/g, ' '));
+                setCompetitionName(getCompetitionName(teamData.competition));
             }
         };
         resolveComp();

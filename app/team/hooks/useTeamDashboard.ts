@@ -3,16 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
-import { getTeamDashboardData } from '../services/teamDashboardService';
-import { TeamDashboardData } from '../types';
+import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
+import { supabase } from '@/lib/supabase';
 
 export function useTeamDashboard() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [profileComplete, setProfileComplete] = useState(false);
     const [teamData, setTeamData] = useState<any>(null);
-    const [data, setData] = useState<TeamDashboardData | null>(null);
     const [competitionStatus, setCompetitionStatus] = useState({
         isLive: false,
         currentTeam: null as any,
@@ -23,16 +21,24 @@ export function useTeamDashboard() {
     const router = useRouter();
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchDashboardData = async () => {
             const currentSession = getSession();
             if (!currentSession || currentSession.role !== 'team') {
                 router.push('/auth/team');
                 return;
             }
-            setSession(currentSession);
+            if (isMounted) setSession(currentSession);
 
-            const teams = await fetchTeamsFromSupabase();
-            const liveSessions = await fetchLiveSessionsFromSupabase();
+            const [teams, liveSessions, competitions] = await Promise.all([
+                fetchTeamsFromSupabase('minimal'),
+                fetchLiveSessionsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+
+            if (!isMounted) return;
+
             const team = teams.find(t => t.id === currentSession.teamId);
 
             if (team) {
@@ -49,8 +55,14 @@ export function useTeamDashboard() {
                 let nextT = null;
                 let phase = null;
 
-                if (team.competition && liveSessions?.[team.competition]) {
-                    const sessionInfo = liveSessions[team.competition];
+                // Robust lookup: Resolve team.competition (which could be UUID or slug) to the actual DB UUID
+                const relevantComp = competitions.find((c: any) => c.id === team.competition || c.type === team.competition);
+
+                const sessionInfo = (relevantComp?.id && liveSessions[relevantComp.id])
+                    || (relevantComp?.type && liveSessions[relevantComp.type])
+                    || liveSessions[team.competition];
+
+                if (sessionInfo) {
                     isLive = true;
                     phase = sessionInfo.phase;
 
@@ -75,14 +87,36 @@ export function useTeamDashboard() {
                 });
             }
 
-            setData(getTeamDashboardData());
             setLoading(false);
         };
 
         fetchDashboardData();
 
-        window.addEventListener('competition-state-updated', fetchDashboardData);
-        return () => window.removeEventListener('competition-state-updated', fetchDashboardData);
+        // 1. Listen for Local Events
+        const handleLocalUpdate = () => {
+            console.log('🔄 Dashboard: Local update event received');
+            fetchDashboardData();
+        };
+        window.addEventListener('competition-state-updated', handleLocalUpdate);
+
+        // 2. Realtime Subscription
+        const channel = supabase
+            .channel(`dashboard_live_tracker_${Math.random()}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'live_sessions' },
+                () => {
+                    console.log('⚡ Dashboard: Realtime Update Received');
+                    fetchDashboardData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener('competition-state-updated', handleLocalUpdate);
+            supabase.removeChannel(channel);
+        };
     }, [router]);
 
     return {
@@ -90,7 +124,6 @@ export function useTeamDashboard() {
         loading,
         profileComplete,
         teamData,
-        data,
         ...competitionStatus,
         router
     };

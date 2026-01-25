@@ -8,6 +8,9 @@ interface TeamInfo {
     id: string;
     name: string;
     order: number;
+    club?: string;
+    university?: string;
+    logo?: string;
 }
 
 interface ScheduleCardProps {
@@ -44,6 +47,55 @@ export default function ScheduleCard({
 
     const isMyTeamCurrent = currentTeam?.id === myTeamId;
     const isMyTeamNext = nextTeam?.id === myTeamId;
+
+    const TeamInfoRow = ({ team, isMyTeam, label, colorClass, bgClass, borderClass }: { team: TeamInfo | null, isMyTeam: boolean, label: string, colorClass: string, bgClass: string, borderClass: string }) => (
+        <div className="space-y-3">
+            <div className="flex items-center gap-3">
+                <Users className={`w-5 h-5 ${colorClass}`} />
+                <h3 className="text-sm font-black text-foreground uppercase tracking-widest">{label}</h3>
+            </div>
+            <div className={`relative p-4 rounded-2xl border transition-all duration-500 ${isMyTeam ? `${bgClass} ${borderClass} shadow-lg` : 'bg-muted/20 border-card-border'}`}>
+                {isMyTeam && (
+                    <div className={`absolute inset-0 rounded-2xl ${bgClass} opacity-10 animate-pulse pointer-events-none`} />
+                )}
+                <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-4">
+                        {/* Team/Club Logo */}
+                        <div className="w-12 h-12 rounded-xl bg-background border border-white/10 overflow-hidden relative flex-shrink-0 flex items-center justify-center">
+                            {team?.logo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <Users className="w-5 h-5 text-muted-foreground/30" />
+                            )}
+                            <div className="absolute top-0 left-0 px-1 py-0.5 bg-black/60 backdrop-blur-sm rounded-br-lg">
+                                <span className="text-[10px] font-black text-white leading-none">#{team?.order || '-'}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span className={`text-base font-black uppercase italic block leading-none mb-1 ${isMyTeam ? colorClass : 'text-foreground'}`}>
+                                {team?.name || 'Unknown Unit'}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase">{team?.club || 'Club Info Unavailable'}</span>
+                                {team?.university && (
+                                    <>
+                                        <span className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
+                                        <span className="text-[10px] font-bold text-muted-foreground/80 uppercase">{team.university}</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {label === "Next Team" && nextPhase && !isMyTeam && (
+                        <span className="text-[10px] font-black uppercase text-role-secondary tracking-widest bg-role-secondary/10 px-2 py-1 rounded">{nextPhase}</span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <motion.div
@@ -108,60 +160,24 @@ export default function ScheduleCard({
 
                     <div className={`space-y-6 transition-all duration-500 ${isLive ? 'opacity-100 scale-100' : 'opacity-20 scale-95 grayscale pointer-events-none'}`}>
                         {/* Current Team Card */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <Activity className="w-5 h-5 text-emerald-500" />
-                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest">Current Team</h3>
-                            </div>
-                            <div className={`relative p-4 rounded-2xl border transition-all duration-500 ${isMyTeamCurrent ? 'bg-emerald-500/10 border-emerald-500/50 shadow-lg shadow-emerald-500/20' : 'bg-muted/20 border-card-border'}`}>
-                                {isMyTeamCurrent && (
-                                    <div className="absolute inset-0 rounded-2xl bg-emerald-500/5 animate-pulse pointer-events-none" />
-                                )}
-                                <div className="flex items-center justify-between relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${isMyTeamCurrent ? 'bg-emerald-500 text-white' : 'bg-black/40 text-muted-foreground'}`}>
-                                            {currentTeam?.order || '--'}
-                                        </div>
-                                        <span className={`text-sm font-black uppercase italic ${isMyTeamCurrent ? 'text-emerald-500' : 'text-foreground'}`}>
-                                            {isMyTeamCurrent ? (currentTeam?.name || 'Searching...') : 'Active Unit'}
-                                        </span>
-                                    </div>
-                                    {isMyTeamCurrent && <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Active Now</span>}
-                                </div>
-                            </div>
-                        </div>
+                        <TeamInfoRow
+                            team={currentTeam}
+                            isMyTeam={isMyTeamCurrent}
+                            label="Current Team"
+                            colorClass="text-emerald-500"
+                            bgClass="bg-emerald-500/10"
+                            borderClass="border-emerald-500/50"
+                        />
 
                         {/* Next Team Card */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <Users className="w-5 h-5 text-amber-500" />
-                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest">Next Team</h3>
-                            </div>
-                            <div className={`relative p-4 rounded-2xl border transition-all duration-500 ${isMyTeamNext ? 'bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/20' : 'bg-muted/20 border-card-border'}`}>
-                                {isMyTeamNext && (
-                                    <div className="absolute inset-0 rounded-2xl bg-amber-500/5 animate-pulse pointer-events-none" />
-                                )}
-                                <div className="flex items-center justify-between relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${isMyTeamNext ? 'bg-amber-500 text-white' : 'bg-black/40 text-muted-foreground'}`}>
-                                            {nextTeam?.order || '--'}
-                                        </div>
-                                        <span className={`text-sm font-black uppercase italic ${isMyTeamNext ? 'text-amber-500' : 'text-foreground'}`}>
-                                            {isMyTeamNext ? (nextTeam?.name || 'Awaiting...') : 'Queued Unit'}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {nextPhase ? (
-                                            <div className="px-3 py-1 rounded-md bg-role-secondary/20 border border-role-secondary/30">
-                                                <span className="text-[10px] font-black uppercase text-role-secondary tracking-widest whitespace-nowrap">{nextPhase}</span>
-                                            </div>
-                                        ) : (
-                                            isMyTeamNext && <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Up Next</span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <TeamInfoRow
+                            team={nextTeam}
+                            isMyTeam={isMyTeamNext}
+                            label="Next Team"
+                            colorClass="text-amber-500"
+                            bgClass="bg-amber-500/10"
+                            borderClass="border-amber-500/50"
+                        />
                     </div>
                 </div>
             </div>

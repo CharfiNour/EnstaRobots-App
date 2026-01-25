@@ -49,28 +49,25 @@ export async function updateCompetitionStatusToSupabase(competitionId: string, s
  * TEAMS SERVICE
  */
 
-export async function fetchTeamsFromSupabase(): Promise<Team[]> {
+export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'): Promise<Team[]> {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
         console.error("CRITICAL: NEXT_PUBLIC_SUPABASE_URL is not defined in the environment!");
         return [];
     }
 
-    const { data, error } = await supabase
-        .from('teams')
-        .select(`
+    const selectQuery = fields === 'minimal'
+        ? 'id, name, robot_name, club, university, logo_url, competition_id, is_placeholder'
+        : `
             id, name, robot_name, club, university, logo_url, photo_url, team_code, competition_id, is_placeholder, visuals_locked,
             team_members (team_id, name, role, is_leader)
-        `);
+        `;
+
+    const { data, error } = await supabase
+        .from('teams')
+        .select(selectQuery);
 
     if (error) {
-        console.error('--- SUPABASE TEAMS FETCH ERROR ---');
-        console.error('Code:', error.code);
-        console.error('Message:', error.message);
-        console.error('Details:', error.details);
-        console.error('Hint:', error.hint);
-        if (error.message.includes('relation') && error.message.includes('does not exist')) {
-            console.warn('⚠️ Missing table detected! Please run fix_teams_and_registration.sql in Supabase SQL Editor.');
-        }
+        console.error('--- SUPABASE TEAMS FETCH ERROR ---', error);
         return [];
     }
 
@@ -80,7 +77,7 @@ export async function fetchTeamsFromSupabase(): Promise<Team[]> {
         name: t.name,
         robotName: t.robot_name || t.name,
         club: t.club || '',
-        university: t.university || '',
+        university: t.university || '', // Default for minimal
         logo: t.logo_url || '',
         photo: t.photo_url || '',
         code: t.team_code || '',
@@ -92,7 +89,6 @@ export async function fetchTeamsFromSupabase(): Promise<Team[]> {
             role: m.role || '',
             isLeader: m.is_leader
         })),
-        // Additional field required for UI coherence
         organization: t.university || '',
     }));
 }
@@ -318,12 +314,38 @@ export async function clearCategoryScoresFromSupabase(competitionId: string) {
 
 export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
     try {
-        const sessionEntries = Object.entries(sessions).map(([compId, sub]) => ({
-            competition_id: String(compId),
-            team_id: String(sub.teamId),
-            phase: sub.phase || '',
-            start_time: new Date(sub.startTime || Date.now()).toISOString()
-        }));
+        const sessionEntries = [];
+
+        for (const [compId, sub] of Object.entries(sessions)) {
+            let targetCompId = String(compId);
+
+            // Verify if it's a UUID
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetCompId);
+
+            if (!isUuid) {
+                // It's likely a slug (e.g., 'line_follower'), resolve to UUID
+                const { data: comp } = await supabase
+                    .from('competitions')
+                    .select('id')
+                    .or(`id.eq.${targetCompId},type.eq.${targetCompId}`)
+                    .single();
+
+                if (comp) {
+                    targetCompId = comp.id;
+                } else {
+                    console.warn(`Could not resolve competition ID for slug: ${targetCompId}. Attempting to use slug as ID.`);
+                    // Fallback: Use the slug itself. If the DB requires UUID, this will fail in the upsert below,
+                    // but if the DB is text, it will work.
+                }
+            }
+
+            sessionEntries.push({
+                competition_id: targetCompId,
+                team_id: String(sub.teamId),
+                phase: sub.phase || '',
+                start_time: new Date(sub.startTime || Date.now()).toISOString()
+            });
+        }
 
         if (sessionEntries.length > 0) {
             // Use upsert to be robust against race conditions
@@ -396,4 +418,54 @@ export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, an
     });
 
     return sessions;
+}
+
+/**
+ * STORAGE SERVICE
+ */
+
+export async function uploadImageToStorage(file: File, bucket: string, path: string): Promise<string> {
+    try {
+        console.log(`[STORAGE] Uploading file to ${bucket}/${path}...`);
+
+        // Upload file
+        const { error: uploadError } = await supabase.storage
+            .from(bucket)
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error('[STORAGE] Upload failed:', uploadError);
+            throw uploadError;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(path);
+
+        console.log(`[STORAGE] Upload success. Public URL:`, publicUrl);
+        return publicUrl;
+    } catch (e) {
+        console.error('[STORAGE] Critical upload error:', e);
+        throw e;
+    }
+}
+
+export async function deleteImageFromStorage(bucket: string, path: string) {
+    try {
+        const { error } = await supabase.storage
+            .from(bucket)
+            .remove([path]);
+
+        if (error) {
+            console.error('[STORAGE] Delete failed:', error);
+            throw error;
+        }
+    } catch (e) {
+        console.error('[STORAGE] Critical delete error:', e);
+        throw e;
+    }
 }

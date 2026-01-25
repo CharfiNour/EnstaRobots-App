@@ -40,12 +40,12 @@ export default function TeamScoreHistoryPage() {
             <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl relative z-10">
                 {/* Tactical Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                    <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center shadow-2xl shadow-role-primary/40 ring-1 ring-white/20">
-                            <History className="w-8 h-8 text-white" />
+                    <div className="flex items-center gap-3">
+                        <div className="w-15 h-15 rounded-xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center shadow-xl shadow-role-primary/20 ring-1 ring-white/10">
+                            <History className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-2">
+                            <h1 className="text-3xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-2">
                                 Score Registry
                             </h1>
                             <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">

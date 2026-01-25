@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw } from 'lucide-react';
+import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Activity } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -119,32 +119,21 @@ export default function TeamAnnouncementsPage() {
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6"
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10"
                 >
-                    <div className="text-center md:text-left">
-                        <div className="inline-flex items-center gap-3 mb-4 bg-role-primary/10 px-6 py-3 rounded-full border border-role-primary/20 shadow-sm shadow-role-primary/5">
-                            <Bell className="w-6 h-6 text-role-primary" />
-                            <h1 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight italic">
+                    <div className="flex items-center gap-3">
+                        <div className="w-15 h-15 rounded-xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center shadow-xl shadow-role-primary/20 ring-1 ring-white/10">
+                            <Bell className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-2">
                                 Team Announcements
                             </h1>
+                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">
+                                <Activity size={14} className="text-role-primary" />
+                                Official Directives & Intel Feed
+                            </p>
                         </div>
-                        <p className="text-muted-foreground max-w-lg font-medium">
-                            Stay informed with the latest updates from the organization team. Important notifications will appear here.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center justify-center md:justify-end gap-3">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg border border-card-border/50">
-                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest whitespace-nowrap">Live Intel Sync</span>
-                        </div>
-                        <button
-                            onClick={() => fetchAnnouncements(session)}
-                            className="p-3 bg-card border border-role-primary/20 rounded-xl text-role-primary hover:bg-role-primary hover:text-white transition-all shadow-lg shadow-role-primary/5 hover:scale-110 active:scale-95 group"
-                            title="Force Refresh"
-                        >
-                            <RefreshCcw className="w-5 h-5 group-active:rotate-180 transition-transform duration-500" />
-                        </button>
                     </div>
                 </motion.div>
 

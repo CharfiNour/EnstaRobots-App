@@ -10,6 +10,7 @@ import {
 import { upsertTeamToSupabase, updateClubLogoInSupabase } from '@/lib/supabaseData';
 import { Team } from '@/lib/teams';
 import { getCompetitionState } from '@/lib/competitionState';
+import CustomSelector from '@/components/common/CustomSelector';
 
 const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: any }> = {
     junior_line_follower: { name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: Zap },
@@ -102,17 +103,53 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         return 'bg-role-primary/10 text-role-primary border-role-primary/20';
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'robot') => {
+    const [uploadingImage, setUploadingImage] = useState<'logo' | 'robot' | null>(null);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'robot') => {
         if (visualsLocked && !isAdmin) return;
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file || !team) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64String = reader.result as string;
-            setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo' : 'photo']: base64String }));
-        };
-        reader.readAsDataURL(file);
+        try {
+            setUploadingImage(type);
+
+            // Import utilities
+            const { uploadImageToStorage } = await import('@/lib/supabaseData');
+            const { compressImage, validateImageFile } = await import('@/lib/imageCompression');
+
+            // Validate file
+            const validation = validateImageFile(file, 10);
+            if (!validation.valid) {
+                alert(validation.error);
+                setUploadingImage(null);
+                return;
+            }
+
+            // Compress image
+            const compressionOptions = type === 'logo'
+                ? { maxWidth: 800, maxHeight: 800, quality: 0.9, maxSizeMB: 0.5 }
+                : { maxWidth: 1920, maxHeight: 1920, quality: 0.85, maxSizeMB: 2 };
+
+            const compressedFile = await compressImage(file, compressionOptions);
+
+            // Determine path based on type
+            let path = '';
+            if (type === 'logo') {
+                const safeClub = (formData.club || 'unknown').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                path = `clubs/${safeClub}_logo_${Date.now()}`;
+            } else {
+                path = `teams/${team.id}/robot_${Date.now()}`;
+            }
+
+            // Upload to Supabase Storage
+            const publicUrl = await uploadImageToStorage(compressedFile, 'admin_uploads', path);
+            setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo' : 'photo']: publicUrl }));
+        } catch (err) {
+            console.error("Failed to upload image:", err);
+            alert("Upload failed. Please try again.");
+        } finally {
+            setUploadingImage(null);
+        }
     };
 
     const handleLockVisuals = async () => {
@@ -209,17 +246,17 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
                     <div className="relative">
-                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-[1.5rem] md:rounded-[2.5rem] bg-gradient-to-br from-role-primary to-role-secondary p-[2px] shadow-2xl">
+                        <div className="w-15 h-15 md:w-18 md:h-18 rounded-[1rem] md:rounded-[2.5rem] bg-gradient-to-br from-role-primary to-role-secondary p-[2px] shadow-2xl">
                             <div className="w-full h-full bg-card rounded-[calc(1.5rem-2px)] md:rounded-[calc(2.5rem-2px)] flex items-center justify-center">
                                 <User className="text-role-primary w-6 h-6 md:w-8 md:h-8" />
                             </div>
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tighter uppercase leading-none mb-1 md:mb-2">Team Profile</h1>
-                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Identity & Hardware Specs</p>
+                        <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tighter uppercase italic leading-none mb-1 md:mb-2">Team Profile</h1>
+                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-muted-foreground font-bold">Identity & Hardware Specs</p>
                     </div>
                 </div>
 
@@ -243,9 +280,9 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                 if (isEditing) handleSaveProfile();
                                 else setIsEditing(true);
                             }}
-                            className={`min-h-[44px] flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg ${isEditing
+                            className={`min-h-[44px] flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg hover:scale-105 active:scale-95 ${isEditing
                                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20'
-                                : 'bg-gradient-to-r from-role-primary to-role-secondary text-white shadow-role-primary/20 hover:scale-105 active:scale-95'}`}
+                                : 'bg-gradient-to-r from-role-primary to-role-secondary text-white shadow-role-primary/20'}`}
                         >
                             {isEditing ? <CheckCircle size={14} /> : <Settings size={14} />}
                             {isEditing ? 'Save Changes' : 'Edit Specs'}
@@ -277,9 +314,17 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                             {(!visualsLocked || isAdmin) && isEditing && (
                                 <button
                                     onClick={() => robotInputRef.current?.click()}
-                                    className="absolute bottom-6 right-6 p-4 bg-role-primary text-white rounded-2xl shadow-xl hover:scale-110 transition-all"
+                                    disabled={uploadingImage === 'robot'}
+                                    className={`absolute bottom-6 right-6 p-4 rounded-2xl shadow-xl transition-all ${uploadingImage === 'robot'
+                                        ? 'bg-role-primary/50 cursor-wait'
+                                        : 'bg-role-primary text-white hover:scale-110'
+                                        }`}
                                 >
-                                    <Camera size={18} />
+                                    {uploadingImage === 'robot' ? (
+                                        <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <Camera size={18} />
+                                    )}
                                 </button>
                             )}
 
@@ -311,9 +356,17 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                     {(!visualsLocked || isAdmin) && isEditing && (
                                         <button
                                             onClick={() => logoInputRef.current?.click()}
-                                            className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center text-white"
+                                            disabled={uploadingImage === 'logo'}
+                                            className={`absolute inset-0 flex items-center justify-center text-white transition-opacity ${uploadingImage === 'logo'
+                                                    ? 'bg-black/60 opacity-100'
+                                                    : 'bg-black/40 opacity-0 group-hover/logo:opacity-100'
+                                                }`}
                                         >
-                                            <Upload size={14} />
+                                            {uploadingImage === 'logo' ? (
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Upload size={14} />
+                                            )}
                                         </button>
                                     )}
                                 </div>
@@ -390,16 +443,13 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                     <div className="md:col-span-2 space-y-2">
                                         <label className="text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-60 ml-1">Mission Protocol</label>
                                         {isEditing ? (
-                                            <select
+                                            <CustomSelector
+                                                variant="block"
+                                                fullWidth
+                                                options={availableCompetitions.map(c => ({ value: c.id, label: c.name }))}
                                                 value={formData.competition}
-                                                onChange={(e) => setFormData({ ...formData, competition: e.target.value })}
-                                                className="w-full px-5 py-3 bg-muted/30 border border-role-primary/30 rounded-xl text-sm font-bold text-foreground"
-                                            >
-                                                <option value="" disabled>Select Protocol</option>
-                                                {availableCompetitions.map((comp) => (
-                                                    <option key={comp.id} value={comp.id}>{comp.name}</option>
-                                                ))}
-                                            </select>
+                                                onChange={(val) => setFormData({ ...formData, competition: val })}
+                                            />
                                         ) : (
                                             <div className={`w-fit px-4 py-2 rounded-xl font-black uppercase text-xs tracking-widest border ${getCompetitionDisplayColor(formData.competition)}`}>
                                                 {availableCompetitions.find(c => c.id === formData.competition)?.name ||

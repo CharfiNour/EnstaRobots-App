@@ -28,7 +28,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
         const fetchCompetitions = async () => {
             const { data } = await supabase
                 .from('competitions')
-                .select('id, name')
+                .select('id, name, type')
                 .order('name');
 
             if (data) {
@@ -36,6 +36,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                 const mapped = data.map((c: any) => ({
                     id: c.id, // UUID
                     name: c.name,
+                    type: c.type,
                     color: getCompetitionColor(c.name)
                 }));
                 setCompetitions(mapped);
@@ -235,7 +236,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
                             </div>
                             <div className="flex flex-col gap-3">
                                 {clubTeams.map((team, idx) => {
-                                    const compConfig = competitions.find((c: any) => c.id === team.competition);
+                                    const compConfig = competitions.find((c: any) => c.id === team.competition || c.type === team.competition);
                                     return (
                                         <motion.div
                                             key={team.id}

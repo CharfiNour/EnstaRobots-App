@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, Activity, Zap } from 'lucide-react';
-import { TeamDashboardMatch } from '../types';
+// Unused import removed
 
 interface MissionScheduleProps {
     isLive: boolean;
@@ -48,16 +48,33 @@ export default function MissionSchedule({ isLive, currentTeam, nextTeam, current
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl italic ${isLive ? 'bg-background text-foreground' : 'bg-card/50 text-muted-foreground'}`}>
-                            {currentTeam?.order || '--'}
+                        {/* Logo Slot */}
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-black text-xl italic overflow-hidden relative border border-white/10 ${isLive ? 'bg-background text-foreground' : 'bg-card/50 text-muted-foreground'}`}>
+                            {isLive && currentTeam?.logo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={currentTeam.logo} alt={currentTeam.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <span>{currentTeam?.order || '--'}</span>
+                            )}
                         </div>
-                        <div className="min-w-0">
+
+                        <div className="min-w-0 flex-1">
                             <p className={`text-lg font-black uppercase italic truncate ${isLive ? 'text-foreground' : 'text-muted-foreground'}`}>
                                 {isLive ? (currentTeam?.robotName || currentTeam?.name || 'In Progress') : 'Standby'}
                             </p>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
-                                {isLive ? (currentTeam?.club || 'Arena Node') : 'Scanning for signal...'}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-80">
+                                    {isLive ? (currentTeam?.club || 'Club Unknown') : 'Scanning...'}
+                                </p>
+                                {isLive && currentTeam?.university && (
+                                    <>
+                                        <span className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+                                            {currentTeam.university}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {isMyTurn && <div className="mt-4 py-2 bg-role-primary text-white text-center rounded-xl text-[10px] font-black uppercase tracking-widest">Your Mission is Live</div>}
@@ -71,16 +88,33 @@ export default function MissionSchedule({ isLive, currentTeam, nextTeam, current
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl italic ${isLive ? 'bg-background text-foreground' : 'bg-card/50 text-muted-foreground'}`}>
-                            {nextTeam?.order || '--'}
+                        {/* Logo Slot */}
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-black text-xl italic overflow-hidden relative border border-white/10 ${isLive ? 'bg-background text-foreground' : 'bg-card/50 text-muted-foreground'}`}>
+                            {isLive && nextTeam?.logo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={nextTeam.logo} alt={nextTeam.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <span>{nextTeam?.order || '--'}</span>
+                            )}
                         </div>
-                        <div className="min-w-0">
+
+                        <div className="min-w-0 flex-1">
                             <p className={`text-lg font-black uppercase italic truncate ${isLive ? 'text-foreground' : 'text-muted-foreground'}`}>
                                 {isLive ? (nextTeam?.robotName || nextTeam?.name || 'Awaiting') : 'Queued'}
                             </p>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
-                                {isLive ? (nextTeam?.club || 'Standby Node') : 'Timeline locked'}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-80">
+                                    {isLive ? (nextTeam?.club || 'Club Unknown') : 'Timeline Locked'}
+                                </p>
+                                {isLive && nextTeam?.university && (
+                                    <>
+                                        <span className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+                                            {nextTeam.university}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {isNext && <div className="mt-4 py-2 bg-role-secondary text-white text-center rounded-xl text-[10px] font-black uppercase tracking-widest">Report to Arena Soon</div>}

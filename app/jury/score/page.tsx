@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Loader2, CheckCircle, Info
+    Loader2, CheckCircle, Info, ClipboardCheck, Target
 } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -95,7 +95,8 @@ export default function ScoreCardPage() {
         // Sync Live State
         const syncState = () => {
             const state = getCompetitionState();
-            const liveSess = state.liveSessions[competition.id];
+            const stateLiveSessions = state.liveSessions || {};
+            const liveSess = stateLiveSessions[competition.id];
             const isCompLive = !!liveSess;
 
             setIsLive(isCompLive);
@@ -160,7 +161,7 @@ export default function ScoreCardPage() {
 
         // 1. Identify all matches for this competition type + phase
         const relevantScores = allScores.filter(s => {
-            const isMatchComp = s.competitionType === competition.id || competitionsFromSupabase.find(c => c.id === s.competitionType)?.type === competition.id;
+            const isMatchComp = s.competitionType === competition.id || competitionsFromSupabase.find((c: any) => c.id === s.competitionType)?.type === competition.id;
             return isMatchComp && s.phase === globalPhase && s.matchId;
         });
 
@@ -617,13 +618,21 @@ export default function ScoreCardPage() {
         <div className="min-h-screen py-8">
             <div className="container mx-auto px-4 max-w-2xl">
                 {/* Tactical Header */}
-                <div className="mb-10">
-                    <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none mb-2">
-                        Score Management
-                    </h1>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-role-primary opacity-60">
-                        Tactical Performance Entry & Registry Sync
-                    </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center shadow-2xl shadow-role-primary/40 ring-1 ring-white/20">
+                            <ClipboardCheck className="w-8 h-8 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none mb-2">
+                                Score Management
+                            </h1>
+                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">
+                                <Target size={14} className="text-role-primary" />
+                                Tactical Performance Entry & Registry Sync
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Header Actions */}

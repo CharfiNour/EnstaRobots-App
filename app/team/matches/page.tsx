@@ -9,9 +9,10 @@ import {
 } from './components';
 import { useMatchesPage } from './hooks/useMatchesPage';
 import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
+import { getCompetitionName } from '@/lib/constants';
 
 export default function TeamMatchesPage() {
-    const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive } = useMatchesPage();
+    const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive, competitions } = useMatchesPage();
 
     if (loading) {
         return (
@@ -25,7 +26,7 @@ export default function TeamMatchesPage() {
         <div className="min-h-screen py-10 px-6">
             <div className="container mx-auto max-w-7xl">
                 <MatchesHeader
-                    competitionName={teamData?.competition?.replace(/_/g, ' ') || 'Competition'}
+                    competitionName={getCompetitionName(teamData?.competition, competitions)}
                     teamName={teamData?.name || 'My Unit'}
                 />
 
@@ -34,7 +35,7 @@ export default function TeamMatchesPage() {
                     <div className="lg:col-span-8 space-y-8">
                         <RobotModelView
                             imageUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/maquette-junior.jpg' : '/suiveur.jpg'}
-                            competitionName={teamData?.competition?.replace(/_/g, ' ') || "TRACK SCHEMATIC"}
+                            competitionName={getCompetitionName(teamData?.competition, competitions)}
                             maquetteUrl={teamData?.competition?.toLowerCase().includes('junior') ? '/maquette-junior.jpg' : undefined}
                         />
 

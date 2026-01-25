@@ -85,6 +85,21 @@ export function getCategoryMetadata(categoryOrId: string) {
     return COMPETITION_CATEGORIES.find(c => c.id === categoryOrId || c.type === categoryOrId);
 }
 
+export function getCompetitionName(idOrSlug: string | undefined, dbComps: any[] = []): string {
+    if (!idOrSlug) return 'Not Assigned';
+
+    // 1. Check local standard categories
+    const localMatch = getCategoryMetadata(idOrSlug);
+    if (localMatch) return localMatch.name;
+
+    // 2. Check provided DB competitions (for UUID lookups)
+    const dbMatch = dbComps.find(c => c.id === idOrSlug || c.type === idOrSlug);
+    if (dbMatch) return dbMatch.name;
+
+    // 3. Fallback: formatted slug
+    return idOrSlug.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 export const STATUS_OPTIONS = [
     { value: 'winner', label: 'Winner', color: 'text-yellow-600 dark:text-yellow-400' },
     { value: 'qualified', label: 'Qualified', color: 'text-blue-600 dark:text-blue-400' },

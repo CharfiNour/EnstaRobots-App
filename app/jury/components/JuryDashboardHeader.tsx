@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Gavel, Activity, ShieldCheck } from 'lucide-react';
+import { Shield, Activity, ShieldCheck } from 'lucide-react';
 
 interface JuryDashboardHeaderProps {
     judgeName?: string;
@@ -14,26 +14,25 @@ export default function JuryDashboardHeader({ judgeName }: JuryDashboardHeaderPr
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
             >
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-role-primary flex items-center justify-center text-white shadow-lg shadow-role-primary/30">
-                        <Gavel size={20} />
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-role-primary to-role-secondary flex items-center justify-center text-white shadow-2xl shadow-role-primary/40 ring-1 ring-white/20">
+                        <Shield size={25} strokeWidth={2.5} />
                     </div>
                     <div>
                         <h1 className="text-3xl font-extrabold text-foreground tracking-tighter uppercase italic leading-none">
                             Jury Console
                         </h1>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-role-primary mt-1 pl-0.5">Tactical Oversight</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 pl-0.5">
-                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-role-primary/10 rounded-lg border border-role-primary/20">
-                        <ShieldCheck size={12} className="text-role-primary" />
-                        <span className="text-[9px] font-black uppercase text-foreground">{judgeName || 'Official Observer'}</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-role-primary/10 rounded-xl border border-role-primary/20 shadow-sm">
+                        <ShieldCheck size={14} className="text-role-primary" />
+                        <span className="text-[11px] font-black uppercase text-muted-foreground">{judgeName || 'Official Observer'}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[9px] font-black uppercase text-emerald-500">Link: Active</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-sm">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[11px] font-black uppercase text-emerald-500">Link: Active</span>
                     </div>
                 </div>
             </motion.div>
