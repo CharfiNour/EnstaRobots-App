@@ -12,7 +12,7 @@ import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
 import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP } from '@/lib/constants';
+import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP } from '@/lib/constants';
 import DrawInterface from './DrawInterface';
 
 const COMPETITION_CATEGORIES = GLOBAL_CATEGORIES;
@@ -25,6 +25,42 @@ interface ScoreHistoryViewProps {
     lockedCompetitionId?: string;
     teamId?: string;
     isJury?: boolean;
+}
+
+/**
+ * HELPER: Robustly resolve any competition identifier to a canonical slug
+ */
+function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): string {
+    if (!id) return '';
+    const norm = String(id).toLowerCase().trim();
+
+    // 0. Pre-emptive check: Known Slugs
+    const knownSlugs = ['junior_line_follower', 'junior_all_terrain', 'line_follower', 'all_terrain', 'fight'];
+    if (knownSlugs.includes(norm)) return norm;
+
+    // 1. UUID Map (Production Database IDs)
+    if (UUID_MAP[norm]) return UUID_MAP[norm];
+
+    // 2. Check Database records if available
+    const db = (dbComps || []).find(c =>
+        (c.id && String(c.id).toLowerCase() === norm) ||
+        (c.type && String(c.type).toLowerCase() === norm)
+    );
+    if (db?.type) return db.type;
+
+    // 2. Check local categories (Slugs)
+    const local = GLOBAL_CATEGORIES.find(c =>
+        (c.id && String(c.id).toLowerCase() === norm) ||
+        (c.type && String(c.type).toLowerCase() === norm)
+    );
+    if (local) return local.type;
+
+    // 3. LEGACY Map fallback
+    for (const [slug, legacyId] of Object.entries(LEGACY_ID_MAP)) {
+        if (String(legacyId).toLowerCase() === norm || String(slug).toLowerCase() === norm) return slug.toLowerCase();
+    }
+
+    return norm.toLowerCase();
 }
 
 export default function ScoreHistoryView({
@@ -54,10 +90,23 @@ export default function ScoreHistoryView({
     const [allTeams, setAllTeams] = useState<any[]>([]);
     const [drawState, setDrawState] = useState<'idle' | 'counting' | 'success'>('idle');
     const [countdown, setCountdown] = useState<number>(3);
+    const [mounted, setMounted] = useState(false);
 
-    // Resolve slug and type from UUID or slug
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const lockedComp = useMemo(() => {
+        if (!lockedCompetitionId) return null;
+        const canonical = canonicalizeCompId(lockedCompetitionId, competitions);
+        return competitions.find(c => c.id === canonical || c.type === canonical) ||
+            COMPETITION_CATEGORIES.find(c => c.id === canonical || c.type === canonical);
+    }, [competitions, lockedCompetitionId]);
+
     const selectedCompData = useMemo(() => {
-        return competitions.find(c => c.id === selectedCompetition || c.type === selectedCompetition);
+        const canonical = canonicalizeCompId(selectedCompetition, competitions);
+        return competitions.find(c => c.id === canonical || c.type === canonical) ||
+            COMPETITION_CATEGORIES.find(c => c.id === canonical || c.type === canonical);
     }, [competitions, selectedCompetition]);
 
     const resolvedCompId = selectedCompData?.id || selectedCompetition;
@@ -79,26 +128,16 @@ export default function ScoreHistoryView({
         const competitionType = (selectedCompData?.category || selectedCompData?.type || selectedCompetition).toLowerCase();
 
         const compTeams = allTeams.filter(t => {
-            const teamComp = (t.competition || '').toLowerCase();
-            return teamComp === selectedCompetition.toLowerCase() ||
-                teamComp === competitionId.toLowerCase() ||
-                teamComp === competitionType;
+            const canonicalTComp = canonicalizeCompId(t.competition, competitions);
+            const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+            return canonicalTComp === canonicalTarget;
         });
 
-        // Deduplicate teams by ID AND Robot Name to ensure accurate bracket generation
-        const uniqueCompTeams = Array.from(
-            new Map(
-                compTeams
-                    .filter(t => !t.isPlaceholder)
-                    .map(t => [`${t.id}-${(t.robotName || t.name).toLowerCase().trim()}`, t])
-            ).values()
-        );
+        // Use a simpler map to avoid over-deduplication that might be hiding teams
+        const uniqueTeams = Array.from(new Map(compTeams.map(t => [t.id, t])).values());
 
-        // Final secondary pass to ensure robots with the same name don't get two spots if ID varies
-        return Array.from(
-            new Map(uniqueCompTeams.map(t => [(t.robotName || t.name).toLowerCase().trim(), t])).values()
-        );
-    }, [selectedCompetition, resolvedCompId, selectedCompData, allTeams]);
+        return uniqueTeams.filter(t => !t.isPlaceholder);
+    }, [selectedCompetition, competitions, allTeams, resolvedCompId, selectedCompData]);
 
     // 2. Calculate match plan preview
     const drawPlan = useMemo(() => {
@@ -136,17 +175,30 @@ export default function ScoreHistoryView({
     }, []);
 
 
-
     // Realtime Updates
     const handleScoresUpdate = async () => {
         try {
-            const [scores, teams, comps] = await Promise.all([
+            // Use allSettled to be resilient to partial connection failures on mobile
+            const results = await Promise.allSettled([
                 fetchScoresFromSupabase(),
                 fetchTeamsFromSupabase(),
                 fetchCompetitionsFromSupabase()
             ]);
+
+            const scores = results[0].status === 'fulfilled' ? results[0].value : [];
+            const teams = results[1].status === 'fulfilled' ? results[1].value : allTeams; // Fallback to current
+            const comps = results[2].status === 'fulfilled' ? results[2].value : competitions;
+
+            // Parity with Init: merge local metadata
+            const allComps = [...(comps || [])];
+            GLOBAL_CATEGORIES.forEach(localCat => {
+                if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
+                    allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
+                }
+            });
+
             const order = COMPETITION_CATEGORIES.map(c => c.id);
-            const sortedComps = (comps || []).sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+            const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
 
             setCompetitions(sortedComps);
             setAllTeams(teams);
@@ -174,14 +226,30 @@ export default function ScoreHistoryView({
         const init = async () => {
             setLoading(true);
             try {
-                const [comps, teams, scores] = await Promise.all([
-                    fetchCompetitionsFromSupabase(),
+                // Fetch remote data with individual error handling
+                const results = await Promise.allSettled([
+                    fetchScoresFromSupabase(),
                     fetchTeamsFromSupabase(),
-                    fetchScoresFromSupabase()
+                    fetchCompetitionsFromSupabase()
                 ]);
 
+                const scores = results[0].status === 'fulfilled' ? results[0].value : [];
+                const teams = results[1].status === 'fulfilled' ? results[1].value : [];
+                const comps = results[2].status === 'fulfilled' ? (results[2].value || []) : [];
+
+                if (results[1].status === 'rejected') console.warn("Teams load failed", results[1].reason);
+                if (results[2].status === 'rejected') console.warn("Comps load failed", results[2].reason);
+
+                // MERGE: Ensure we have local metadata for all categories even if DB fetch is partial
+                const allComps = [...comps];
+                GLOBAL_CATEGORIES.forEach(localCat => {
+                    if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
+                        allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
+                    }
+                });
+
                 const order = COMPETITION_CATEGORIES.map(c => c.id);
-                const sortedComps = (comps || []).sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+                const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
 
                 setCompetitions(sortedComps);
                 setAllTeams(teams);
@@ -209,33 +277,34 @@ export default function ScoreHistoryView({
 
         let allProcessedScores = Array.from(scoreMap.values());
 
-        if (isSentToTeamOnly) {
-            // Keep scores sent to team OR pending matches (the draw structure)
-            allProcessedScores = allProcessedScores.filter(s => s.isSentToTeam || (s.matchId && s.status === 'pending'));
-        }
+        // Note: isSentToTeamOnly filter removed from grouping phase 
+        // will be applied in display phase if needed, to preserve match structure.
 
         const allTeams = teamsList;
 
-        // Helper to check if a comp is match based (using provided data)
+        // Helper to check if a comp is match based
         const checkIsMatchBased = (compId: string) => {
-            if (['fight', 'all_terrain', 'junior_all_terrain'].includes(compId)) return true;
-            const comp = compsList.find((c: any) => c.id === compId || c.type === compId);
-            const category = comp?.category || comp?.type;
-            return category && ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
+            const id = (compId || '').toLowerCase();
+            if (['fight', 'all_terrain', 'junior_all_terrain', '5', '4', '2'].includes(id)) return true;
+            const comp = compsList.find((c: any) => c.id === compId || c.type === compId || c.id === id || c.type === id);
+            const category = (comp?.category || comp?.type || '').toLowerCase();
+            return ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
         };
 
         const groups: Record<string, any> = {};
 
         // 1. Process existing scores
         allProcessedScores.forEach(score => {
-            const team = allTeams.find((t: any) => t.id === score.teamId || t.code === score.teamId);
+            const team = allTeams.find((t: any) => String(t.id) === String(score.teamId) || String(t.code) === String(score.teamId));
 
-            // USE TEAM'S CURRENT COMPETITION if they have one, otherwise fallback to score competition
-            const effectiveCompId = team?.competition || score.competitionType;
-            const comp = compsList.find((c: any) => c.id === effectiveCompId || c.type === effectiveCompId);
-            const normalizedCompType = comp?.type || effectiveCompId;
+            // Resolve canonical competition slug for this score
+            const teamComp = team?.competition;
+            const scoreComp = score.competitionType;
+            const canonicalComp = canonicalizeCompId(teamComp || scoreComp, compsList);
+            console.log(`ProcessScores: Score ${score.id} (Team ${score.teamId}) -> TeamComp: '${teamComp}', ScoreComp: '${scoreComp}', Canonical: '${canonicalComp}'`);
 
-            const isMatch = checkIsMatchBased(normalizedCompType);
+
+            const isMatch = checkIsMatchBased(canonicalComp);
 
             if (isMatch && score.matchId) {
                 // Group by matchId
@@ -244,10 +313,11 @@ export default function ScoreHistoryView({
                     groups[key] = {
                         type: 'match',
                         matchId: key,
-                        competitionType: normalizedCompType,
+                        competitionType: canonicalComp,
                         participants: [],
                         latestTimestamp: 0
                     };
+                    console.log(`ProcessScores: Created new match group for key '${key}' (Comp: '${canonicalComp}')`);
                 }
 
                 let participant = groups[key].participants.find((p: any) => p.teamId === score.teamId);
@@ -258,6 +328,7 @@ export default function ScoreHistoryView({
                         submissions: []
                     };
                     groups[key].participants.push(participant);
+                    console.log(`ProcessScores: Added participant ${score.teamId} to match group '${key}'`);
                 }
                 participant.submissions.push(score);
                 if (score.timestamp > groups[key].latestTimestamp) {
@@ -265,17 +336,18 @@ export default function ScoreHistoryView({
                 }
             } else {
                 // Single team grouping
-                const groupKey = `single-${score.teamId}-${normalizedCompType}`;
+                const groupKey = `single-${score.teamId}-${canonicalComp}`;
 
                 if (!groups[groupKey]) {
                     groups[groupKey] = {
                         type: 'single',
                         teamId: score.teamId,
                         team,
-                        competitionType: normalizedCompType,
+                        competitionType: canonicalComp,
                         submissions: [],
                         latestTimestamp: 0
                     };
+                    console.log(`ProcessScores: Created new single group for key '${groupKey}' (Comp: '${canonicalComp}')`);
                 }
                 groups[groupKey].submissions.push(score);
                 if (score.timestamp > groups[groupKey].latestTimestamp) {
@@ -284,33 +356,33 @@ export default function ScoreHistoryView({
             }
         });
 
-        // 2. Inject teams with no scores
+        // 2. Inject teams with no scores to ensure they appear in the Unit Registry
         allTeams.forEach((team: any) => {
             if (!team.competition) return;
 
-            const teamCompObj = compsList.find((c: any) => c.id === team.competition || c.type === team.competition);
-            const teamCompSlug = teamCompObj?.type || team.competition;
-            const teamCompUUID = teamCompObj?.id || team.competition;
+            const canonicalComp = canonicalizeCompId(team.competition, compsList);
+            console.log(`ProcessScores: Injecting team ${team.id} (Comp: '${team.competition}') -> Canonical: '${canonicalComp}'`);
 
             const exists = Object.values(groups).some((g: any) => {
                 const gComp = g.competitionType;
-                const compMatches = gComp === teamCompSlug || gComp === teamCompUUID;
+                const compMatches = gComp === canonicalComp;
                 if (!compMatches) return false;
 
-                if (g.type === 'single') return g.teamId === team.id;
-                return g.participants.some((p: any) => p.teamId === team.id);
+                if (g.type === 'single') return String(g.teamId) === String(team.id);
+                return g.participants?.some((p: any) => String(p.teamId) === String(team.id));
             });
 
             if (!exists) {
-                const key = `injected-${team.id}-${teamCompSlug}`;
+                const key = `injected-${team.id}-${canonicalComp}`;
                 groups[key] = {
                     type: 'single',
                     teamId: team.id,
                     team,
-                    competitionType: teamCompSlug,
+                    competitionType: canonicalComp,
                     submissions: [],
                     latestTimestamp: 0
                 };
+                console.log(`ProcessScores: Injected team ${team.id} into new single group '${key}' (Comp: '${canonicalComp}')`);
             }
         });
 
@@ -364,22 +436,25 @@ export default function ScoreHistoryView({
     };
 
     const filteredGroups = useMemo(() => {
-        const targetType = selectedCompType.toLowerCase();
-        const targetId = resolvedCompId.toLowerCase();
+        // Use canonical ID for the target competition
+        const canonicalTarget = canonicalizeCompId(lockedCompetitionId || selectedCompetition || initialCompetition, competitions);
+        console.log(`FilteredGroups: Canonical target competition: '${canonicalTarget}'`);
 
         const filtered = groupedScores.filter(g => {
-            // Match slug OR UUID
-            const gComp = (g.competitionType || '').toLowerCase();
-            const matchesComp = gComp === targetType || gComp === targetId;
+            // Use canonical ID for the group's competition type
+            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+            const matchesComp = canonicalGComp === canonicalTarget;
+            console.log(`FilteredGroups: Group '${g.matchId || g.teamId}' (Comp: '${g.competitionType}' -> Canonical: '${canonicalGComp}') matches target '${canonicalTarget}': ${matchesComp}`);
 
-            // Phase filtering: 
-            const matchesPhase = selectedPhaseFilter === 'all' ||
-                (g.type === 'single' && (g.submissions?.length || 0) === 0) ||
-                (g.type === 'match' && (g.participants?.every((p: any) => p.submissions?.length === 0) || false)) ||
-                (g.type === 'single'
-                    ? g.submissions.some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())
-                    : g.participants.some((p: any) => p.submissions.some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase()))
-                );
+            // Phase filtering:
+            // 1. ALWAYS show individual teams in the sidebar registry so they can be selected/scored
+            // 2. ONLY show match groups if they belong to the selected phase (or are the match draw)
+            const matchesPhase =
+                selectedPhaseFilter === 'all' ||
+                selectedPhaseFilter === '' ||
+                g.type === 'single' || // Registry: Always show single units in sidebar
+                (g.type === 'match' && (g.participants?.every((p: any) => !(p.submissions || []).some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())) || false)) || // Draw: Show groups if no results in this phase yet
+                (g.type === 'match' && (g.participants || []).some((p: any) => (p.submissions || []).some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())));
 
             // Team ID filtering (Strict for team role)
             const matchesTeamId = !teamId || (
@@ -392,14 +467,14 @@ export default function ScoreHistoryView({
 
             if (g.type === 'match') {
                 // Search in participants
-                const matchesSearch = g.participants.some((p: any) =>
-                    p.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                const matchesSearch = (g.participants || []).some((p: any) =>
+                    (p.teamId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (p.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (p.team?.club || '').toLowerCase().includes(searchQuery.toLowerCase())
                 );
                 return matchesSearch;
             } else {
-                const matchesSearch = g.teamId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                const matchesSearch = (g.teamId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (g.competitionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (g.team?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
                 return matchesSearch;
@@ -409,23 +484,28 @@ export default function ScoreHistoryView({
         // NEW: If match-based and ANY match group exists, remove 'single' entries for this specific competition
         const hasMatchGroups = filtered.some(g => g.type === 'match');
         if (hasMatchGroups) {
-            return filtered.filter(g => g.type === 'match');
+            // ALWAYS prioritize match groups over individual teams in the "Matches" tab
+            const matchesOnly = filtered.filter(g => g.type === 'match');
+            if (matchesOnly.length > 0) return matchesOnly;
         }
 
         return filtered;
-    }, [groupedScores, searchQuery, selectedCompType, selectedPhaseFilter, resolvedCompId]);
+    }, [groupedScores, searchQuery, selectedCompType, selectedPhaseFilter, resolvedCompId, selectedCompetition, teamId, competitions]);
 
     // Synchronize selection when competition changes
     useEffect(() => {
-        // Reset specific selection states to avoid mismatching data
-        setSelectedGroup(null);
-        setSelectedTeamInGroup(null);
-        setActivePhase('');
-        setSelectedPhaseFilter(''); // Will be auto-picked by the other useEffect
+        // Only run if filtered groups actually changed or we have no selection
+        const first = filteredGroups[0];
+        if (!first) return;
 
-        if (filteredGroups.length > 0) {
-            const first = filteredGroups[0];
-            setSelectedGroup(first);
+        // Reset specific selection states to avoid mismatching data
+        setSelectedGroup((prev: any) => {
+            // Guard against resetting if already correctly selected
+            const prevId = prev?.matchId || prev?.teamId;
+            const newId = first?.matchId || first?.teamId;
+            if (prevId === newId && prev?.type === first?.type) return prev;
+
+            // If we are changing, update child states
             if (first.type === 'single') {
                 setActivePhase(first.submissions[0]?.phase || '');
                 setSelectedTeamInGroup(null);
@@ -433,8 +513,46 @@ export default function ScoreHistoryView({
                 setSelectedTeamInGroup(first.participants[0].teamId);
                 setActivePhase(first.participants[0].submissions[0]?.phase || '');
             }
+            return first;
+        });
+    }, [selectedCompetition, filteredGroups.length]);
+
+    // Live Phase & Selection Synchronization for Visitors/Jury
+    useEffect(() => {
+        if (!mounted || isAdmin) return;
+
+        const currentPhaseInDB = selectedCompData?.current_phase;
+        if (currentPhaseInDB && selectedPhaseFilter !== currentPhaseInDB) {
+            setSelectedPhaseFilter(currentPhaseInDB);
         }
-    }, [selectedCompetition]);
+
+        // Auto-select Live session for visitors
+        const liveSess = liveSessions[resolvedCompId];
+        if (liveSess) {
+            const liveGroup = groupedScores.find(g =>
+                (g.type === 'match' && g.participants?.some((p: any) => p.teamId === liveSess.teamId)) ||
+                (g.type === 'single' && g.teamId === liveSess.teamId)
+            );
+
+            if (liveGroup) {
+                // IMPORTANT: Use deep identity checks for groups
+                const selectedGroupId = selectedGroup?.matchId || selectedGroup?.teamId;
+                const liveGroupId = liveGroup.matchId || liveGroup.teamId;
+
+                if (selectedGroupId !== liveGroupId || selectedGroup?.type !== liveGroup.type) {
+                    setSelectedGroup(liveGroup);
+                }
+
+                if (liveSess.phase && activePhase !== liveSess.phase) {
+                    setActivePhase(liveSess.phase);
+                }
+
+                if (liveGroup.type === 'match' && selectedTeamInGroup !== liveSess.teamId) {
+                    setSelectedTeamInGroup(liveSess.teamId);
+                }
+            }
+        }
+    }, [selectedCompData?.current_phase, isAdmin, liveSessions, resolvedCompId, mounted, groupedScores, selectedGroup?.matchId, selectedGroup?.teamId, activePhase, selectedTeamInGroup]);
 
     // Secondary sync for phase filter and internal selection
     useEffect(() => {
@@ -534,7 +652,7 @@ export default function ScoreHistoryView({
     }
 
     const currentScore = currentScoreGroup?.submissions?.find((s: any) => s.phase === activePhase) || currentScoreGroup?.submissions?.[0] || null;
-    const lockedComp = lockedCompetitionId ? COMPETITION_CATEGORIES.find(c => c.id === lockedCompetitionId) : null;
+    // lockedComp is already defined at the top via useMemo
 
     const handleSelectTeam = (group: any, teamId?: string) => {
         setDrawState('idle'); // Clear any draw success message
@@ -765,8 +883,8 @@ export default function ScoreHistoryView({
     return (
         <div className="flex flex-col lg:flex-row gap-8 w-full">
             {/* Sidebar: Tactical Log List */}
-            <div className={`w-full lg:w-80 flex-col shrink-0 h-[600px] lg:h-[650px] ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'}`}>
-                <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-4 flex flex-col h-full overflow-hidden">
+            <div className={`w-full lg:w-80 flex-col shrink-0 ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'} h-[calc(100vh-230px)] lg:h-[650px]`}>
+                <div className="bg-white/50 backdrop-blur-xl border border-card-border rounded-[2rem] p-4 lg:p-5 shadow-xl shadow-black/5 space-y-4 flex flex-col h-full overflow-hidden">
                     {/* Admin Maintenance Actions */}
                     {isAdmin && (
                         <div className="flex flex-col gap-2 mb-2">
@@ -784,13 +902,33 @@ export default function ScoreHistoryView({
                     {showFilter && (
                         <div>
                             {lockedCompetitionId && lockedComp ? (
-                                <div className="mb-4 w-full p-4 rounded-xl border flex flex-col items-center justify-center gap-2 bg-muted/30 border-card-border shadow-inner">
-                                    <Shield className="w-6 h-6 text-role-primary" />
-                                    <span className="text-sm font-black uppercase tracking-widest text-role-primary text-center leading-tight">
-                                        {lockedComp.name}
-                                    </span>
-                                    <div className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-role-primary/10 text-role-primary border border-role-primary/20">
-                                        Official Sector
+                                <div className="mb-6">
+                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                                        <Target size={12} className="text-role-primary" />
+                                        Deployment Category
+                                    </h2>
+                                    <div className="w-full bg-role-primary/5 border border-role-primary/20 p-4 rounded-xl flex items-center justify-between group shadow-inner relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-24 h-24 bg-role-primary/10 blur-2xl rounded-full -mr-12 -mt-12 opacity-50"></div>
+                                        <div className="flex items-center gap-3 relative z-10">
+                                            <div className={`w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(var(--role-primary-rgb),0.5)] ${(() => {
+                                                const type = selectedCompData?.type || selectedCompetition;
+                                                if (type.includes('junior_line')) return 'bg-cyan-500';
+                                                if (type.includes('junior_all')) return 'bg-emerald-500';
+                                                if (type.includes('line_follower')) return 'bg-indigo-500';
+                                                if (type.includes('all_terrain')) return 'bg-orange-500';
+                                                if (type.includes('fight')) return 'bg-rose-500';
+                                                return 'bg-role-primary';
+                                            })()}`} />
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-black uppercase tracking-wider text-foreground leading-none mb-1">
+                                                    {lockedComp.name}
+                                                </span>
+                                                <span className="text-[8px] font-bold uppercase tracking-widest text-role-primary opacity-60">
+                                                    Verified Operations Sector
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <Shield size={16} className="text-role-primary opacity-40 shrink-0" />
                                     </div>
                                 </div>
                             ) : (
@@ -802,7 +940,7 @@ export default function ScoreHistoryView({
                                     <div className="relative group/custom-select">
                                         <button
                                             onClick={() => setIsCompMenuOpen(!isCompMenuOpen)}
-                                            className="w-full bg-muted/50 border border-card-border pl-4 pr-10 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider outline-none flex items-center justify-between transition-all hover:bg-muted/70 hover:border-role-primary/30"
+                                            className="w-full bg-white/60 backdrop-blur-xl border border-card-border pl-4 pr-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-wider outline-none flex items-center justify-between transition-all hover:bg-white/80 shadow-md group-hover/custom-select:shadow-accent/10"
                                         >
                                             <div className="flex items-center gap-3 truncate">
                                                 <div className={`w-2 h-2 rounded-full ${(() => {
@@ -874,17 +1012,17 @@ export default function ScoreHistoryView({
                                     <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-6 mb-3 px-1 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <Layers size={12} className="text-role-primary" />
-                                            {selectedCompetition.includes('line_follower') ? 'Session Phase' : 'Strategic Phase'}
+                                            Competition Phase
                                         </div>
                                     </h2>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1 snap-x">
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 snap-x mask-gradient-x">
                                         {allCompetitionPhases.map((phase: string) => (
                                             <button
                                                 key={phase}
                                                 onClick={() => setSelectedPhaseFilter(phase)}
-                                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap ${selectedPhaseFilter === phase
-                                                    ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20 scale-105'
-                                                    : 'bg-card/50 text-muted-foreground border-card-border/50 hover:bg-muted/50 hover:text-foreground'
+                                                className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${selectedPhaseFilter === phase
+                                                    ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
+                                                    : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
                                                     }`}
                                             >
                                                 {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
@@ -919,14 +1057,14 @@ export default function ScoreHistoryView({
                                         return (
                                             <div
                                                 key={group.matchId}
-                                                className={`rounded-xl border overflow-hidden transition-all ${groupSelected
-                                                    ? 'border-role-primary/30 bg-role-primary/5'
-                                                    : 'border-card-border bg-card'
+                                                className={`rounded-2xl border overflow-hidden transition-all duration-300 shadow-sm ${groupSelected
+                                                    ? 'border-role-primary/50 bg-role-primary/5'
+                                                    : 'border-card-border bg-white/50 hover:border-accent/20'
                                                     }`}
                                             >
                                                 {/* Match Header */}
-                                                <div className="px-3 py-2 bg-muted/30 border-b border-card-border/50 flex justify-between items-center">
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                                <div className="px-4 py-2.5 bg-accent/5 border-b border-card-border flex justify-between items-center backdrop-blur-sm">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-accent transition-colors">
                                                         GROUP {groupIndex}
                                                     </span>
                                                     <span className="text-[8px] font-mono text-muted-foreground/60">
@@ -943,29 +1081,30 @@ export default function ScoreHistoryView({
                                                             <button
                                                                 key={`${group.matchId}-${participant.teamId}`}
                                                                 onClick={() => handleSelectTeam(group, participant.teamId)}
-                                                                className={`w-full p-3 rounded-lg text-left transition-all border group relative overflow-hidden ${isTeamSelected
-                                                                    ? 'bg-role-primary/10 border-role-primary/30 shadow-sm'
-                                                                    : 'bg-card border-card-border/50 hover:bg-muted/50'
+                                                                className={`w-full p-3 rounded-xl text-left transition-all border group relative overflow-hidden ${isTeamSelected
+                                                                    ? 'bg-role-primary/20 border-role-primary/30 shadow-inner'
+                                                                    : 'bg-transparent border-transparent hover:bg-black/5'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-center gap-3 min-w-0 relative z-10">
-                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[9px] shrink-0 border transition-colors ${isTeamSelected
+                                                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center font-black text-[9px] md:text-[10px] shrink-0 border transition-colors ${isTeamSelected
                                                                         ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20'
                                                                         : 'bg-muted text-muted-foreground border-card-border'
                                                                         }`}>
-                                                                        {participant.team?.logo ? (
-                                                                            <img src={participant.team.logo} className="w-full h-full object-cover rounded-lg" alt="" />
-                                                                        ) : (
-                                                                            participant.teamId.slice(-2).toUpperCase()
-                                                                        )}
+                                                                        {participant.team?.logo ? <img src={participant.team.logo} className="w-full h-full object-cover rounded-lg" alt="" /> : (participant.teamId || "?").charAt(0).toUpperCase()}
                                                                     </div>
-                                                                    <div className="min-w-0 flex-1">
-                                                                        <div className={`font-black text-[11px] truncate uppercase ${isTeamSelected ? 'text-role-primary' : 'text-foreground'
-                                                                            }`}>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className={`text-[11px] md:text-sm font-black uppercase truncate transition-colors ${isTeamSelected ? 'text-role-primary' : 'text-foreground'}`}>
                                                                             {participant.team?.name || participant.teamId}
                                                                         </div>
-                                                                        <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
-                                                                            {participant.team?.club || 'Club Unknown'}
+                                                                        <div className="flex items-center gap-1.5 mt-0.5">
+
+                                                                            {mounted && liveSessions[resolvedCompId]?.teamId === participant.teamId && (
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                                                                                    <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Live Now</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -987,9 +1126,9 @@ export default function ScoreHistoryView({
                                         <button
                                             key={`${group.teamId}-${group.competitionType}`}
                                             onClick={() => handleSelectTeam(group)}
-                                            className={`w-full p-4 rounded-xl text-left transition-all border group relative overflow-hidden ${isSelected
-                                                ? 'bg-role-primary/10 border-role-primary/30 shadow-sm'
-                                                : 'bg-card border-card-border hover:bg-muted/50'}`}
+                                            className={`w-full p-4 rounded-2xl text-left transition-all border group relative overflow-hidden shadow-sm ${isSelected
+                                                ? 'bg-role-primary/5 border-role-primary/20'
+                                                : 'bg-white/60 border-card-border hover:bg-white/80 hover:border-accent/20'}`}
                                         >
                                             <div className="flex items-center gap-3 min-w-0 relative z-10">
                                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 border transition-colors ${isSelected ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20' : 'bg-muted text-muted-foreground border-card-border'}`}>
@@ -1007,6 +1146,7 @@ export default function ScoreHistoryView({
                                                         <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
                                                             {group.team?.club || 'Club Unknown'}
                                                         </div>
+
                                                         <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30 shrink-0" />
                                                         <div className="text-[9px] font-bold text-muted-foreground uppercase opacity-40 truncate">
                                                             {group.team?.university || 'University Unknown'}
@@ -1027,20 +1167,20 @@ export default function ScoreHistoryView({
             </div>
 
             {/* Main Content Area */}
-            <div className={`flex-1 bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center justify-center ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}`}>
+            <div className={`flex-1 bg-white/40 backdrop-blur-xl border border-card-border rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center overflow-y-auto lg:overflow-hidden ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}`}>
                 {/* Mobile Back Button */}
-                <div className="lg:hidden w-full mb-6">
+                <div className="lg:hidden w-full mb-4">
                     <button
                         onClick={() => setMobileView('list')}
-                        className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-md border border-card-border text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all shadow-sm mb-2 group active:scale-95"
                     >
-                        <ChevronLeft size={16} />
-                        Back to Unit List
+                        <ChevronLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                        Back to Unit Registry
                     </button>
-                </div>
+                </div >
 
                 <AnimatePresence mode="wait">
-                    {((isAdmin || isJury || !!lockedCompetitionId) && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
+                    {((isAdmin || isJury) && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
                         <DrawInterface
                             drawState={drawState}
                             countdown={countdown}
@@ -1078,8 +1218,8 @@ export default function ScoreHistoryView({
                         </div>
                     )}
                 </AnimatePresence>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
 

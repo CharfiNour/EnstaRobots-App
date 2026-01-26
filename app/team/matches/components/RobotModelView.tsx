@@ -42,19 +42,6 @@ export default function RobotModelView({ imageUrl, competitionName, maquetteUrl 
                 </div>
 
                 <div className="absolute bottom-6 right-6 z-10 flex flex-col gap-2">
-                    {maquetteUrl && (
-                        <button
-                            onClick={() => setShowMaquette(!showMaquette)}
-                            className={`w-12 h-12 rounded-xl backdrop-blur-md border flex items-center justify-center transition-all cursor-pointer group/btn shadow-xl ${showMaquette
-                                ? 'bg-role-primary/80 border-role-primary/50'
-                                : 'bg-black/60 border-white/10 hover:bg-role-primary/20'
-                                }`}
-                            title={showMaquette ? "Show Track Schematic" : "Show Robot Mockup"}
-                        >
-                            <FileText className={`w-6 h-6 transition-transform group-hover/btn:scale-110 ${showMaquette ? 'text-white' : 'text-role-primary'
-                                }`} />
-                        </button>
-                    )}
                     <button
                         onClick={() => setIsExpanded(true)}
                         className="w-12 h-12 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-role-primary/20 transition-all cursor-pointer group/btn shadow-xl"

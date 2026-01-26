@@ -36,7 +36,7 @@ export default function HomePage() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto font-medium">
-              The ultimate robotics competition. Track rankings, explore categories, and witness innovation in action.
+              The ultimate robotics competition. Explore categories, track live scores, and witness innovation in action.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

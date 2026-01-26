@@ -14,7 +14,6 @@ export const navConfig: Record<UserRole, NavItem[]> = {
         { name: 'Home', href: '/', icon: 'Home' },
         { name: 'Score', href: '/score', icon: 'History' },
         { name: 'Announcements', href: '/announcements', icon: 'Bell' },
-        { name: 'Rankings', href: '/rankings', icon: 'BarChart2' },
         { name: 'Competitions', href: '/competitions', icon: 'Trophy' },
     ],
     team: [
@@ -32,7 +31,6 @@ export const navConfig: Record<UserRole, NavItem[]> = {
         { name: 'Matches', href: '/admin/matches', icon: 'Calendar' },
         { name: 'Scores', href: '/admin/scores', icon: 'History' },
         { name: 'Teams', href: '/admin/teams', icon: 'Users' },
-        { name: 'Rankings', href: '/rankings', icon: 'BarChart2' },
     ],
 };
 
@@ -41,7 +39,6 @@ export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]
     visitor: [
         { name: 'Score', href: '/score' },
         { name: 'Announcements', href: '/announcements' },
-        { name: 'Rankings', href: '/rankings' },
         { name: 'Competitions', href: '/competitions' },
     ],
     team: [
@@ -59,6 +56,5 @@ export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]
         { name: 'Matches', href: '/admin/matches' },
         { name: 'Scores', href: '/admin/scores' },
         { name: 'Teams', href: '/admin/teams' },
-        { name: 'Rankings', href: '/rankings' },
     ],
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Loader2, CheckCircle, Info, ClipboardCheck, Target
@@ -27,18 +27,46 @@ import {
     STATUS_OPTIONS,
     generateId,
     getPhasesForCategory,
-    getCategoryMetadata
+    getCategoryMetadata,
+    LEGACY_ID_MAP
 } from '@/lib/constants';
 import { TeamScoreEntry } from '../types';
+
+const isLineFollower = (compId: string) => compId.includes('line_follower');
+
+/**
+ * HELPER: Robustly resolve any competition identifier to a canonical slug
+ */
+function canonicalizeCompId(id: string | undefined, dbComps: any[] = []): string {
+    if (!id) return '';
+    const norm = id.toLowerCase().trim();
+
+    // 1. Check local categories first (Slugs)
+    const local = COMPETITION_CATEGORIES.find(c => c.id === norm || c.type === norm);
+    if (local) return local.type;
+
+    // 2. Check Database records if available
+    const db = (dbComps || []).find(c => (c.id || '').toLowerCase() === norm || (c.type || '').toLowerCase() === norm);
+    if (db?.type) return db.type;
+
+    // 3. LEGACY Map fallback
+    for (const [slug, legacyId] of Object.entries(LEGACY_ID_MAP)) {
+        if (legacyId === norm || slug === norm) return slug;
+    }
+
+    return norm;
+}
 
 export default function ScoreCardPage() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [stopping, setStopping] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
     const [success, setSuccess] = useState(false);
     const [showCompList, setShowCompList] = useState(false);
     const router = useRouter();
+    const liveActionLock = useRef(false);
 
     // Juries
     const [jury1, setJury1] = useState('');
@@ -99,17 +127,17 @@ export default function ScoreCardPage() {
             const liveSess = stateLiveSessions[competition.id];
             const isCompLive = !!liveSess;
 
-            setIsLive(isCompLive);
+            setIsLive(prev => prev === isCompLive ? prev : isCompLive);
 
             if (isCompLive && liveSess.teamId) {
                 setTeams(prev => {
                     if (prev[0] && prev[0].id === liveSess.teamId) return prev;
+                    if (!prev[0]) return [{ id: liveSess.teamId, phase: liveSess.phase || 'Essay 1' }];
+
                     const copy = [...prev];
-                    if (copy[0]) {
-                        copy[0].id = liveSess.teamId;
-                        return copy;
-                    }
-                    return prev;
+                    copy[0] = { ...copy[0], id: liveSess.teamId };
+                    if (liveSess.phase) copy[0].phase = liveSess.phase;
+                    return copy;
                 });
             }
         };
@@ -130,11 +158,15 @@ export default function ScoreCardPage() {
             window.removeEventListener('competition-state-updated', syncState);
             window.removeEventListener('storage', syncState);
         };
-    }, [competition.id]);
+    }, [competition.id, competition.type]);
 
     const handleRealtimeUpdate = async () => {
+        // If we are actively starting/stopping a match, ignore background syncs 
+        // to avoid the "flinch" (old state overwriting local state via Supabase)
+        if (liveActionLock.current) return;
+
         const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions }, false);
+        await updateCompetitionState({ liveSessions: sessions }, false);
     };
 
     const handleTeamsUpdate = async () => {
@@ -161,8 +193,9 @@ export default function ScoreCardPage() {
 
         // 1. Identify all matches for this competition type + phase
         const relevantScores = allScores.filter(s => {
-            const isMatchComp = s.competitionType === competition.id || competitionsFromSupabase.find((c: any) => c.id === s.competitionType)?.type === competition.id;
-            return isMatchComp && s.phase === globalPhase && s.matchId;
+            const scoreComp = canonicalizeCompId(s.competitionType, competitionsFromSupabase);
+            const targetComp = canonicalizeCompId(competition.id, competitionsFromSupabase);
+            return scoreComp === targetComp && s.phase === globalPhase && s.matchId;
         });
 
         // 2. Group by matchId and track latest timestamp and participant count
@@ -230,9 +263,13 @@ export default function ScoreCardPage() {
 
         const filtered = allTeams.filter(t => {
             if (!t.competition) return false;
-            const comp = competitionsFromSupabase.find((c: any) => c.id === t.competition);
-            const teamCategory = comp ? comp.type : t.competition;
-            if (teamCategory !== competition.id) return false;
+
+            // USE CANONICAL RESOLUTION: 
+            // Avoid failing if t.competition is UUID and competition.id is Slug
+            const teamCategory = canonicalizeCompId(t.competition, competitionsFromSupabase);
+            const targetCategory = canonicalizeCompId(competition.id, competitionsFromSupabase);
+
+            if (teamCategory !== targetCategory) return false;
 
             // Apply group filter for non-line-follower
             if (!isLineFollower && groupData) {
@@ -244,9 +281,15 @@ export default function ScoreCardPage() {
 
         // For non-line-follower: Auto-add all teams from the group
         if (!isLineFollower && groupData && groupData.teamIds.length > 0) {
-            const groupTeams = groupData.teamIds.map((tId: string) => ({ id: tId, status: 'qualified' }));
-            setTeams(groupTeams as any);
-            setNumberOfTeams(groupData.teamIds.length);
+            const currentIds = teams.map(t => t.id);
+            if (JSON.stringify(currentIds) !== JSON.stringify(groupData.teamIds)) {
+                const groupTeams = groupData.teamIds.map((tId: string) => ({
+                    id: tId,
+                    status: teams.find(t => t.id === tId)?.status || 'qualified'
+                }));
+                setTeams(groupTeams as any);
+                setNumberOfTeams(groupData.teamIds.length);
+            }
         }
 
         // For line-follower: Pre-fill first team if empty
@@ -269,7 +312,7 @@ export default function ScoreCardPage() {
                 setTeams(newTeams);
             }
         }
-    }, [competition, allTeams, isLive, isLineFollower, competitionsFromSupabase, selectedGroup, availableGroupsMap]);
+    }, [competition, allTeams, isLive, isLineFollower, competitionsFromSupabase, selectedGroup, availableGroupsMap, teams[0]?.id, teams[0]?.phase]);
 
     useEffect(() => {
         const currentSession = getSession();
@@ -393,27 +436,54 @@ export default function ScoreCardPage() {
         }
     };
 
-    const handleStartMatch = () => {
+    const [starting, setStarting] = useState(false);
+
+    const handleStartMatch = async () => {
         // Find current team ID being scored (first input team)
         const activeTeamId = teams[0].id;
         if (activeTeamId) {
-            setIsLive(true);
-            const phase = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
-            startLiveSession(activeTeamId, competition.id, phase);
+            setStarting(true);
+            liveActionLock.current = true;
+            try {
+                const phase = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
+                await startLiveSession(activeTeamId, competition.id, phase);
+                setIsLive(true);
+            } catch (err) {
+                console.error("Failed to start session:", err);
+                alert("Could not start live session. Please try again.");
+            } finally {
+                setStarting(false);
+                // Give some buffer for the database update to propagate
+                setTimeout(() => { liveActionLock.current = false; }, 2000);
+            }
         } else {
             alert("Please select a team or ensure teams are loaded.");
         }
     };
 
-    const handleEndMatch = () => {
-        // Mark the current phase as completed on the public board
-        const currentPhaseVal = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
-        const phaseLabel = competitionPhases.find(p => p === currentPhaseVal) || currentPhaseVal;
+    const handleEndMatch = async () => {
+        setStopping(true);
+        liveActionLock.current = true;
+        try {
+            // Mark the current phase as completed on the public board
+            const currentPhaseVal = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
+            const phaseLabel = competitionPhases.find(p => p === currentPhaseVal) || currentPhaseVal;
 
-        updateCompetitionStatusToSupabase(competition.id || competition.id, `${phaseLabel} Completed`);
+            await updateCompetitionStatusToSupabase(competition.id, `${phaseLabel} Completed`);
 
-        stopLiveSession(competition.id);
-        setIsLive(false);
+            await stopLiveSession(competition.id);
+            setIsLive(false);
+        } catch (err) {
+            console.error("Failed to stop session:", err);
+            alert("Could not finalize session in database. Local state cleared.");
+            // Still stop local state as fallback
+            await stopLiveSession(competition.id);
+            setIsLive(false);
+        } finally {
+            setStopping(false);
+            // Give some buffer for the database update to propagate
+            setTimeout(() => { liveActionLock.current = false; }, 2000);
+        }
     };
 
     const handleTeamChange = (index: number, field: string, value: string) => {
@@ -448,37 +518,39 @@ export default function ScoreCardPage() {
     };
 
 
-    // Check if a phase has already been submitted for a team
     const isPhaseSubmitted = useCallback((teamId: string, phase: string): boolean => {
-        if (!teamId.trim()) return false;
+        if (!teamId || !phase) return false;
 
-        const normComp = competition.id.toLowerCase();
-        const normPhase = phase.toLowerCase();
+        const normComp = (competition?.id || '').toLowerCase();
+        const normPhase = (phase || '').toLowerCase();
+
+        if (!normComp || !normPhase) return false;
 
         // 1. Check Offline Storage
         const offlineScores = getOfflineScores();
         const hasOffline = offlineScores.some(s =>
             s.teamId === teamId &&
-            s.competitionType.toLowerCase() === normComp &&
-            s.phase?.toLowerCase() === normPhase
+            (s.competitionType || '').toLowerCase() === normComp &&
+            (s.phase || '').toLowerCase() === normPhase
         );
         if (hasOffline) return true;
 
         // 2. Check Remote Synchronized Scores
         const hasRemote = allScores.some(s =>
-            s.team_id === teamId &&
-            (s.competition_id?.toLowerCase() === normComp) &&
-            s.phase?.toLowerCase() === normPhase
+            s.teamId === teamId &&
+            ((s.competitionType || '').toLowerCase() === normComp) &&
+            (s.phase || '').toLowerCase() === normPhase
         );
 
         return hasRemote;
-    }, [competition.id, allScores]);
+    }, [competition?.id, allScores]);
 
     // Check if ALL teams in the current group have submitted for the phase
     const isPhaseComplete = useMemo(() => {
-        if (competitionTeams.length === 0) return false;
-        return competitionTeams.every(t => isPhaseSubmitted(t.id, isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase));
-    }, [competitionTeams, globalPhase, isLineFollower, teams, competition.id]);
+        if (teams.length === 0) return false;
+        // Check if the current teams being scored have already submitted this phase
+        return teams.every(t => isPhaseSubmitted(t.id, isLineFollower ? (t.phase || 'Essay 1') : globalPhase));
+    }, [teams, globalPhase, isLineFollower, isPhaseSubmitted]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -646,6 +718,7 @@ export default function ScoreCardPage() {
                     globalPhase={globalPhase}
                     competition={competition}
                     isPhaseComplete={isPhaseComplete}
+                    submitting={submitting || stopping || starting}
                 />
 
                 {/* Competition Selector */}

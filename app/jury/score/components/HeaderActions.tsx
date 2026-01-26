@@ -13,6 +13,7 @@ interface HeaderActionsProps {
     globalPhase: string;
     competition: any;
     isPhaseComplete: boolean;
+    submitting?: boolean;
 }
 
 export default function HeaderActions({
@@ -24,47 +25,48 @@ export default function HeaderActions({
     teams,
     globalPhase,
     competition,
-    isPhaseComplete
+    isPhaseComplete,
+    submitting = false
 }: HeaderActionsProps) {
     const getColorClasses = (comp: any) => {
-        if (!comp) return { start: 'from-green-500 to-green-600', finish: 'border-green-500/20 text-green-500', dot: 'bg-green-500' };
+        if (!comp) return { start: 'from-green-500 to-green-600', finish: 'border-green-500 text-green-600 bg-green-50', dot: 'bg-green-500' };
 
         const type = comp.type || comp.id;
         switch (type) {
             case 'junior_line_follower':
                 return {
                     start: 'from-cyan-500 to-cyan-600',
-                    finish: 'border-cyan-500/20 text-cyan-500',
+                    finish: 'border-cyan-500 text-cyan-600 bg-cyan-50',
                     dot: 'bg-cyan-500'
                 };
             case 'junior_all_terrain':
                 return {
                     start: 'from-emerald-500 to-emerald-600',
-                    finish: 'border-emerald-500/20 text-emerald-500',
+                    finish: 'border-emerald-500 text-emerald-600 bg-emerald-50',
                     dot: 'bg-emerald-500'
                 };
             case 'line_follower':
                 return {
                     start: 'from-indigo-500 to-indigo-600',
-                    finish: 'border-indigo-500/20 text-indigo-500',
+                    finish: 'border-indigo-500 text-indigo-600 bg-indigo-50',
                     dot: 'bg-indigo-500'
                 };
             case 'all_terrain':
                 return {
                     start: 'from-orange-500 to-orange-600',
-                    finish: 'border-orange-500/20 text-orange-500',
+                    finish: 'border-orange-500 text-orange-600 bg-orange-50',
                     dot: 'bg-orange-500'
                 };
             case 'fight':
                 return {
                     start: 'from-rose-500 to-rose-600',
-                    finish: 'border-rose-500/20 text-rose-500',
+                    finish: 'border-rose-500 text-rose-600 bg-rose-50',
                     dot: 'bg-rose-500'
                 };
             default:
                 return {
                     start: 'from-green-500 to-green-600',
-                    finish: 'border-green-500/20 text-green-500',
+                    finish: 'border-green-500 text-green-600 bg-green-50',
                     dot: 'bg-green-500'
                 };
         }
@@ -79,9 +81,10 @@ export default function HeaderActions({
             {isLive ? (
                 <button
                     onClick={handleEndMatch}
-                    className={`flex items-center gap-3 px-6 py-2 rounded-xl bg-card border font-black uppercase tracking-widest transition-all active:scale-95 ${colors.finish}`}
+                    disabled={submitting}
+                    className={`flex items-center gap-3 px-6 py-2.5 rounded-xl border font-black uppercase tracking-widest transition-all active:scale-95 shadow-md hover:shadow-lg disabled:opacity-50 disabled:grayscale ${colors.finish}`}
                 >
-                    <div className={`w-2 h-2 rounded-full ${colors.dot} animate-pulse`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.2)]`} />
                     <span>
                         Finish {isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}
                     </span>
@@ -89,8 +92,8 @@ export default function HeaderActions({
             ) : (
                 <button
                     onClick={handleStartMatch}
-                    disabled={isPhaseComplete}
-                    className={`px-6 py-2 rounded-xl bg-gradient-to-r ${isPhaseComplete ? 'from-muted to-muted text-muted-foreground cursor-not-allowed' : `${colors.start} text-white`} font-black uppercase tracking-widest shadow-lg transition-all active:scale-95`}
+                    disabled={isPhaseComplete || submitting}
+                    className={`px-8 py-2.5 rounded-xl bg-gradient-to-r ${isPhaseComplete || submitting ? 'from-muted to-muted text-muted-foreground cursor-not-allowed grayscale' : `${colors.start} text-white hover:shadow-xl hover:-translate-y-0.5`} font-black uppercase tracking-widest shadow-lg transition-all active:scale-95`}
                 >
                     {isPhaseComplete ? 'Phase Completed' : `Start ${isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}`}
                 </button>

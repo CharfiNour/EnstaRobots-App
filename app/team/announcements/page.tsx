@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Activity } from 'lucide-react';
+import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Activity, Shield } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
+import { RegistryAlert } from '../components';
 
 // Mock data as fallback
 const FALLBACK_ANNOUNCEMENTS = [
-    { id: '1', title: 'Welcome to EnstaRobots!', message: 'Good luck to all teams competing this year. Make sure to complete your team profile to be visible on the public rankings.', type: 'success', created_at: new Date().toISOString(), competition_id: null },
+    { id: '1', title: 'Welcome to EnstaRobots!', message: 'Good luck to all teams competing this year. Make sure to complete your team profile to stay synchronized with the official live feed.', type: 'success', created_at: new Date().toISOString(), competition_id: null },
     { id: '2', title: 'Schedule Update', message: 'The opening ceremony will start at 9:00 AM tomorrow in the main hall.', type: 'info', created_at: new Date().toISOString(), competition_id: null },
 ];
 
@@ -22,18 +24,42 @@ const TYPE_CONFIG = {
 
 export default function TeamAnnouncementsPage() {
     const [session, setSession] = useState<any>(null);
+    const [teamData, setTeamData] = useState<any>(null);
     const [announcements, setAnnouncements] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
+        let isMounted = true;
         const currentSession = getSession();
+
         if (!currentSession || currentSession.role !== 'team') {
             router.push('/auth/team');
             return;
         }
-        setSession(currentSession);
-        fetchAnnouncements(currentSession);
+
+        const loadData = async () => {
+            if (isMounted) setSession(currentSession);
+
+            try {
+                // Fetch team data to check is_placeholder
+                const teams = await fetchTeamsFromSupabase('minimal');
+                const myTeam = teams.find(t => t.id === currentSession.teamId);
+
+                if (isMounted) {
+                    setTeamData(myTeam);
+                    if (myTeam && !myTeam.isPlaceholder) {
+                        await fetchAnnouncements(currentSession);
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading announcements page data:", err);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        loadData();
 
         // REAL-TIME SUBSCRIPTION
         const channel = supabase
@@ -49,16 +75,14 @@ export default function TeamAnnouncementsPage() {
             .subscribe();
 
         return () => {
+            isMounted = false;
             supabase.removeChannel(channel);
         };
     }, [router]);
 
     const fetchAnnouncements = async (activeSession?: any) => {
         const targetSession = activeSession || session || getSession();
-        if (!targetSession) {
-            setLoading(false);
-            return;
-        }
+        if (!targetSession) return;
 
         try {
             const teamComp = targetSession.competition;
@@ -100,8 +124,6 @@ export default function TeamAnnouncementsPage() {
             console.error('Core Error:', err?.message || err);
             console.groupEnd();
             setAnnouncements(FALLBACK_ANNOUNCEMENTS);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -109,6 +131,29 @@ export default function TeamAnnouncementsPage() {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="w-12 h-12 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
+    // Access Restricted for Incomplete Profiles
+    if (teamData?.isPlaceholder) {
+        return (
+            <div className="min-h-screen py-12 px-6 flex flex-col items-center justify-center">
+                <div className="max-w-md w-full text-center space-y-8">
+                    <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-amber-500/20">
+                        <motion.div
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                        >
+                            <Shield className="w-12 h-12 text-amber-500" />
+                        </motion.div>
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-foreground uppercase tracking-tight mb-3">Feed Access Restricted</h1>
+                        <p className="text-muted-foreground font-medium">Intel and announcements are restricted to verified units only. Complete the registry to sync with the global feed.</p>
+                    </div>
+                    <RegistryAlert />
+                </div>
             </div>
         );
     }

@@ -59,7 +59,7 @@ export function getCompetitionState(): CompetitionState {
     }
 }
 
-export function updateCompetitionState(updates: Partial<CompetitionState>, syncRemote: boolean = true): CompetitionState {
+export async function updateCompetitionState(updates: Partial<CompetitionState>, syncRemote: boolean = true): Promise<CompetitionState> {
     if (typeof window === 'undefined') return INITIAL_STATE;
 
     const current = getCompetitionState();
@@ -73,9 +73,11 @@ export function updateCompetitionState(updates: Partial<CompetitionState>, syncR
 
     // Sync to Supabase if liveSessions changed AND syncRemote is true
     if (updates.liveSessions && syncRemote) {
-        syncLiveStateToSupabase(newState.liveSessions).catch((err: any) =>
-            console.error("Failed to sync live state:", err)
-        );
+        try {
+            await syncLiveStateToSupabase(newState.liveSessions);
+        } catch (err: any) {
+            console.error("Failed to sync live state:", err);
+        }
     }
 
     // Dispatch event for local updates
@@ -102,7 +104,7 @@ export function toggleProfilesLock() {
     updateCompetitionState({ profilesLocked: !state.profilesLocked });
 }
 
-export function startLiveSession(teamId: string, competitionId: string, phase: string) {
+export async function startLiveSession(teamId: string, competitionId: string, phase: string) {
     const state = getCompetitionState();
     const newSessions = { ...state.liveSessions };
 
@@ -112,32 +114,38 @@ export function startLiveSession(teamId: string, competitionId: string, phase: s
         startTime: Date.now()
     };
 
-    updateCompetitionState({
+    await updateCompetitionState({
         liveSessions: newSessions
     });
 }
 
-export function stopLiveSession(competitionId?: string) {
+export async function stopLiveSession(competitionId?: string) {
     const state = getCompetitionState();
     const newSessions = { ...state.liveSessions };
+    const promises: Promise<any>[] = [];
 
     if (competitionId) {
         // Stop specific competition session
         delete newSessions[competitionId];
         // Explicitly delete from Supabase
-        deleteLiveSessionFromSupabase(competitionId).catch(err =>
-            console.error("Failed to delete session from Supabase:", err)
-        );
+        promises.push(deleteLiveSessionFromSupabase(competitionId));
     } else {
         // Stop ALL sessions (legacy behavior fallback)
         for (const key in newSessions) {
-            deleteLiveSessionFromSupabase(key).catch(() => { });
+            promises.push(deleteLiveSessionFromSupabase(key));
             delete newSessions[key];
         }
     }
 
+    // Await all deletions before local update
+    try {
+        await Promise.all(promises);
+    } catch (err) {
+        console.error("Errors during Supabase session teardown:", err);
+    }
+
     // Update local state without re-triggering global sync (avoiding redundant operations)
-    updateCompetitionState({
+    await updateCompetitionState({
         liveSessions: newSessions
     }, false);
 }

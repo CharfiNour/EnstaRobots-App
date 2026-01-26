@@ -14,7 +14,7 @@ export default function PdfViewer({ pdfUrl, title }: PdfViewerProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="flex flex-col h-[300px] bg-card border border-card-border rounded-[2rem] overflow-hidden shadow-2xl relative"
+            className="flex flex-col h-[80px] bg-card border border-card-border rounded-[2rem] overflow-hidden shadow-2xl relative"
         >
             <div className="p-5 border-b border-card-border flex items-center justify-between bg-muted/30">
                 <div className="flex items-center gap-4">

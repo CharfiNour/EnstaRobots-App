@@ -71,6 +71,14 @@ export const LEGACY_ID_MAP: Record<string, string> = {
     'fight': '5'
 };
 
+export const UUID_MAP: Record<string, string> = {
+    '60eb8fd5-867d-42ab-b8a0-cacd4515101f': 'junior_line_follower',
+    'f161dc54-6c30-4405-b142-909f4187c486': 'junior_all_terrain',
+    'ccf1d967-0071-4281-97d0-1ebc359972a4': 'line_follower',
+    '0ea82341-6b73-4418-a4b9-b040492074f6': 'all_terrain',
+    'c303ea7d-59a2-43d7-9084-b5a3c1b83811': 'fight'
+};
+
 export function getPhasesForCategory(categoryType: string): string[] {
     if (categoryType === 'line_follower' || categoryType === 'junior_line_follower') {
         return CATEGORY_PHASES.line;

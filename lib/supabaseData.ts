@@ -18,8 +18,10 @@ export async function fetchCompetitionsFromSupabase() {
         .select('id, name, type, profiles_locked, current_phase, created_at');
 
     if (error) {
-        console.error('Error fetching competitions RAW:', error);
-        console.error('Error fetching competitions MSG:', error.message || 'No message');
+        console.error('--- SUPABASE COMPS FETCH ERROR ---', {
+            code: error.code || 'N/A',
+            message: error.message || 'Network Error or Failed to Fetch'
+        });
         return [];
     }
     return data as any;
@@ -67,7 +69,10 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
         .select(selectQuery);
 
     if (error) {
-        console.error('--- SUPABASE TEAMS FETCH ERROR ---', error);
+        console.error('--- SUPABASE TEAMS FETCH ERROR ---', {
+            code: error.code || 'N/A',
+            message: error.message || 'Network Error or Failed to Fetch'
+        });
         return [];
     }
 
@@ -190,41 +195,59 @@ export async function updateClubLogoInSupabase(clubName: string, logoUrl: string
  */
 
 export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
-    const { data, error } = await supabase
-        .from('scores')
-        .select('id, match_id, team_id, competition_id, phase, time_ms, bonus_points, completed_road, knockouts, judge_points, damage_score, total_points, judge_id, status, is_sent_to_team, created_at, detailed_scores')
-        .order('created_at', { ascending: false });
+    try {
+        const [scoresResponse, compsResponse] = await Promise.all([
+            supabase.from('scores').select('*').order('created_at', { ascending: false }),
+            supabase.from('competitions').select('id, type')
+        ]);
 
-    if (error) {
-        console.error('--- SUPABASE FETCH ERROR ---');
-        console.error('Code:', error.code);
-        console.error('Message:', error.message);
-        console.error('Details:', error.details);
-        console.error('Hint:', error.hint);
-        console.error('Full Error Object:', JSON.stringify(error, null, 2));
+        if (scoresResponse.error) {
+            const err = scoresResponse.error;
+            console.error('--- SUPABASE SCORES FETCH ERROR ---', {
+                code: err.code || 'N/A',
+                message: err.message || 'Network Error or Failed to Fetch',
+                details: err.details || 'Check console network tab'
+            });
+            return [];
+        }
+
+        if (compsResponse.error) {
+            console.warn('--- SUPABASE COMPS MAP ERROR ---', compsResponse.error.message);
+            // Continue without mapping if possible, or fallback
+        }
+
+        const scores = scoresResponse.data || [];
+        const comps = compsResponse.data || [];
+
+        const compMap: Record<string, string> = {};
+        (comps as any[]).forEach(c => {
+            if (c.id && c.type) compMap[c.id] = c.type;
+        });
+
+        return scores.map((s: any) => ({
+            id: s.id || '',
+            matchId: s.match_id || '',
+            teamId: s.team_id || '',
+            competitionType: (s.competition_id ? compMap[s.competition_id] : '') || s.competition_id || '',
+            phase: s.phase || '',
+            timeMs: s.time_ms ?? undefined,
+            bonusPoints: s.bonus_points ?? undefined,
+            completedRoad: s.completed_road ?? undefined,
+            knockouts: s.knockouts ?? undefined,
+            juryPoints: s.judge_points ?? undefined,
+            damageScore: s.damage_score ?? undefined,
+            totalPoints: s.total_points || 0,
+            detailedScores: s.detailed_scores as Record<string, number> | undefined,
+            juryId: s.judge_id || '',
+            timestamp: new Date(s.created_at || Date.now()).getTime(),
+            synced: true,
+            isSentToTeam: s.is_sent_to_team,
+            status: s.status || undefined
+        }));
+    } catch (e: any) {
+        console.error("Critical error in fetchScoresFromSupabase:", e.message || e);
         return [];
     }
-
-    return (data || []).map((s: any) => ({
-        id: s.id,
-        matchId: s.match_id || '',
-        teamId: s.team_id,
-        competitionType: s.competition_id || '',
-        phase: s.phase || '',
-        timeMs: s.time_ms ?? undefined,
-        bonusPoints: s.bonus_points ?? undefined,
-        completedRoad: s.completed_road ?? undefined,
-        knockouts: s.knockouts ?? undefined,
-        juryPoints: s.judge_points ?? undefined,
-        damageScore: s.damage_score ?? undefined,
-        totalPoints: s.total_points,
-        detailedScores: s.detailed_scores as Record<string, number> | undefined,
-        juryId: s.judge_id || '',
-        timestamp: new Date(s.created_at || Date.now()).getTime(),
-        synced: true,
-        isSentToTeam: s.is_sent_to_team,
-        status: s.status || undefined
-    }));
 }
 
 export async function pushScoreToSupabase(score: OfflineScore) {
@@ -323,19 +346,19 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetCompId);
 
             if (!isUuid) {
-                // It's likely a slug (e.g., 'line_follower'), resolve to UUID
-                const { data: comp } = await supabase
+                // Resolution: check 'type' (slug) first, then 'name'
+                const { data } = await (supabase
                     .from('competitions')
                     .select('id')
-                    .or(`id.eq.${targetCompId},type.eq.${targetCompId}`)
-                    .single();
+                    .or(`id.eq.${targetCompId},type.eq.${targetCompId},name.ilike.${targetCompId}`)
+                    .limit(1) as any);
+
+                const comp = data && data.length > 0 ? data[0] : null;
 
                 if (comp) {
                     targetCompId = comp.id;
                 } else {
                     console.warn(`Could not resolve competition ID for slug: ${targetCompId}. Attempting to use slug as ID.`);
-                    // Fallback: Use the slug itself. If the DB requires UUID, this will fail in the upsert below,
-                    // but if the DB is text, it will work.
                 }
             }
 
@@ -367,14 +390,44 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
 
 export async function deleteLiveSessionFromSupabase(competitionId: string) {
     try {
-        const { error } = await supabase
+        let uuidToDelete = '';
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(competitionId);
+
+        if (isUuid) {
+            uuidToDelete = competitionId;
+        } else {
+            // Resolve slug to UUID
+            const { data } = await (supabase
+                .from('competitions')
+                .select('id')
+                .or(`id.eq.${competitionId},type.eq.${competitionId}`)
+                .limit(1) as any);
+
+            if (data && data.length > 0) {
+                uuidToDelete = data[0].id;
+            }
+        }
+
+        // Delete using the resolved UUID if found
+        if (uuidToDelete) {
+            const { error: uuidErr } = await supabase
+                .from('live_sessions')
+                .delete()
+                .eq('competition_id', uuidToDelete);
+
+            if (uuidErr) console.warn("Failed to delete by UUID:", uuidErr.message);
+        }
+
+        // Always attempt fallback by the exact input string as well, just in case the DB is text-based
+        const { error: textErr } = await supabase
             .from('live_sessions')
             .delete()
             .eq('competition_id', competitionId);
 
-        if (error) {
-            console.error('Error deleting live session from Supabase:', error.message, error.code);
+        if (textErr && !uuidToDelete) {
+            console.error('Error deleting live session from Supabase:', textErr.message);
         }
+
     } catch (e: any) {
         console.error("Critical error in deleteLiveSessionFromSupabase:", e?.message || e);
     }
@@ -388,36 +441,73 @@ export async function clearAllLiveSessionsFromSupabase() {
             .neq('competition_id', '00000000-0000-0000-0000-000000000001'); // Delete all
 
         if (error) {
-            console.error('Error clearing all live sessions from Supabase:', error);
+            console.error('Error clearing all live sessions from Supabase:', {
+                message: error.message,
+                code: error.code,
+                hint: error.hint
+            });
         }
-    } catch (e) {
-        console.error("Critical error in clearAllLiveSessionsFromSupabase:", e);
+    } catch (e: any) {
+        console.error("Critical error in clearAllLiveSessionsFromSupabase:", {
+            message: e.message || e,
+            code: e.code,
+            hint: e.hint
+        });
     }
 }
 
 export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, any>> {
-    const { data, error } = await supabase
-        .from('live_sessions')
-        .select('competition_id, team_id, phase, start_time');
+    try {
+        const [sessResponse, compsResponse] = await Promise.all([
+            supabase.from('live_sessions').select('*'),
+            supabase.from('competitions').select('id, type')
+        ]);
 
-    if (error) {
-        console.group('--- SUPABASE LIVE FETCH ERROR ---');
-        console.error('Code:', error.code);
-        console.error('Message:', error.message);
-        console.groupEnd();
+        if (sessResponse.error) {
+            const err = sessResponse.error;
+            console.error('--- SUPABASE LIVE FETCH ERROR ---', {
+                code: err.code || 'N/A',
+                message: err.message || 'Network Error or Failed to Fetch',
+                hint: err.hint || 'Ensure your device has internet access and correct API keys'
+            });
+            return {};
+        }
+
+        if (compsResponse.error) {
+            console.warn('--- SUPABASE COMPS MAP ERROR (LIVE) ---', {
+                message: compsResponse.error.message,
+                code: compsResponse.error.code,
+                hint: compsResponse.error.hint
+            });
+        }
+
+        const sessionsData = sessResponse.data || [];
+        const compsData = compsResponse.data || [];
+
+        const compMap: Record<string, string> = {};
+        (compsData as any[]).forEach(c => {
+            if (c.id && c.type) compMap[c.id] = c.type;
+        });
+
+        const sessions: Record<string, any> = {};
+        sessionsData.forEach((s: any) => {
+            const key = compMap[s.competition_id] || s.competition_id;
+            sessions[key] = {
+                teamId: s.team_id,
+                phase: s.phase,
+                startTime: new Date(s.start_time).getTime()
+            };
+        });
+
+        return sessions;
+    } catch (e: any) {
+        console.error("Critical error in fetchLiveSessionsFromSupabase:", {
+            message: e.message || e,
+            code: e.code,
+            hint: e.hint
+        });
         return {};
     }
-
-    const sessions: Record<string, any> = {};
-    data?.forEach((s: any) => {
-        sessions[s.competition_id] = {
-            teamId: s.team_id,
-            phase: s.phase,
-            startTime: new Date(s.start_time).getTime()
-        };
-    });
-
-    return sessions;
 }
 
 /**

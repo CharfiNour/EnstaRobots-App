@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Activity, Zap } from 'lucide-react';
+import { Calendar, Activity, Zap, Shield } from 'lucide-react';
 // Unused import removed
 
 interface MissionScheduleProps {
@@ -9,9 +9,10 @@ interface MissionScheduleProps {
     nextTeam: any;
     currentPhase: string | null;
     myTeamId?: string;
+    profileComplete?: boolean;
 }
 
-export default function MissionSchedule({ isLive, currentTeam, nextTeam, currentPhase, myTeamId }: MissionScheduleProps) {
+export default function MissionSchedule({ isLive, currentTeam, nextTeam, currentPhase, myTeamId, profileComplete = true }: MissionScheduleProps) {
     const isMyTurn = currentTeam?.id === myTeamId;
     const isNext = nextTeam?.id === myTeamId;
 
@@ -27,11 +28,11 @@ export default function MissionSchedule({ isLive, currentTeam, nextTeam, current
                     <div>
                         <h2 className="text-2xl font-black text-foreground uppercase tracking-tight italic">Mission Timeline</h2>
                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest opacity-60">
-                            {isLive ? (currentPhase?.replace(/_/g, ' ') || 'Live Operations') : 'Awaiting operational window'}
+                            {!profileComplete ? 'System Access Restricted' : (isLive ? (currentPhase?.replace(/_/g, ' ') || 'Live Operations') : 'Awaiting operational window')}
                         </p>
                     </div>
                 </div>
-                {isLive && (
+                {isLive && profileComplete && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-role-primary/10 border border-role-primary/20 rounded-xl">
                         <div className="w-2 h-2 bg-role-primary rounded-full animate-ping" />
                         <span className="text-[10px] font-black uppercase text-role-primary tracking-widest">Live Feed active</span>
@@ -39,7 +40,7 @@ export default function MissionSchedule({ isLive, currentTeam, nextTeam, current
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10 ${!profileComplete ? 'blur-md pointer-events-none select-none opacity-40' : ''}`}>
                 {/* Current Unit slot */}
                 <div className={`p-6 rounded-3xl border transition-all duration-500 ${isLive ? (isMyTurn ? 'bg-role-primary/10 border-role-primary/40 shadow-xl' : 'bg-muted/30 border-card-border') : 'bg-muted/10 border-card-border/50 opacity-50'}`}>
                     <div className="flex items-center gap-2 mb-4">
@@ -121,7 +122,21 @@ export default function MissionSchedule({ isLive, currentTeam, nextTeam, current
                 </div>
             </div>
 
-            {!isLive && (
+            {!profileComplete && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-card/20 group-hover:bg-card/30 transition-colors">
+                    <div className="text-center space-y-4">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500">
+                            <Shield size={24} />
+                        </div>
+                        <h3 className="font-black text-foreground uppercase tracking-widest text-sm">Security Lock Active</h3>
+                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest max-w-[240px] mx-auto leading-relaxed">
+                            Awaiting unit verification. Complete registry to unlock operational timeline.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {profileComplete && !isLive && (
                 <div className="mt-8 p-4 bg-muted/20 border border-dashed border-card-border rounded-2xl text-center">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                         System signal low. Competition has not been initialized by HQ.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw } from 'lucide-react'; // Added RefreshCcw, though primarily using auto-sync
+import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Shield } from 'lucide-react'; // Added RefreshCcw, though primarily using auto-sync
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
@@ -20,7 +20,11 @@ const FALLBACK_ANNOUNCEMENT: Announcement = {
     type: 'info'
 };
 
-export default function RecentAnnouncements() {
+interface RecentAnnouncementsProps {
+    profileComplete?: boolean;
+}
+
+export default function RecentAnnouncements({ profileComplete = true }: RecentAnnouncementsProps) {
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -28,6 +32,11 @@ export default function RecentAnnouncements() {
         let channel: any;
 
         const fetchAnnouncements = async () => {
+            if (!profileComplete) {
+                setLoading(false);
+                return;
+            }
+
             const targetSession = getSession();
             if (!targetSession) {
                 setLoading(false);
@@ -73,21 +82,23 @@ export default function RecentAnnouncements() {
         fetchAnnouncements();
 
         // Real-time subscription for dashboard
-        channel = supabase
-            .channel('dashboard-announcements')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'announcements' },
-                () => {
-                    fetchAnnouncements();
-                }
-            )
-            .subscribe();
+        if (profileComplete) {
+            channel = supabase
+                .channel('dashboard-announcements')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'announcements' },
+                    () => {
+                        fetchAnnouncements();
+                    }
+                )
+                .subscribe();
+        }
 
         return () => {
             if (channel) supabase.removeChannel(channel);
         };
-    }, []);
+    }, [profileComplete]);
 
     const getTimeAgo = (dateString: string) => {
         const date = new Date(dateString);
@@ -101,7 +112,7 @@ export default function RecentAnnouncements() {
     };
 
     return (
-        <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-8 h-full flex flex-col shadow-sm">
+        <div className="bg-card/40 backdrop-blur-xl border border-card-border rounded-[2.5rem] p-8 h-full flex flex-col shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-8 shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-role-primary/10 text-role-primary flex items-center justify-center">
@@ -110,19 +121,30 @@ export default function RecentAnnouncements() {
                     <div>
                         <h3 className="text-base font-black text-foreground uppercase tracking-tight italic">Latest Intel</h3>
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Live Feed
+                            {profileComplete ? (
+                                <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Live Feed
+                                </>
+                            ) : (
+                                <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Connection Blocked
+                                </>
+                            )}
                         </p>
                     </div>
                 </div>
-                <Link href="/team/announcements" className="text-[10px] font-black text-role-primary uppercase hover:underline bg-role-primary/5 px-3 py-1.5 rounded-lg border border-role-primary/10">
-                    View All
-                </Link>
+                {profileComplete && (
+                    <Link href="/team/announcements" className="text-[10px] font-black text-role-primary uppercase hover:underline bg-role-primary/5 px-3 py-1.5 rounded-lg border border-role-primary/10">
+                        View All
+                    </Link>
+                )}
             </div>
 
-            <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2">
-                {announcements.map((ann: Announcement) => (
-                    <div key={ann.id} className="relative pl-5 border-l-2 border-role-primary/20 hover:border-role-primary transition-all py-1 group cursor-pointer hover:translate-x-1 duration-300">
+            <div className={`space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2 ${!profileComplete ? 'blur-md pointer-events-none select-none opacity-40' : ''}`}>
+                {(profileComplete ? announcements : [FALLBACK_ANNOUNCEMENT, FALLBACK_ANNOUNCEMENT]).map((ann: Announcement, i) => (
+                    <div key={ann.id + i} className="relative pl-5 border-l-2 border-role-primary/20 hover:border-role-primary transition-all py-1 group cursor-pointer hover:translate-x-1 duration-300">
                         <div className="flex justify-between items-start mb-2 gap-3">
                             <p className="font-black text-foreground uppercase text-xs tracking-tight group-hover:text-role-primary transition-colors leading-tight">
                                 {ann.title}
@@ -137,14 +159,14 @@ export default function RecentAnnouncements() {
                     </div>
                 ))}
 
-                {!loading && announcements.length === 0 && (
+                {!loading && profileComplete && announcements.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 opacity-30 text-center flex-1">
                         <Bell size={40} className="mb-4" />
                         <p className="text-xs font-black uppercase tracking-widest">No active intel</p>
                     </div>
                 )}
 
-                {loading && (
+                {loading && profileComplete && (
                     <div className="space-y-8">
                         {[1, 2, 3].map(i => (
                             <div key={i} className="animate-pulse flex flex-col gap-3">
@@ -158,6 +180,20 @@ export default function RecentAnnouncements() {
                     </div>
                 )}
             </div>
+
+            {!profileComplete && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-card/20 group-hover:bg-card/30 transition-colors">
+                    <div className="text-center space-y-4">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500">
+                            <Shield size={24} />
+                        </div>
+                        <h3 className="font-black text-foreground uppercase tracking-widest text-sm">Intel Blocked</h3>
+                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest max-w-[200px] mx-auto leading-relaxed">
+                            Authorized access only. Complete registry to sync with the official intel feed.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

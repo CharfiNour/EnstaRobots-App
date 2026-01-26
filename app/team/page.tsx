@@ -54,12 +54,13 @@ export default function TeamDashboard() {
                             nextTeam={nextTeam}
                             currentPhase={currentPhase}
                             myTeamId={teamData?.id}
+                            profileComplete={profileComplete}
                         />
                     </div>
 
                     {/* Sidebar: Useful Tools & News */}
                     <div className="lg:col-span-4 space-y-8">
-                        <RecentAnnouncements />
+                        <RecentAnnouncements profileComplete={profileComplete} />
                     </div>
                 </div>
             </div>

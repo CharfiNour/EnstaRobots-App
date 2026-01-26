@@ -7,6 +7,7 @@ import {
 import { OfflineScore, deleteScore, updateScore } from '@/lib/offlineScores';
 import { useState } from 'react';
 import { deleteScoreFromSupabase } from '@/lib/supabaseData';
+import { getCategoryMetadata } from '@/lib/constants';
 
 interface ScoreCardProps {
     group: {
@@ -36,7 +37,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
     const competitionType = (compMetadata?.type || group.competitionType || '').toLowerCase();
 
     // Get rich styling from constants
-    const { getCategoryMetadata } = require('@/lib/constants');
     const styleMeta = getCategoryMetadata(competitionType);
 
     // Determine the layout style:
