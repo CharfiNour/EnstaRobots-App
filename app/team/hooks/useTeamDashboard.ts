@@ -60,7 +60,7 @@ export function useTeamDashboard() {
 
                 const sessionInfo = (relevantComp?.id && liveSessions[relevantComp.id])
                     || (relevantComp?.type && liveSessions[relevantComp.type])
-                    || liveSessions[team.competition];
+                    || (team.competition && liveSessions[team.competition]);
 
                 if (sessionInfo) {
                     isLive = true;
