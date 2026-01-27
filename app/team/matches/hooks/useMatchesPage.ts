@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSession } from '@/lib/auth';
+import { getTeams, Team, Competition } from '@/lib/teams';
 import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
 import { supabase } from '@/lib/supabase';
 import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
@@ -13,7 +14,7 @@ export function useMatchesPage() {
     const [loading, setLoading] = useState(true);
     const [currentPhase, setCurrentPhase] = useState<string | null>(null);
     const [isLiveForMyComp, setIsLiveForMyComp] = useState(false);
-    const [competitions, setCompetitions] = useState<any[]>([]);
+    const [competitions, setCompetitions] = useState<Competition[]>([]);
 
     useEffect(() => {
         let isMounted = true;
@@ -53,12 +54,12 @@ export function useMatchesPage() {
 
                 // Check for live session in my competition
                 // Robust lookup: Resolve myTeam.competition (which could be UUID or slug) to the actual DB UUID
-                const relevantComp = remoteComps.find(c => c.id === myTeam.competition || c.type === myTeam.competition);
+                const relevantComp = remoteComps.find((c: Competition) => c.id === myTeam.competition || c.type === myTeam.competition);
 
                 // We check BOTH the UUID and the Type (slug) in the sessions map
                 const session = (relevantComp?.id && sessions[relevantComp.id])
                     || (relevantComp?.type && sessions[relevantComp.type])
-                    || sessions[myTeam.competition];
+                    || (myTeam.competition && sessions[myTeam.competition]);
 
                 if (session) {
                     setCurrentPhase(session.phase);

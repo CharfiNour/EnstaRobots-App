@@ -12,6 +12,7 @@ import { RegistryAlert } from '../components';
 import { useMatchesPage } from './hooks/useMatchesPage';
 import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
 import { getCompetitionName } from '@/lib/constants';
+import { Competition } from '@/lib/teams';
 
 export default function TeamMatchesPage() {
     const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive, competitions } = useMatchesPage();
@@ -48,7 +49,7 @@ export default function TeamMatchesPage() {
     }
 
     // Get the actual competition category by looking up the UUID in the competitions array
-    const foundCompetition = competitions.find(c => c.id === teamData?.competition);
+    const foundCompetition = competitions.find((c: Competition) => c.id === teamData?.competition);
     const competitionCategory = foundCompetition?.type || teamData?.competition;
 
     // Determine if this is an All Terrain competition

@@ -4,6 +4,18 @@ export interface TeamMember {
     isLeader?: boolean;
 }
 
+export interface Competition {
+    id: string;
+    type?: string;
+    name?: string;
+    description?: string;
+    status?: string;
+    totalTeams?: number;
+    totalMatches?: number;
+    arena?: string;
+    schedule?: string;
+}
+
 export interface Team {
     id: string;
     name: string; // This will now effectively be the Robot Name

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
 import { supabase } from '@/lib/supabase';
+import { Team, Competition } from '@/lib/teams';
 
 export function useTeamDashboard() {
     const [session, setSession] = useState<any>(null);
@@ -56,7 +57,7 @@ export function useTeamDashboard() {
                 let phase = null;
 
                 // Robust lookup: Resolve team.competition (which could be UUID or slug) to the actual DB UUID
-                const relevantComp = competitions.find((c: any) => c.id === team.competition || c.type === team.competition);
+                const relevantComp = competitions.find((c: Competition) => c.id === team.competition || c.type === team.competition);
 
                 const sessionInfo = (relevantComp?.id && liveSessions[relevantComp.id])
                     || (relevantComp?.type && liveSessions[relevantComp.type])

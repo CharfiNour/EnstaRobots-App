@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { getSession } from '@/lib/auth';
-import { Team } from '@/lib/teams';
+import { Team, Competition } from '@/lib/teams';
 import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,7 @@ export default function TeamProfilePage() {
     const [loading, setLoading] = useState(true);
     const [session, setSession] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [competitions, setCompetitions] = useState<any[]>([]);
+    const [competitions, setCompetitions] = useState<Competition[]>([]);
     const router = useRouter();
 
     const refreshData = async () => {
@@ -47,7 +47,7 @@ export default function TeamProfilePage() {
 
     const getCompetitionName = (compId?: string) => {
         if (!compId) return 'NOT ASSIGNED';
-        const comp = competitions.find(c => c.id === compId);
+        const comp = competitions.find((c: Competition) => c.id === compId);
         return comp?.name || compId.replace(/_/g, ' ');
     };
 
