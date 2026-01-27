@@ -3,7 +3,8 @@
    Red/Maroon accents for authority
    ================================ */
 
-:root {
+.admin-theme {
+    /* Red Colors */
     --color-role-primary: #ef4444;
     --color-role-secondary: #991b1b;
     --color-role-accent: #ef4444;
@@ -11,7 +12,8 @@
     --color-role-border: rgba(239, 68, 68, 0.2);
 }
 
-.dark {
+/* Dark Mode Overrides */
+.dark .admin-theme {
     --color-role-primary: #f87171;
     --color-role-secondary: #450a0a;
     --color-role-accent: #f87171;

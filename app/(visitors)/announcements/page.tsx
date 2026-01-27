@@ -2,18 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Tag, Filter, Info, AlertTriangle, CheckCircle, AlertOctagon } from 'lucide-react';
+import { Bell, Tag, Info, AlertTriangle, CheckCircle, AlertOctagon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
-
-const FILTERS = [
-    { id: 'all', label: 'All' },
-    { id: '1', label: 'Junior Line Follower' },
-    { id: '2', label: 'Junior All Terrain' },
-    { id: '3', label: 'Line Follower' },
-    { id: '4', label: 'All Terrain' },
-    { id: '5', label: 'Fight' }
-];
+import { COMPETITION_CATEGORIES, getCompetitionName } from '@/lib/constants';
 
 const TYPE_CONFIG: any = {
     info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500', border: 'border-blue-500/20' },
@@ -27,10 +19,31 @@ export default function AnnouncementsPage() {
     const [announcements, setAnnouncements] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const filters = [
+        { id: 'all', label: 'All Updates' },
+        ...COMPETITION_CATEGORIES.map(c => ({ id: c.id, label: c.name }))
+    ];
+
+    const fetchAnnouncements = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('announcements')
+                .select('*')
+                .eq('visible_to', 'all')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setAnnouncements(data || []);
+        } catch (err) {
+            console.error('Error fetching announcements:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchAnnouncements();
 
-        // Subscribe to real-time changes
         const channel = supabase
             .channel('announcements_broadcast')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, (payload) => {
@@ -46,36 +59,11 @@ export default function AnnouncementsPage() {
         };
     }, []);
 
-    const fetchAnnouncements = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('announcements')
-                .select('*')
-                .eq('visible_to', 'all') // Visitors only see public announcements
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            setAnnouncements(data || []);
-        } catch (err) {
-            console.error('Error fetching announcements:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const filteredAnnouncements = announcements.filter(ann => {
         if (selectedFilter === 'all') return true;
-        // Show if announcement is global (null competition_id) or matches selected competition
-        return ann.competition_id === null || ann.competition_id === parseInt(selectedFilter);
+        // Handle both UUID and legacy/slug comparison
+        return ann.competition_id === selectedFilter || ann.competition_type === selectedFilter;
     });
-
-    const getTypeConfig = (type: string) => TYPE_CONFIG[type] || TYPE_CONFIG.info;
-
-    const getCompetitionLabel = (id: number | null) => {
-        if (id === null) return 'Global Broadcast';
-        const filter = FILTERS.find(f => f.id === id.toString());
-        return filter ? filter.label : 'General';
-    };
 
     return (
         <div className="min-h-screen container mx-auto px-4 py-8">
@@ -96,32 +84,22 @@ export default function AnnouncementsPage() {
             </motion.div>
 
             {/* Filters */}
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="mb-10"
-            >
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                    {FILTERS.map((filter) => (
-                        <button
-                            key={filter.id}
-                            onClick={() => setSelectedFilter(filter.id)}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${selectedFilter === filter.id
-                                ? 'bg-accent text-background shadow-md shadow-accent/20 scale-105'
-                                : 'bg-card border border-card-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                                }`}
-                        >
-                            {filter.label}
-                        </button>
-                    ))}
-                </div>
-            </motion.div>
+            <div className="mb-10 flex items-center justify-start md:justify-center gap-2 overflow-x-auto pb-4 no-scrollbar">
+                {filters.map((filter) => (
+                    <button
+                        key={filter.id}
+                        onClick={() => setSelectedFilter(filter.id)}
+                        className={`flex-shrink-0 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.15em] transition-all border ${selectedFilter === filter.id
+                                ? 'bg-accent text-slate-900 border-accent shadow-md shadow-accent/10'
+                                : 'bg-white/80 backdrop-blur-sm border-card-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
+                            }`}
+                    >
+                        {filter.label}
+                    </button>
+                ))}
+            </div>
 
-            <motion.div
-                layout
-                className="max-w-3xl mx-auto space-y-6"
-            >
+            <div className="max-w-3xl mx-auto space-y-6">
                 {loading ? (
                     <div className="flex justify-center p-12">
                         <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
@@ -130,55 +108,60 @@ export default function AnnouncementsPage() {
                     <AnimatePresence mode="popLayout">
                         {filteredAnnouncements.length > 0 ? (
                             filteredAnnouncements.map((ann) => {
-                                const config = getTypeConfig(ann.type);
+                                const config = TYPE_CONFIG[ann.type] || TYPE_CONFIG.info;
                                 const Icon = config.icon;
 
                                 return (
                                     <motion.div
                                         key={ann.id}
                                         layout
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        transition={{ duration: 0.2 }}
-                                        className={`p-6 rounded-2xl bg-card border ${config.border} shadow-md shadow-black/[0.02] relative overflow-hidden group hover:shadow-lg transition-all`}
+                                        initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                                        className={`p-5 md:p-6 rounded-[1.5rem] bg-white border ${config.border} shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300`}
                                     >
-                                        <div className={`absolute top-0 left-0 w-1.5 h-full ${config.bg}`}></div>
-                                        <div className="flex justify-between items-start mb-3 pl-2">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-lg bg-muted/30 ${config.color}`}>
-                                                    <Icon size={18} />
-                                                </div>
-                                                <h4 className="font-bold text-lg text-foreground group-hover:text-accent transition-colors">{ann.title}</h4>
+                                        <div className={`absolute top-0 left-0 w-1.5 h-full ${config.bg} opacity-80`} />
+
+                                        <div className="flex flex-col md:flex-row md:items-start gap-4">
+                                            <div className={`w-12 h-12 rounded-2xl ${config.bg}/10 flex items-center justify-center shrink-0 border ${config.border}`}>
+                                                <Icon className={`w-6 h-6 ${config.color}`} />
                                             </div>
-                                            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-card-border shrink-0 ml-2">
-                                                {formatDistanceToNow(new Date(ann.created_at), { addSuffix: true })}
-                                            </span>
-                                        </div>
-                                        <div className="pl-14">
-                                            <p className="text-muted-foreground leading-relaxed mb-4">{ann.message}</p>
-                                            <div className="flex items-center gap-2">
-                                                <Tag size={12} className="text-muted-foreground/60" />
-                                                <span className={`text-[10px] font-black uppercase tracking-widest ${ann.competition_id === null ? 'text-accent' : 'text-foreground'}`}>
-                                                    {getCompetitionLabel(ann.competition_id)}
-                                                </span>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                                                    <h4 className="font-black text-lg md:text-xl text-foreground tracking-tight uppercase italic group-hover:text-accent transition-colors">
+                                                        {ann.title}
+                                                    </h4>
+                                                    <div className="text-[10px] font-black text-muted-foreground uppercase opacity-70 px-3 py-1 bg-muted rounded-full">
+                                                        {formatDistanceToNow(new Date(ann.created_at), { addSuffix: true })}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-muted-foreground leading-relaxed text-sm md:text-base mb-4 font-medium opacity-80">
+                                                    {ann.message}
+                                                </p>
+
+                                                <div className="flex items-center gap-3 pt-3 border-t border-muted">
+                                                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border shadow-sm ${!ann.competition_id ? 'bg-accent/10 border-accent/20 text-accent' : 'bg-foreground/5 border-foreground/10 text-foreground'}`}>
+                                                        <Tag size={10} className="opacity-60" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">
+                                                            {ann.competition_id ? getCompetitionName(ann.competition_id) : 'Global Broadcast'}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </motion.div>
                                 );
                             })
                         ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-center py-12 text-muted-foreground"
-                            >
+                            <div className="text-center py-12 text-muted-foreground">
                                 <p>No announcements found.</p>
-                            </motion.div>
+                            </div>
                         )}
                     </AnimatePresence>
                 )}
-            </motion.div>
+            </div>
         </div>
     );
 }

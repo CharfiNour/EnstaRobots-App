@@ -12,7 +12,7 @@ import { saveScoreOffline, calculateTotalPoints, getOfflineScores } from '@/lib/
 import { getTeams, Team } from '@/lib/teams';
 import { startLiveSession, stopLiveSession, getCompetitionState, updateCompetitionState } from '@/lib/competitionState';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { updateCompetitionStatusToSupabase, fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionToSupabase, fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
 
 // Local project structure imports
 import {
@@ -442,43 +442,58 @@ export default function ScoreCardPage() {
         // Find current team ID being scored (first input team)
         const activeTeamId = teams[0].id;
         if (activeTeamId) {
+            console.log("🚀 Starting live session for team:", activeTeamId);
             setStarting(true);
             liveActionLock.current = true;
+
             try {
                 const phase = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
-                await startLiveSession(activeTeamId, competition.id, phase);
+
+                // OPTIMISTIC UPDATE: Set live locally first
                 setIsLive(true);
+
+                // Perform remote registration
+                await startLiveSession(activeTeamId, competition.id, phase);
             } catch (err) {
-                console.error("Failed to start session:", err);
-                alert("Could not start live session. Please try again.");
+                console.error("Background sync failure for start:", err);
+                // We keep it live locally so they can still type scores
             } finally {
                 setStarting(false);
-                // Give some buffer for the database update to propagate
                 setTimeout(() => { liveActionLock.current = false; }, 2000);
             }
         } else {
-            alert("Please select a team or ensure teams are loaded.");
+            alert("Protocol Violation: No team selected for deployment.");
         }
     };
 
     const handleEndMatch = async () => {
         setStopping(true);
         liveActionLock.current = true;
+
+        console.log("🏁 Finalizing score session for:", competition.id);
+
         try {
             // Mark the current phase as completed on the public board
             const currentPhaseVal = isLineFollower ? (teams[0].phase || 'Essay 1') : globalPhase;
             const phaseLabel = competitionPhases.find(p => p === currentPhaseVal) || currentPhaseVal;
 
-            await updateCompetitionStatusToSupabase(competition.id, `${phaseLabel} Completed`);
+            // OPTIMISTIC UPDATE: Stop the session locally first to unblock UI
+            setIsLive(false);
 
-            await stopLiveSession(competition.id);
-            setIsLive(false);
+            // Execute network updates in parallel sans critical block
+            // This ensures that even on slow networks, the UI responds immediately
+            const stopRemotePromise = stopLiveSession(competition.id);
+            const updateStatusPromise = updateCompetitionToSupabase(competition.id, { current_phase: `${phaseLabel} Completed` });
+
+            await Promise.all([stopRemotePromise, updateStatusPromise]).catch(err => {
+                console.warn("Background network sync partial failure:", err);
+            });
+
         } catch (err) {
-            console.error("Failed to stop session:", err);
-            alert("Could not finalize session in database. Local state cleared.");
-            // Still stop local state as fallback
-            await stopLiveSession(competition.id);
+            console.error("Failed to stop session properly:", err);
+            alert("Local session stopped. Network sync failed, but data is preserved.");
             setIsLive(false);
+            await stopLiveSession(competition.id).catch(() => { });
         } finally {
             setStopping(false);
             // Give some buffer for the database update to propagate

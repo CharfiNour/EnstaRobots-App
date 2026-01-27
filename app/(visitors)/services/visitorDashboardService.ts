@@ -2,12 +2,14 @@ import { Trophy, Users, Zap, Calendar } from 'lucide-react';
 import { VisitorDashboardData } from '../types';
 import { getAdminCompetitions } from '../../admin/competitions/services/competitionService';
 import { getCompetitionState } from '@/lib/competitionState';
+import { getAdminStats } from '../../admin/services/dashboardService';
 
 export const getVisitorDashboardData = (): VisitorDashboardData => {
     const competitions = getAdminCompetitions();
     const competitionState = getCompetitionState();
+    const overrideStats = getAdminStats();
 
-    // Calculate aggregated stats
+    // Calculate aggregated stats (fallbacks)
     const totalTeams = competitions.reduce((sum, comp) => sum + comp.totalTeams, 0);
     const totalMatches = competitions.reduce((sum, comp) => sum + comp.totalMatches, 0);
     const activeCompetitionsCount = competitions.length;
@@ -44,10 +46,26 @@ export const getVisitorDashboardData = (): VisitorDashboardData => {
 
     return {
         stats: [
-            { icon: Trophy, label: "Competitions", value: activeCompetitionsCount.toString() },
-            { icon: Users, label: "Teams", value: totalTeams.toString() },
-            { icon: Zap, label: "Matches", value: totalMatches.toString() },
-            { icon: Calendar, label: "Event Duration", value: "3 Days" },
+            {
+                icon: Trophy,
+                label: "Competitions",
+                value: overrideStats?.totalCompetitions?.toString() || activeCompetitionsCount.toString()
+            },
+            {
+                icon: Users,
+                label: "Teams",
+                value: overrideStats?.totalTeams?.toString() || totalTeams.toString()
+            },
+            {
+                icon: Zap,
+                label: "Matches",
+                value: overrideStats?.totalMatches?.toString() || totalMatches.toString()
+            },
+            {
+                icon: Calendar,
+                label: "Event Duration",
+                value: overrideStats?.eventDuration || "3 Days"
+            },
         ],
         competitions: dashboardCompetitions
     };

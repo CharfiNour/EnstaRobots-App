@@ -62,6 +62,15 @@
   /* Matches background with blur */
   --color-navbar-border: #e2e8f0;
   /* Clean border */
+
+  --accent-rgb: 0, 188, 212;
+
+  /* Default Role Colors (Visitor/General) - Cyan/Blue */
+  --color-role-primary: #00bcd4;
+  --color-role-secondary: #0f34a8;
+  --color-role-accent: #00bcd4;
+  --color-role-muted: #d4d7e07a;
+  --color-role-border: #e2e8f0;
 }
 
 /* ================================
@@ -114,17 +123,45 @@ body {
   .mask-gradient-x {
     mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
   }
-  
+
   .text-shadow-glow {
-    text-shadow: 0 0 20px rgba(var(--color-brand-accent-rgb, 0, 188, 212), 0.5);
+    text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
   }
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  @keyframes scanline {
+    0% {
+      transform: translateY(-100%);
+    }
+
+    100% {
+      transform: translateY(100%);
+    }
+  }
+
+  .animate-scanline {
+    animation: scanline 4s linear infinite;
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 12s linear infinite;
   }
 }

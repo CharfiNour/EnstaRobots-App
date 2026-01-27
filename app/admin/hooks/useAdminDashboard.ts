@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { getAdminStats, getRecentActivity } from '../services/dashboardService';
+import { getAdminStats, getRecentActivity, saveAdminStats } from '../services/dashboardService';
 import { AdminStats, ActivityItemData } from '../types';
 
 export function useAdminDashboard() {
@@ -25,11 +25,19 @@ export function useAdminDashboard() {
         setLoading(false);
     }, [router]);
 
+    const updateStat = (key: keyof AdminStats, value: string | number) => {
+        if (!stats) return;
+        const newStats = { ...stats, [key]: value };
+        setStats(newStats);
+        saveAdminStats(newStats);
+    };
+
     return {
         session,
         loading,
         stats,
         activities,
-        router
+        router,
+        updateStat
     };
 }

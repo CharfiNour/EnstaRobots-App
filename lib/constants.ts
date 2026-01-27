@@ -140,3 +140,38 @@ export const LINE_FOLLOWER_SECTIONS_JUNIOR = [
     { id: '6', label: 'Segment 6', maxPoints: 30, image: '/assets/junior-line-follower/image3.png' },
     { id: '7', label: 'Segment 7', maxPoints: 30, image: '/assets/junior-line-follower/image5.png' },
 ];
+export function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): string {
+    if (!id) return '';
+    const idStr = String(id);
+
+    const LEGACY_ID_MAP: Record<string, string> = {
+        '1': 'junior_line_follower',
+        '2': 'junior_all_terrain',
+        '3': 'line_follower',
+        '4': 'all_terrain',
+        '5': 'fight'
+    };
+
+    const UUID_MAP: Record<string, string> = {
+        '60eb8fd5-867d-42ab-b8a0-cacd4515101f': 'junior_line_follower',
+        'f161dc54-6c30-4405-b142-909f4187c486': 'junior_all_terrain',
+        'ccf1d967-0071-4281-97d0-1ebc359972a4': 'line_follower',
+        '0ea82341-6b73-4418-a4b9-b040492074f6': 'all_terrain',
+        'c303ea7d-59a2-43d7-9084-b5a3c1b83811': 'fight'
+    };
+
+    // 1. Direct match with standard category types (the "canonical" form)
+    if (COMPETITION_CATEGORIES.some(c => c.type === idStr)) return idStr;
+
+    // 2. Check legacy numeric IDs
+    if (LEGACY_ID_MAP[idStr]) return LEGACY_ID_MAP[idStr];
+
+    // 3. Check UUIDs (from constants or DB)
+    if (UUID_MAP[idStr]) return UUID_MAP[idStr];
+
+    // 4. Robust DB lookup
+    const dbMatch = dbComps.find(c => c.id === idStr || c.type === idStr);
+    if (dbMatch) return dbMatch.type || dbMatch.id;
+
+    return idStr;
+}

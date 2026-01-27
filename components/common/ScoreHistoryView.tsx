@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronRight, ChevronLeft, Search, Filter, Trophy, Timer, Swords,
-    Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield, Trash2
+    Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield, Trash2, Radar
 } from 'lucide-react';
 import { getOfflineScores, clearAllOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
@@ -85,6 +85,7 @@ export default function ScoreHistoryView({
     const [drawTeamsCount, setDrawTeamsCount] = useState(2);
     const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
     const [isCompMenuOpen, setIsCompMenuOpen] = useState(false);
+    const phaseScrollRef = useRef<HTMLDivElement>(null);
 
     const [competitions, setCompetitions] = useState<any[]>([]);
     const [allTeams, setAllTeams] = useState<any[]>([]);
@@ -275,12 +276,13 @@ export default function ScoreHistoryView({
         localScores.forEach(s => scoreMap.set(s.id, { ...s, synced: false }));
         scoresList.forEach(s => scoreMap.set(s.id, { ...s, synced: true }));
 
-        let allProcessedScores = Array.from(scoreMap.values());
-
-        // Note: isSentToTeamOnly filter removed from grouping phase 
-        // will be applied in display phase if needed, to preserve match structure.
-
         const allTeams = teamsList;
+
+        // Strict filter: Ignore scores for teams that were filtered out as "dead data"
+        let allProcessedScores = Array.from(scoreMap.values()).filter(score => {
+            const team = allTeams.find((t: any) => String(t.id) === String(score.teamId) || String(t.code) === String(score.teamId));
+            return !!team;
+        });
 
         // Helper to check if a comp is match based
         const checkIsMatchBased = (compId: string) => {
@@ -884,7 +886,7 @@ export default function ScoreHistoryView({
         <div className="flex flex-col lg:flex-row gap-8 w-full">
             {/* Sidebar: Tactical Log List */}
             <div className={`w-full lg:w-80 flex-col shrink-0 ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'} h-[calc(100vh-230px)] lg:h-[650px]`}>
-                <div className="bg-white/50 backdrop-blur-xl border border-card-border rounded-[2rem] p-4 lg:p-5 shadow-xl shadow-black/5 space-y-4 flex flex-col h-full overflow-hidden">
+                <div className="bg-white/50 backdrop-blur-xl border border-card-border rounded-[2rem] p-4 lg:p-5 shadow-xl shadow-black/5 space-y-4 flex flex-col h-full overflow-y-auto overflow-x-clip">
                     {/* Admin Maintenance Actions */}
                     {isAdmin && (
                         <div className="flex flex-col gap-2 mb-2">
@@ -900,11 +902,11 @@ export default function ScoreHistoryView({
 
                     {/* Competition Selector */}
                     {showFilter && (
-                        <div>
+                        <div className="shrink-0">
                             {lockedCompetitionId && lockedComp ? (
                                 <div className="mb-6">
                                     <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
-                                        <Target size={12} className="text-role-primary" />
+                                        <Radar size={12} className="text-role-primary animate-spin-slow" />
                                         Deployment Category
                                     </h2>
                                     <div className="w-full bg-role-primary/5 border border-role-primary/20 p-4 rounded-xl flex items-center justify-between group shadow-inner relative overflow-hidden">
@@ -924,7 +926,7 @@ export default function ScoreHistoryView({
                                                     {lockedComp.name}
                                                 </span>
                                                 <span className="text-[8px] font-bold uppercase tracking-widest text-role-primary opacity-60">
-                                                    Verified Operations Sector
+                                                    {selectedCompData?.current_phase || "Verified Operations Sector"}
                                                 </span>
                                             </div>
                                         </div>
@@ -932,9 +934,9 @@ export default function ScoreHistoryView({
                                     </div>
                                 </div>
                             ) : (
-                                <>
+                                <div className="mb-6">
                                     <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
-                                        <Target size={12} className="text-role-primary" />
+                                        <Radar size={12} className="text-role-primary animate-spin-slow" />
                                         Deployment Category
                                     </h2>
                                     <div className="relative group/custom-select">
@@ -1008,29 +1010,57 @@ export default function ScoreHistoryView({
                                             )}
                                         </AnimatePresence>
                                     </div>
-
-                                    <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-6 mb-3 px-1 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Layers size={12} className="text-role-primary" />
-                                            Competition Phase
-                                        </div>
-                                    </h2>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 snap-x mask-gradient-x">
-                                        {allCompetitionPhases.map((phase: string) => (
-                                            <button
-                                                key={phase}
-                                                onClick={() => setSelectedPhaseFilter(phase)}
-                                                className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${selectedPhaseFilter === phase
-                                                    ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
-                                                    : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
-                                                    }`}
-                                            >
-                                                {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
+                                </div>
                             )}
+
+                            {/* Competition Phase Selector - Now showing regardless of lock */}
+                            <div className="mb-6">
+                                <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mt-2 mb-3 px-1 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Layers size={12} className="text-role-primary" />
+                                        Competition Phase
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => {
+                                                if (phaseScrollRef.current) {
+                                                    phaseScrollRef.current.scrollBy({ left: -120, behavior: 'smooth' });
+                                                }
+                                            }}
+                                            className="w-6 h-6 rounded-full bg-white/80 border border-card-border flex items-center justify-center hover:bg-role-primary/10 hover:border-role-primary/30 transition-all shadow-sm"
+                                        >
+                                            <ChevronLeft size={12} className="text-muted-foreground" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (phaseScrollRef.current) {
+                                                    phaseScrollRef.current.scrollBy({ left: 120, behavior: 'smooth' });
+                                                }
+                                            }}
+                                            className="w-6 h-6 rounded-full bg-white/80 border border-card-border flex items-center justify-center hover:bg-role-primary/10 hover:border-role-primary/30 transition-all shadow-sm"
+                                        >
+                                            <ChevronRight size={12} className="text-muted-foreground" />
+                                        </button>
+                                    </div>
+                                </h2>
+                                <div
+                                    ref={phaseScrollRef}
+                                    className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 snap-x"
+                                >
+                                    {allCompetitionPhases.map((phase: string) => (
+                                        <button
+                                            key={phase}
+                                            onClick={() => setSelectedPhaseFilter(phase)}
+                                            className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${selectedPhaseFilter === phase
+                                                ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
+                                                : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
+                                                }`}
+                                        >
+                                            {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
 

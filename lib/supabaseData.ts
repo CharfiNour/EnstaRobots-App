@@ -12,38 +12,89 @@ type DBScore = Database['public']['Tables']['scores']['Row'];
  */
 
 export async function fetchCompetitionsFromSupabase() {
-    console.log("Supabase URL Check:", process.env.NEXT_PUBLIC_SUPABASE_URL ? 'DEFINED' : 'MISSING');
-    const { data, error } = await supabase
-        .from('competitions')
-        .select('id, name, type, profiles_locked, current_phase, created_at');
+    try {
+        const { data, error } = await supabase
+            .from('competitions')
+            .select('*');
 
-    if (error) {
-        console.error('--- SUPABASE COMPS FETCH ERROR ---', {
-            code: error.code || 'N/A',
-            message: error.message || 'Network Error or Failed to Fetch'
-        });
+        if (error) {
+            console.error('--- SUPABASE COMPS FETCH ERROR ---', {
+                code: error.code || 'N/A',
+                message: error.message || 'Network Error or Failed to Fetch'
+            });
+            return [];
+        }
+        return data as any;
+    } catch (e: any) {
+        console.error("Critical error in fetchCompetitionsFromSupabase:", e.message || e);
         return [];
     }
-    return data as any;
 }
 
-export async function updateCompetitionStatusToSupabase(competitionId: string, status: string) {
-    // Check if competitionId is a valid UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(competitionId);
+export async function updateCompetitionToSupabase(competitionId: string, updates: {
+    name?: string,
+    current_phase?: string,
+    total_matches?: number,
+    total_teams?: number,
+    arena?: string,
+    schedule?: string
+}) {
+    try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(competitionId);
 
-    let query = (supabase.from('competitions') as any).update({ current_phase: status } as any);
+        // 1. Try to find the record first to decide between Update vs Insert
+        let query = supabase.from('competitions').select('id');
 
-    if (isUuid) {
-        query = query.eq('id', competitionId);
-    } else {
-        query = query.eq('type', competitionId);
-    }
+        if (isUuid) {
+            query = query.eq('id', competitionId);
+        } else {
+            // Flexible match for legacy IDs or Slugs
+            query = query.or(`type.eq.${competitionId},name.eq.${competitionId}`);
+        }
 
-    const { error } = await query;
+        const { data: existingData, error: checkError } = await query;
+        const existing = existingData as any[]; // Cast to any to avoid TS errors if types are stale
 
-    if (error) {
-        console.error('Error updating competition status:', error);
-        throw error;
+        if (checkError) {
+            console.error('Error checking competition existence:', JSON.stringify(checkError));
+            return;
+        }
+
+        const recordExists = existing && existing.length > 0;
+
+        if (recordExists) {
+            // UPDATE EXISTING
+            const targetId = existing[0].id;
+            const { error: updateError } = await (supabase.from('competitions') as any)
+                .update(updates)
+                .eq('id', targetId);
+
+            if (updateError) {
+                console.error('Error updating competition:', JSON.stringify(updateError));
+            }
+        } else {
+            // INSERT NEW
+            const payload: any = { ...updates };
+            if (isUuid) {
+                payload.id = competitionId;
+            } else {
+                // If it's a slug like 'line_follower', treat it as type
+                payload.type = competitionId;
+                // Ensure name is set if not in updates
+                if (!payload.name) payload.name = updates.name || competitionId;
+            }
+
+            const { error: insertError } = await supabase
+                .from('competitions')
+                .insert(payload);
+
+            if (insertError) {
+                console.error('Error inserting competition:', JSON.stringify(insertError));
+            }
+        }
+
+    } catch (e: any) {
+        console.error("Critical error in updateCompetitionToSupabase:", e.message || JSON.stringify(e));
     }
 }
 
@@ -64,38 +115,62 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
             team_members (team_id, name, role, is_leader)
         `;
 
-    const { data, error } = await supabase
-        .from('teams')
-        .select(selectQuery);
+    try {
+        const { data, error } = await supabase
+            .from('teams')
+            .select(selectQuery);
 
-    if (error) {
-        console.error('--- SUPABASE TEAMS FETCH ERROR ---', {
-            code: error.code || 'N/A',
-            message: error.message || 'Network Error or Failed to Fetch'
+        if (error) {
+            console.error('--- SUPABASE TEAMS FETCH ERROR ---', {
+                code: error.code || 'N/A',
+                message: error.message || 'Network Error or Failed to Fetch'
+            });
+            return [];
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const processedTeams = (data || []).map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            robotName: t.robot_name || t.name,
+            club: t.club || '',
+            university: t.university || '', // Default for minimal
+            logo: t.logo_url || '',
+            photo: t.photo_url || '',
+            code: t.team_code || '',
+            competition: t.competition_id || '',
+            isPlaceholder: t.is_placeholder,
+            visualsLocked: t.visuals_locked,
+            members: (t.team_members || []).map((m: any) => ({
+                name: m.name,
+                role: m.role || '',
+                isLeader: m.is_leader
+            })),
+            organization: t.university || '',
+        }));
+
+        // Strict system-wide filter for dead/dummy data
+        // Strict system-wide filter for dead/dummy data (Aggressive version)
+        return processedTeams.filter((t: any) => {
+            const teamName = String(t.name || '').toUpperCase();
+            const robotName = String(t.robotName || '').toUpperCase();
+            const clubName = String(t.club || '').toUpperCase();
+
+            // Pattern 1: Any mention of "TEAM-42" or "TEAM 42"
+            const isTeam42 = /TEAM\s*[-–—]?\s*42/.test(teamName) || /TEAM\s*[-–—]?\s*42/.test(robotName);
+
+            // Pattern 2: "CLUB UNKNOWN" or "UNKNOWN CLUB"
+            const isUnknownClub = clubName.includes('UNKNOWN') || teamName.includes('UNKNOWN');
+
+            // Pattern 3: Incomplete slots
+            const isDummySlot = t.isPlaceholder && (teamName === 'SLOT' || !t.competition);
+
+            return !isTeam42 && !isUnknownClub && !isDummySlot;
         });
+    } catch (e: any) {
+        console.error("Critical error in fetchTeamsFromSupabase:", e.message || e);
         return [];
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data || []).map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        robotName: t.robot_name || t.name,
-        club: t.club || '',
-        university: t.university || '', // Default for minimal
-        logo: t.logo_url || '',
-        photo: t.photo_url || '',
-        code: t.team_code || '',
-        competition: t.competition_id || '',
-        isPlaceholder: t.is_placeholder,
-        visualsLocked: t.visuals_locked,
-        members: (t.team_members || []).map((m: any) => ({
-            name: m.name,
-            role: m.role || '',
-            isLeader: m.is_leader
-        })),
-        organization: t.university || '',
-    }));
 }
 
 export async function upsertTeamToSupabase(team: Team): Promise<string> {

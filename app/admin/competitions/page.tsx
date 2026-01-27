@@ -29,26 +29,96 @@ export default function CompetitionsPage() {
         setCompetitions(getAdminCompetitions());
         setLoading(false);
 
-        // Initial fetch from DB
-        fetchLiveSessionsFromSupabase().then(sessions => {
+        // Initial fetch from DB and proactive sync
+        const syncAndLoad = async () => {
+            const { fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase, updateCompetitionToSupabase } = await import('@/lib/supabaseData');
+
+            const [sessions, comps] = await Promise.all([
+                fetchLiveSessionsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
+
             if (Object.keys(sessions).length > 0) {
                 updateCompetitionState({ liveSessions: sessions });
             }
-        });
+
+            // If some competitions are missing in DB, push them now
+            const local = getAdminCompetitions();
+            for (const lc of local) {
+                const dbMatch = comps.find((dc: any) => dc.type === lc.category);
+                if (!dbMatch) {
+                    console.log(`Proactively syncing missing category to cloud: ${lc.category}`);
+                    await updateCompetitionToSupabase(lc.id, {
+                        name: lc.title,
+                        current_phase: lc.status,
+                        total_matches: lc.totalMatches,
+                        total_teams: lc.totalTeams,
+                        arena: lc.arena,
+                        schedule: lc.schedule
+                    });
+                }
+            }
+
+            // Re-fetch after sync to ensure local state matches cloud
+            const finalComps = await fetchCompetitionsFromSupabase();
+            handleRealtimeUpdate();
+        };
+
+        syncAndLoad();
     }, [router]);
 
     const handleRealtimeUpdate = async () => {
-        const sessions = await fetchLiveSessionsFromSupabase();
+        const { fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+        const [sessions, comps] = await Promise.all([
+            fetchLiveSessionsFromSupabase(),
+            fetchCompetitionsFromSupabase()
+        ]);
         updateCompetitionState({ liveSessions: sessions });
+
+        // Update local competitions list from DB if we want to sync with other admins
+        // Note: We might want to merge this carefully with localStorage
+        const localComps = getAdminCompetitions();
+        const updatedComps = localComps.map(lc => {
+            const dbMatch = comps.find((dc: any) => dc.type === lc.category);
+            if (dbMatch) {
+                return {
+                    ...lc,
+                    id: dbMatch.id || lc.id,
+                    title: dbMatch.name ?? lc.title,
+                    status: dbMatch.current_phase ?? lc.status,
+                    totalMatches: dbMatch.total_matches ?? lc.totalMatches,
+                    totalTeams: dbMatch.total_teams ?? lc.totalTeams,
+                    arena: dbMatch.arena ?? lc.arena,
+                    schedule: dbMatch.schedule ?? lc.schedule
+                };
+            }
+            return lc;
+        });
+        setCompetitions(updatedComps);
+        saveAdminCompetitions(updatedComps);
     };
 
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
+    useSupabaseRealtime('competitions', handleRealtimeUpdate);
 
-    const handleUpdate = (updated: CompetitionListItem) => {
-        setCompetitions(prev => {
-            const next = prev.map(c => c.id === updated.id ? updated : c);
-            saveAdminCompetitions(next);
-            return next;
+    const handleUpdate = async (updated: CompetitionListItem) => {
+        // 1. Update local UI state
+        setCompetitions(prev => prev.map(c => c.id === updated.id ? updated : c));
+
+        // 2. Persist to LocalStorage (Side Effect - Move outside of state updater)
+        const currentComps = getAdminCompetitions();
+        const nextComps = currentComps.map(c => c.id === updated.id ? updated : c);
+        saveAdminCompetitions(nextComps);
+
+        // Persist to Supabase
+        const { updateCompetitionToSupabase } = await import('@/lib/supabaseData');
+        updateCompetitionToSupabase(updated.id, {
+            name: updated.title,
+            current_phase: updated.status,
+            total_matches: updated.totalMatches,
+            total_teams: updated.totalTeams,
+            arena: updated.arena,
+            schedule: updated.schedule
         });
     };
 

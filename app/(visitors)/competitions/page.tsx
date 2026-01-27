@@ -5,100 +5,103 @@ import { motion } from 'framer-motion';
 import { Trophy, Calendar, MapPin, Users, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 
-// Local imports
-import { getAdminCompetitions } from '../../admin/competitions/services/competitionService';
+// Shared Components
+import { StatsGrid } from '@/components/common/StatsGrid';
+import { LiveBadge } from '@/components/common/LiveBadge';
+
+// Utils & Libs
 import { getCompetitionState } from '@/lib/competitionState';
-import { getTeams, Team } from '@/lib/teams';
-import { CompetitionListItem } from '../../admin/competitions/types';
-import { CATEGORY_PHASES } from '@/lib/constants';
+import { COMPETITION_CATEGORIES, canonicalizeCompId } from '@/lib/constants';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
+import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
 import { updateCompetitionState } from '@/lib/competitionState';
+import { CompetitionListItem } from '../../admin/competitions/types';
+import { Team } from '@/lib/teams';
 
 export default function CompetitionsPage() {
     const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
     const [compState, setCompState] = useState(getCompetitionState());
-    const [mounted, setMounted] = useState(false);
     const [allTeams, setAllTeams] = useState<Team[]>([]);
     const [dbComps, setDbComps] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const refreshData = async () => {
+        const [teams, comps, sessions] = await Promise.all([
+            fetchTeamsFromSupabase(),
+            fetchCompetitionsFromSupabase(),
+            fetchLiveSessionsFromSupabase()
+        ]);
+
+        setAllTeams(teams);
+        setDbComps(comps);
+        setCompState(getCompetitionState());
+
+        updateCompetitionState({ liveSessions: sessions }, false);
+
+        // Merge standard categories with DB data
+        const mergedComps: CompetitionListItem[] = COMPETITION_CATEGORIES.map(category => {
+            const dbMatch = comps.find((c: any) =>
+                c.type === category.type ||
+                c.name === category.name ||
+                c.id === category.id
+            );
+
+            return {
+                id: dbMatch?.id || category.id,
+                title: dbMatch?.name ?? category.name,
+                description: `Official ${category.name} tournament.`,
+                category: category.type,
+                status: dbMatch?.current_phase ?? 'Qualifications',
+                totalTeams: dbMatch?.total_teams ?? 0,
+                totalMatches: dbMatch?.total_matches ?? 0,
+                arena: dbMatch?.arena ?? 'Main Arena',
+                schedule: dbMatch?.schedule ?? 'Full Event',
+                color: category.color,
+                borderColor: category.borderColor
+            };
+        });
+
+        setCompetitions(mergedComps);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        setMounted(true);
-        const handleStateUpdate = async () => {
-            const state = getCompetitionState();
-            setCompState(state);
+        refreshData();
 
-            // Sync competitions list as well
-            setCompetitions(getAdminCompetitions());
-
-            const { fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
-            const [teams, comps] = await Promise.all([
-                fetchTeamsFromSupabase(),
-                fetchCompetitionsFromSupabase()
-            ]);
-            setAllTeams(teams);
-            setDbComps(comps);
+        const handleUpdate = () => {
+            setCompState(getCompetitionState());
+            refreshData();
         };
 
-        handleStateUpdate();
-
-        // Initial fetch from DB for accurate live state
-        fetchLiveSessionsFromSupabase().then(sessions => {
-            if (Object.keys(sessions).length > 0) {
-                updateCompetitionState({ liveSessions: sessions });
-            }
-        });
-
-        // Listen for internal events (same tab)
-        window.addEventListener('competition-state-updated', handleStateUpdate);
-        window.addEventListener('competitions-updated', handleStateUpdate);
-        window.addEventListener('teams-updated', handleStateUpdate);
-
-        // Listen for storage events (different tabs)
-        window.addEventListener('storage', (e) => {
-            if (
-                e.key === 'enstarobots_competition_state_v1' ||
-                e.key === 'enstarobots_teams_v1' ||
-                e.key === 'enstarobots_competitions_v1'
-            ) {
-                handleStateUpdate();
-            }
-        });
-
-        // Periodic check as a fallback (keep this for reliability)
-        const interval = setInterval(handleStateUpdate, 10000);
+        window.addEventListener('competition-state-updated', handleUpdate);
+        window.addEventListener('competitions-updated', refreshData);
+        window.addEventListener('teams-updated', refreshData);
+        window.addEventListener('storage', handleUpdate);
 
         return () => {
-            window.removeEventListener('competition-state-updated', handleStateUpdate);
-            window.removeEventListener('competitions-updated', handleStateUpdate);
-            window.removeEventListener('teams-updated', handleStateUpdate);
-            window.removeEventListener('storage', handleStateUpdate);
-            clearInterval(interval);
+            window.removeEventListener('competition-state-updated', handleUpdate);
+            window.removeEventListener('competitions-updated', refreshData);
+            window.removeEventListener('teams-updated', refreshData);
+            window.removeEventListener('storage', handleUpdate);
         };
     }, []);
 
-    // Instant Update System
-    const handleRealtimeUpdate = async () => {
-        // When any relevant table changes, re-fetch live sessions and teams
-        const { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase } = await import('@/lib/supabaseData');
-        const [sessions, teams] = await Promise.all([
-            fetchLiveSessionsFromSupabase(),
-            fetchTeamsFromSupabase()
-        ]);
-        updateCompetitionState({ liveSessions: sessions });
-        setAllTeams(teams);
-    };
+    useSupabaseRealtime('live_sessions', refreshData);
+    useSupabaseRealtime('teams', refreshData);
+    useSupabaseRealtime('competitions', refreshData);
 
-    useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
-    useSupabaseRealtime('teams', handleRealtimeUpdate);
-    useSupabaseRealtime('scores', () => {
-        console.log("New score detected");
-    });
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen py-12">
             <div className="container mx-auto px-4 max-w-6xl">
-                {/* Header (Console Style) */}
+                {/* Header */}
                 <div className="mb-12">
                     <h1 className="text-3xl font-extrabold flex items-center gap-3 italic uppercase text-foreground">
                         <LayoutDashboard className="w-8 h-8 text-accent" />
@@ -111,54 +114,48 @@ export default function CompetitionsPage() {
 
                 {/* Competition Cards */}
                 <div className="space-y-6">
-                    {competitions.map((comp: CompetitionListItem, index: number) => {
-                        // Live logic
+                    {competitions.map((comp, index) => {
                         const liveSess = compState.liveSessions[comp.category];
                         const isActuallyLive = !!liveSess;
+                        const displayPhase = isActuallyLive ?
+                            (liveSess.phase || comp.status) : comp.status;
 
-                        const getLivePhaseLabel = () => {
-                            if (!liveSess || !liveSess.phase) return comp.status;
-                            const allPhases = [...(CATEGORY_PHASES.line || []), ...(CATEGORY_PHASES.standard || []), ...(CATEGORY_PHASES.fight || [])];
-                            const match = allPhases.find(p => p === liveSess.phase);
-                            if (match) return match;
-                            return liveSess.phase.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-                        };
-
-                        const displayPhase = isActuallyLive ? getLivePhaseLabel() : comp.status;
-
-                        // Calculate real statistics
-                        const realComp = dbComps.find(c => c.type === comp.category);
+                        // Calculate real statistics if available
                         const realTeamsInComp = allTeams.filter(t => {
                             if (!t.competition) return false;
+
+                            // Mandatory: Skip dummy/dead data for accurate stats
+                            const isDead = (t.name?.toUpperCase() === 'TEAM-42') ||
+                                (t.club?.toUpperCase() === 'CLUB UNKNOWN') ||
+                                (!t.name && t.isPlaceholder);
+                            if (isDead) return false;
+
                             const tComp = dbComps.find(c => c.id === t.competition);
                             return (tComp ? tComp.type : t.competition) === comp.category;
                         });
+
+                        const cardStats = [
+                            { icon: Users, label: "Teams", value: (comp.totalTeams || realTeamsInComp.length).toString() },
+                            { icon: Trophy, label: "Matches", value: (comp.totalMatches || 0).toString() },
+                            { icon: MapPin, label: "Arena", value: comp.arena },
+                            { icon: Calendar, label: "Schedule", value: comp.schedule }
+                        ];
 
                         return (
                             <Link href={`/competitions/${comp.id}`} key={comp.id} className="block group">
                                 <motion.div
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    whileHover={{ scale: 1.01 }}
+                                    transition={{ delay: index * 0.05 }}
                                     className={`p-6 md:p-8 rounded-[2rem] border backdrop-blur-sm transition-all bg-gradient-to-br ${comp.color} ${comp.borderColor} shadow-xl relative overflow-hidden`}
                                 >
-                                    {/* Header */}
                                     <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4 gap-4">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <h2 className="text-2xl md:text-3xl font-bold text-foreground group-hover:text-accent transition-colors">
                                                     {comp.title}
                                                 </h2>
-
-                                                {mounted && isActuallyLive && (
-                                                    <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full shrink-0">
-                                                        <span className="relative flex h-1.5 w-1.5">
-                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                                                        </span>
-                                                        <span className="text-red-400 font-semibold text-[10px] uppercase tracking-wider">Live</span>
-                                                    </div>
-                                                )}
+                                                {isActuallyLive && <LiveBadge />}
                                             </div>
                                             <p className="text-muted-foreground leading-relaxed font-medium opacity-60 max-w-2xl">
                                                 {comp.description}
@@ -168,36 +165,18 @@ export default function CompetitionsPage() {
                                         <div className="shrink-0">
                                             <div className="px-6 py-2.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl">
                                                 <span className="font-black text-foreground uppercase text-[11px] tracking-[0.1em] relative z-10">
-                                                    {mounted ? displayPhase : comp.status}
+                                                    {displayPhase}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Stats Grid */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                                        <StatItem icon={Users} label="Teams" value={realTeamsInComp.length.toString()} />
-                                        <StatItem icon={Trophy} label="Matches" value={comp.totalMatches.toString()} />
-                                        <StatItem icon={MapPin} label="Arena" value={comp.arena} />
-                                        <StatItem icon={Calendar} label="Schedule" value={comp.schedule} />
-                                    </div>
+                                    <StatsGrid stats={cardStats} className="mt-6" />
                                 </motion.div>
                             </Link>
                         );
                     })}
                 </div>
-            </div>
-        </div>
-    );
-}
-
-function StatItem({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
-    return (
-        <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl border border-card-border/50">
-            <Icon className="w-5 h-5 text-accent/60" />
-            <div className="min-w-0 flex-1">
-                <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">{label}</div>
-                <div className="font-bold text-foreground truncate text-sm">{value}</div>
             </div>
         </div>
     );

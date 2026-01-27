@@ -71,7 +71,16 @@ export default function AdminTeamsPage() {
         const loadTeams = async () => {
             setLoading(true);
             const currentTeams = await fetchTeamsFromSupabase();
-            setTeams(currentTeams);
+
+            // Defensive: Filter out any remaining dummy/dead data
+            const cleanTeams = currentTeams.filter(t => {
+                const isDead = (t.name?.toUpperCase() === 'TEAM-42') ||
+                    (t.club?.toUpperCase() === 'CLUB UNKNOWN') ||
+                    (!t.name && t.isPlaceholder);
+                return !isDead;
+            });
+
+            setTeams(cleanTeams);
             setLoading(false);
         };
         loadTeams();

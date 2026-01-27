@@ -7,6 +7,7 @@ export interface AdminStats {
     liveMatches: number;
     upcomingMatches: number;
     pendingScores: number;
+    eventDuration: string;
 }
 
 export interface ActivityItemData {
@@ -22,6 +23,8 @@ export interface StatCardProps {
     color: string;
     delay: number;
     highlight?: boolean;
+    isEditing?: boolean;
+    onChange?: (value: string) => void;
 }
 
 export interface ActionCardProps {

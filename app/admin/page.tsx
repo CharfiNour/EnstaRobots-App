@@ -6,7 +6,7 @@ import { StatCard, ActionCard, ActivityItem } from './components';
 import { useAdminDashboard } from './hooks/useAdminDashboard';
 
 export default function AdminDashboard() {
-    const { loading, stats, activities } = useAdminDashboard();
+    const { loading, stats, activities, updateStat } = useAdminDashboard();
 
     if (loading || !stats) {
         return (
@@ -33,13 +33,14 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <StatCard
                         icon={Trophy}
                         label="Competitions"
                         value={stats.totalCompetitions.toString()}
                         color="text-yellow-400"
                         delay={0}
+                        onChange={(val) => updateStat('totalCompetitions', Number(val) || 0)}
                     />
                     <StatCard
                         icon={Users}
@@ -47,27 +48,23 @@ export default function AdminDashboard() {
                         value={stats.totalTeams.toString()}
                         color="text-blue-400"
                         delay={0.05}
+                        onChange={(val) => updateStat('totalTeams', Number(val) || 0)}
                     />
                     <StatCard
                         icon={Calendar}
-                        label="Total Matches"
+                        label="Matches"
                         value={stats.totalMatches.toString()}
                         color="text-purple-400"
                         delay={0.1}
+                        onChange={(val) => updateStat('totalMatches', Number(val) || 0)}
                     />
                     <StatCard
                         icon={Calendar}
-                        label="Upcoming"
-                        value={stats.upcomingMatches.toString()}
+                        label="Event Duration"
+                        value={stats.eventDuration}
                         color="text-green-400"
-                        delay={0.2}
-                    />
-                    <StatCard
-                        icon={Trophy}
-                        label="Pending Scores"
-                        value={stats.pendingScores.toString()}
-                        color="text-orange-400"
-                        delay={0.25}
+                        delay={0.15}
+                        onChange={(val) => updateStat('eventDuration', val)}
                     />
                 </div>
 

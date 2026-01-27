@@ -15,7 +15,7 @@ export default function HomePage() {
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50 py-20 md:py-32 border-b border-card-border">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -42,32 +42,32 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {mounted && role !== 'visitor' && (
                 <Link href={dashboardHref}>
-                  <motion.button
+                  <motion.div
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="px-8 py-4 bg-primary text-white rounded-xl font-black text-lg shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all flex items-center gap-2 uppercase tracking-tight italic"
                   >
                     Go to Dashboard
                     <ArrowRight size={20} />
-                  </motion.button>
+                  </motion.div>
                 </Link>
               )}
               <Link href="/competitions">
-                <motion.button
+                <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-8 py-4 bg-white border-2 border-primary/20 text-primary rounded-xl font-black text-lg shadow-sm hover:border-primary/40 transition-all uppercase tracking-tight italic"
                 >
                   View Competitions
-                </motion.button>
+                </motion.div>
               </Link>
             </div>
           </motion.div>
         </div>
 
         {/* Decorative Elements */}
-        <div className="absolute top-20 left-10 w-32 h-32 bg-[var(--color-accent)] rounded-full blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-48 h-48 bg-[var(--color-secondary)] rounded-full blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-20 left-10 w-32 h-32 bg-[var(--color-accent)] rounded-full blur-3xl opacity-20 animate-pulse pointer-events-none"></div>
+        <div className="absolute bottom-20 right-10 w-48 h-48 bg-[var(--color-secondary)] rounded-full blur-3xl opacity-20 animate-pulse pointer-events-none" style={{ animationDelay: '1s' }}></div>
       </section>
 
       {/* Quick Stats */}
