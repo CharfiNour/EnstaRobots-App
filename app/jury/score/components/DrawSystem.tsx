@@ -21,8 +21,8 @@ interface ScorePayload {
     match_id: string;
     status: string;
     total_points: number;
-    is_local: boolean;
-    timestamp: number;
+    is_sent_to_team: boolean;
+    created_at: string;
 }
 
 export default function DrawSystem({
@@ -53,6 +53,7 @@ export default function DrawSystem({
 
     const performDraw = async () => {
         setCountdown(null);
+        const payloads: ScorePayload[] = [];
 
         try {
             // Intelligent Matching: Avoid same club
@@ -83,7 +84,6 @@ export default function DrawSystem({
 
             // 4. Create Match Payloads
             const matchCount = Math.ceil(interleaved.length / matchSize);
-            const payloads: ScorePayload[] = [];
 
             for (let i = 0; i < matchCount; i++) {
                 const matchId = `match-${Date.now()}-${i}`;
@@ -97,8 +97,8 @@ export default function DrawSystem({
                         match_id: matchId,
                         status: 'pending',
                         total_points: 0,
-                        is_local: false,
-                        timestamp: Date.now()
+                        is_sent_to_team: false,
+                        created_at: new Date().toISOString()
                     });
                 });
             }
@@ -112,8 +112,12 @@ export default function DrawSystem({
                 onDrawComplete();
             }, 1800);
 
-        } catch (err) {
-            console.error("Draw failed:", err);
+        } catch (err: any) {
+            console.error("--- DRAW SYSTEM FATAL ERROR ---");
+            console.error("Payload count:", payloads.length);
+            console.error("Error Object:", err);
+            console.error("Message:", err?.message || "Unknown error");
+            console.error("Details:", err?.details || "No details");
             setDrawing(false);
         }
     };

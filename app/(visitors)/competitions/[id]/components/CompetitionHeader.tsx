@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, MapPin } from 'lucide-react';
+import { Trophy, MapPin, Users } from 'lucide-react';
 import { LiveBadge } from '@/components/common/LiveBadge';
 import { getCategoryMetadata } from '@/lib/constants';
 
@@ -58,7 +58,7 @@ export function CompetitionHeader({ title, category, arena, isActuallyLive, acti
                             )}
                         </div>
 
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <motion.h1
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -87,26 +87,38 @@ export function CompetitionHeader({ title, category, arena, isActuallyLive, acti
                         </div>
                     </div>
 
-                    {/* Navigation Tabs */}
-                    <div className="flex flex-col items-center md:items-end gap-3 w-full md:w-auto">
-                        <div className="flex gap-1 p-1 bg-white/5 backdrop-blur-2xl rounded-xl border border-white/10 shadow-2xl w-full md:w-fit">
-                            {['teams', 'matches'].map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`flex-1 md:flex-none px-6 py-2.5 md:px-10 md:py-3 rounded-lg font-black text-[10px] md:text-[12px] uppercase tracking-[0.25em] transition-all duration-500 relative overflow-hidden group/tab ${activeTab === tab
-                                        ? 'bg-accent text-white shadow-[0_0_25px_rgba(var(--accent-rgb),0.4)] ring-1 ring-white/30'
-                                        : 'text-white/30 hover:text-white/60 hover:bg-white/5'
-                                        }`}
-                                >
-                                    <span className="relative z-10">{tab}</span>
-                                    {activeTab === tab && (
-                                        <div className="absolute top-0 left-0 w-full h-[1px] bg-white/40" />
-                                    )}
-                                </button>
-                            ))}
-                        </div>
+                    {/* Tactical Tab Navigator */}
+                    <div className="flex items-center gap-1 md:gap-2 bg-white/20 border border-white/10 p-1.5 md:p-2 rounded-2xl backdrop-blur-3xl shadow-2xl relative self-start md:self-center">
+                        {[
+                            { id: 'teams', label: 'Teams', icon: Users },
+                            { id: 'matches', label: 'Matches', icon: Trophy }
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`group relative px-6 md:px-8 py-3 md:py-3.5 rounded-xl transition-all duration-500 flex items-center gap-3 overflow-hidden ${activeTab === tab.id
+                                    ? 'bg-white text-black shadow-xl'
+                                    : 'text-black/60 hover:text-black hover:bg-white/5'
+                                    }`}
+                            >
+                                {activeTab === tab.id && (
+                                    <motion.div
+                                        layoutId="header-tab-active"
+                                        className="absolute inset-0 bg-white"
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                    />
+                                )}
+                                <tab.icon className={`relative z-10 w-4 h-4 transition-transform duration-500 group-hover:scale-110 ${activeTab === tab.id ? themeColor : 'text-black/60'}`} />
+                                <span className="relative z-10 text-[10px] font-black uppercase tracking-[0.25em] italic">
+                                    {tab.label}
+                                </span>
+                                {activeTab === tab.id && (
+                                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${themeBg} shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]`} />
+                                )}
+                            </button>
+                        ))}
                     </div>
+
                 </div>
             </div>
         </div>

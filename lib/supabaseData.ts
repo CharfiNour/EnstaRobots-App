@@ -121,6 +121,22 @@ export async function updateCompetitionToSupabase(competitionId: string, updates
     }
 }
 
+export async function syncGlobalProfilesLockToSupabase(locked: boolean) {
+    try {
+        const { error } = await (supabase.from('competitions') as any)
+            .update({ profiles_locked: locked })
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
+
+        if (error) {
+            console.error('Error syncing global profiles lock:', error);
+        }
+    } catch (e) {
+        console.error('Critical error in syncGlobalProfilesLockToSupabase:', e);
+    } finally {
+        dataCache.invalidate(cacheKeys.competitions());
+    }
+}
+
 /**
  * TEAMS SERVICE
  */
@@ -370,14 +386,15 @@ export async function updateClubLogoInSupabase(clubName: string, logoUrl: string
  * SCORES SERVICE
  */
 
-export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
+export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Promise<OfflineScore[]> {
     // Check cache first
     const cacheKey = cacheKeys.scores();
-    const cached = dataCache.get<OfflineScore[]>(cacheKey);
-
-    if (cached) {
-        console.log('📦 [CACHE HIT] Scores loaded from cache');
-        return cached;
+    if (!forceRefresh) {
+        const cached = dataCache.get<OfflineScore[]>(cacheKey);
+        if (cached) {
+            console.log('📦 [CACHE HIT] Scores loaded from cache');
+            return cached;
+        }
     }
 
     try {

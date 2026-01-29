@@ -13,9 +13,15 @@ export function useCompetitionDetail(compId: string) {
     const [competitions, setCompetitions] = useState<any[]>([]);
     const [compState, setCompState] = useState<CompetitionState>(getCompetitionState());
 
-    // Impact: Avoid spinner if we already have cache
-    const initialComps = dataCache.get<any[]>(cacheKeys.competitions('full'));
-    const [loading, setLoading] = useState(!initialComps || initialComps.length === 0);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // Hydration-safe initial check
+        const initialComps = dataCache.get<any[]>(cacheKeys.competitions('full'));
+        if (initialComps && initialComps.length > 0) {
+            setLoading(false);
+        }
+    }, []);
 
     const loadContent = useCallback(async (force: boolean = false) => {
         try {

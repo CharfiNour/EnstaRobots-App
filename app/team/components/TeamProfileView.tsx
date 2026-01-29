@@ -11,6 +11,7 @@ import { upsertTeamToSupabase, updateClubLogoInSupabase } from '@/lib/supabaseDa
 import { Team } from '@/lib/teams';
 import { getCompetitionState } from '@/lib/competitionState';
 import CustomSelector from '@/components/common/CustomSelector';
+import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 
 const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: any }> = {
     junior_line_follower: { name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: Zap },
@@ -36,16 +37,23 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     const logoInputRef = useRef<HTMLInputElement>(null);
     const robotInputRef = useRef<HTMLInputElement>(null);
 
-    const [availableCompetitions, setAvailableCompetitions] = useState<{ id: string, name: string }[]>([]);
+    const [availableCompetitions, setAvailableCompetitions] = useState<{ id: string, name: string, profiles_locked?: boolean }[]>([]);
+
+    const loadComps = async () => {
+        const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+        const { updateCompetitionState } = await import('@/lib/competitionState');
+        const data = await fetchCompetitionsFromSupabase('full', true);
+        if (data && data.length > 0) {
+            setAvailableCompetitions(data);
+            // If any competition has profiles_locked, or we check the specific one
+            // To match the current "global" expectation:
+            const isLocked = data.some((c: any) => c.profiles_locked);
+            setProfilesLocked(isLocked);
+            updateCompetitionState({ profilesLocked: isLocked }, { syncRemote: false });
+        }
+    };
 
     useEffect(() => {
-        const loadComps = async () => {
-            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
-            const data = await fetchCompetitionsFromSupabase();
-            if (data && data.length > 0) {
-                setAvailableCompetitions(data);
-            }
-        };
         loadComps();
 
         const checkLock = () => {
@@ -55,6 +63,10 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         window.addEventListener('competition-state-updated', checkLock);
         return () => window.removeEventListener('competition-state-updated', checkLock);
     }, []);
+
+    useSupabaseRealtime('competitions', () => {
+        loadComps();
+    });
 
     const [formData, setFormData] = useState({
         robotName: '',
@@ -106,7 +118,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     const [uploadingImage, setUploadingImage] = useState<'logo' | 'robot' | null>(null);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'robot') => {
-        if (visualsLocked && !isAdmin) return;
+        if ((visualsLocked || profilesLocked) && !isAdmin) return;
         const file = e.target.files?.[0];
         if (!file || !team) return;
 
@@ -170,7 +182,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
 
     const handleSaveProfile = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!team) return;
+        if (!team || (profilesLocked && !isAdmin)) return;
         setLoading(true);
 
         try {
@@ -358,8 +370,8 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                             onClick={() => logoInputRef.current?.click()}
                                             disabled={uploadingImage === 'logo'}
                                             className={`absolute inset-0 flex items-center justify-center text-white transition-opacity ${uploadingImage === 'logo'
-                                                    ? 'bg-black/60 opacity-100'
-                                                    : 'bg-black/40 opacity-0 group-hover/logo:opacity-100'
+                                                ? 'bg-black/60 opacity-100'
+                                                : 'bg-black/40 opacity-0 group-hover/logo:opacity-100'
                                                 }`}
                                         >
                                             {uploadingImage === 'logo' ? (

@@ -26,15 +26,6 @@ export const TeamDetail = React.memo(({ team, currentCategory, onBack, isActuall
         setMounted(true);
     }, []);
 
-    // Format time helper (ms -> MM:SS:mmm)
-    const formatTime = (ms: number) => {
-        if (!ms && ms !== 0) return "--:--:--";
-        const minutes = Math.floor(ms / 60000);
-        const seconds = Math.floor((ms % 60000) / 1000);
-        const millis = ms % 1000;
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${millis.toString().padStart(3, '0')}`;
-    };
-
     // Safely extract theme colors from metadata
     const colorMatch = metadata?.color?.match(/from-([\w-]+)/);
     const baseColor = colorMatch ? colorMatch[1] : 'accent';
@@ -141,46 +132,7 @@ export const TeamDetail = React.memo(({ team, currentCategory, onBack, isActuall
                     </div>
                 </div>
 
-                {/* Live Performance Panel */}
-                {mounted && isActuallyLive && liveScore && (
-                    <div className={`mx-4 mt-4 p-4 rounded-2xl border ${themeBorder}/30 ${themeBg}/5 animate-pulse`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className={`text-[10px] font-black uppercase ${themeColor} tracking-[0.25em] flex items-center gap-2.5`}>
-                                <Activity size={12} />
-                                Live Telemetry
-                            </h3>
-                            <span className="text-[8px] font-bold text-red-500 uppercase tracking-widest px-2 py-0.5 bg-red-500/10 rounded-full border border-red-500/20">Realtime</span>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                            {liveScore.time !== undefined && (
-                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
-                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Race Time</div>
-                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground">
-                                        {formatTime(liveScore.time)}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Show Points or Other Stats depending on availability */}
-                            {(liveScore.knockouts !== undefined || liveScore.juryPoints !== undefined) ? (
-                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
-                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Fight Score</div>
-                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground">
-                                        {(liveScore.knockouts || 0) * 10 + (liveScore.juryPoints || 0) + (liveScore.damage || 0)} <span className="text-xs text-muted-foreground/60">PTS</span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
-                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Status</div>
-                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground truncate">
-                                        {liveScore.completedRoad ? "COMPLETED" : "RUNNING"}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {/* Personnel */}
                 <div className={`p-4 md:p-5 bg-gradient-to-b from-transparent to-${baseColor}/5`}>

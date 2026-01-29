@@ -104,7 +104,14 @@ export function getCompetitionName(idOrSlug: string | undefined, dbComps: any[] 
     const dbMatch = dbComps.find(c => c.id === idOrSlug || c.type === idOrSlug);
     if (dbMatch) return dbMatch.name;
 
-    // 3. Fallback: formatted slug
+    // 3. Check UUID Map
+    const slugFromUuid = UUID_MAP[idOrSlug];
+    if (slugFromUuid) {
+        const localMatch = getCategoryMetadata(slugFromUuid);
+        if (localMatch) return localMatch.name;
+    }
+
+    // 4. Fallback: formatted slug
     return idOrSlug.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 

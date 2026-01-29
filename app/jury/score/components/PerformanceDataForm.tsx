@@ -33,9 +33,6 @@ export default function PerformanceDataForm({
     timeMillis, setTimeMillis,
     completedRoad, setCompletedRoad,
     homologationPoints, setHomologationPoints,
-    knockouts, setKnockouts,
-    juryPoints, setJuryPoints,
-    damageScore, setDamageScore,
     competitionType,
     detailedScores,
     setDetailedScores
@@ -48,142 +45,112 @@ export default function PerformanceDataForm({
         setHomologationPoints(total.toString());
     };
 
-    if (!isLineFollower) return null;
-
     return (
         <div>
-            <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2 uppercase tracking-tight">
-                <Info size={18} className="text-accent" />
-                Performance Data
-            </h3>
+            {isLineFollower && (
+                <>
+                    <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2 uppercase tracking-tight">
+                        <Info size={18} className="text-accent" />
+                        Performance Data
+                    </h3>
 
-            {isLineFollower ? (
-                <div className="space-y-4">
-                    {/* Time Input */}
-                    <div className="bg-muted/30 p-6 rounded-2xl border border-card-border shadow-inner">
-                        <label className="block text-[10px] font-black text-muted-foreground uppercase mb-4 text-center tracking-[0.25em] opacity-60">
-                            Recorded Duration
-                        </label>
-                        <div className="flex items-center justify-center gap-3">
-                            <div className="flex flex-col items-center gap-1.5">
-                                <input
-                                    type="number"
-                                    value={timeMinutes}
-                                    onChange={e => setTimeMinutes(e.target.value)}
-                                    placeholder="00"
-                                    className="w-20 px-2 py-5 text-center text-3xl font-mono bg-background border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
-                                />
-                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Min</span>
-                            </div>
-                            <span className="text-3xl font-black text-muted-foreground opacity-30 mt-[-20px]">:</span>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <input
-                                    type="number"
-                                    value={timeSeconds}
-                                    onChange={e => setTimeSeconds(e.target.value)}
-                                    placeholder="00"
-                                    className="w-20 px-2 py-5 text-center text-3xl font-mono bg-background border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
-                                />
-                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Sec</span>
-                            </div>
-                            <span className="text-3xl font-black text-muted-foreground opacity-30 mt-[-20px]">:</span>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <input
-                                    type="number"
-                                    value={timeMillis}
-                                    onChange={e => setTimeMillis(e.target.value)}
-                                    placeholder="000"
-                                    className="w-20 px-2 py-4 text-center text-2xl font-mono bg-background border border-card-border rounded-xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
-                                />
-                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Ms</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm">
-                            <div className="flex items-center gap-2.5">
-                                <div className={`p-1.5 rounded-lg ${completedRoad ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
-                                    <Timer size={16} />
+                    <div className="space-y-4">
+                        {/* Time Input */}
+                        <div className="bg-muted/30 p-6 rounded-2xl border border-card-border shadow-inner">
+                            <label className="block text-[10px] font-black text-muted-foreground uppercase mb-4 text-center tracking-[0.25em] opacity-60">
+                                Recorded Duration
+                            </label>
+                            <div className="flex items-center justify-center gap-3">
+                                <div className="flex flex-col items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        value={timeMinutes}
+                                        onChange={e => setTimeMinutes(e.target.value)}
+                                        placeholder="00"
+                                        className="w-20 px-2 py-5 text-center text-3xl font-mono bg-background border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
+                                    />
+                                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Min</span>
                                 </div>
-                                <span className={`text-xs font-black uppercase tracking-wider ${completedRoad ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                                    Road Complete
-                                </span>
+                                <span className="text-3xl font-black text-muted-foreground opacity-30 mt-[-20px]">:</span>
+                                <div className="flex flex-col items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        value={timeSeconds}
+                                        onChange={e => setTimeSeconds(e.target.value)}
+                                        placeholder="00"
+                                        className="w-20 px-2 py-5 text-center text-3xl font-mono bg-background border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
+                                    />
+                                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Sec</span>
+                                </div>
+                                <span className="text-3xl font-black text-muted-foreground opacity-30 mt-[-20px]">:</span>
+                                <div className="flex flex-col items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        value={timeMillis}
+                                        onChange={e => setTimeMillis(e.target.value)}
+                                        placeholder="000"
+                                        className="w-20 px-2 py-4 text-center text-2xl font-mono bg-background border border-card-border rounded-xl focus:ring-2 focus:ring-accent outline-none text-foreground shadow-sm"
+                                    />
+                                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Ms</span>
+                                </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setCompletedRoad(!completedRoad)}
-                                className={`w-10 h-6 rounded-full relative transition-colors shadow-inner ${completedRoad ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-700'}`}
-                            >
-                                <motion.div
-                                    animate={{ x: completedRoad ? 20 : 3 }}
-                                    className="w-4 h-4 bg-white rounded-full absolute top-1 shadow-md"
-                                />
-                            </button>
                         </div>
 
-                        <div className="flex flex-col">
-                            <button
-                                type="button"
-                                onClick={() => setIsScoreOpen(true)}
-                                className="w-full flex items-center justify-between p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm group hover:bg-accent/10 hover:border-accent/30 transition-all font-black"
-                            >
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm">
                                 <div className="flex items-center gap-2.5">
-                                    <div className="p-1.5 bg-accent/20 rounded-lg text-accent">
-                                        <Trophy size={16} />
+                                    <div className={`p-1.5 rounded-lg ${completedRoad ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                                        <Timer size={16} />
                                     </div>
-                                    <span className="text-xs uppercase tracking-wider text-muted-foreground group-hover:text-accent">
-                                        Score
+                                    <span className={`text-xs font-black uppercase tracking-wider ${completedRoad ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                        Road Complete
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black italic text-foreground">
-                                        {homologationPoints || '0'} <span className="text-[10px] not-italic opacity-40 uppercase">Pts</span>
-                                    </span>
-                                    <ChevronRight size={16} className="text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all" />
-                                </div>
-                            </button>
-                        </div>
-                    </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setCompletedRoad(!completedRoad)}
+                                    className={`w-10 h-6 rounded-full relative transition-colors shadow-inner ${completedRoad ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                                >
+                                    <motion.div
+                                        animate={{ x: completedRoad ? 20 : 3 }}
+                                        className="w-4 h-4 bg-white rounded-full absolute top-1 shadow-md"
+                                    />
+                                </button>
+                            </div>
 
-                    <LineFollowerScoreDialog
-                        isOpen={isScoreOpen}
-                        onClose={() => setIsScoreOpen(false)}
-                        currentScores={detailedScores}
-                        onSave={handleSaveDetailedScores}
-                        competitionType={competitionType}
-                    />
-                </div>
-            ) : (
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 font-mono">Knockouts</label>
-                        <input
-                            type="number"
-                            value={knockouts}
-                            onChange={(e) => setKnockouts(e.target.value)}
-                            className="w-full px-4 py-4 bg-muted/20 border border-card-border rounded-2xl text-2xl font-black outline-none text-center text-foreground shadow-sm"
+                            <div className="flex flex-col">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsScoreOpen(true)}
+                                    className="w-full flex items-center justify-between p-4 bg-muted/20 border border-card-border rounded-xl shadow-sm group hover:bg-accent/10 hover:border-accent/30 transition-all font-black"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-1.5 bg-accent/20 rounded-lg text-accent">
+                                            <Trophy size={16} />
+                                        </div>
+                                        <span className="text-xs uppercase tracking-wider text-muted-foreground group-hover:text-accent">
+                                            Score
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg font-black italic text-foreground">
+                                            {homologationPoints || '0'} <span className="text-[10px] not-italic opacity-40 uppercase">Pts</span>
+                                        </span>
+                                        <ChevronRight size={16} className="text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all" />
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <LineFollowerScoreDialog
+                            isOpen={isScoreOpen}
+                            onClose={() => setIsScoreOpen(false)}
+                            currentScores={detailedScores}
+                            onSave={handleSaveDetailedScores}
+                            competitionType={competitionType}
                         />
                     </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 font-mono">Juries</label>
-                        <input
-                            type="number"
-                            value={juryPoints}
-                            onChange={(e) => setJuryPoints(e.target.value)}
-                            className="w-full px-4 py-4 bg-muted/20 border border-card-border rounded-2xl text-2xl font-black outline-none text-center text-foreground shadow-sm"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 font-mono">Damage</label>
-                        <input
-                            type="number"
-                            value={damageScore}
-                            onChange={(e) => setDamageScore(e.target.value)}
-                            className="w-full px-4 py-4 bg-muted/20 border border-card-border rounded-2xl text-2xl font-black outline-none text-center text-foreground shadow-sm"
-                        />
-                    </div>
-                </div>
+                </>
             )}
         </div>
     );

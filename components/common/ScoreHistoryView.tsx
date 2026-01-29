@@ -10,7 +10,7 @@ import { getOfflineScores, clearAllOfflineScores } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
 import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
-import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase } from '@/lib/supabaseData';
+import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase, deleteLiveSessionFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP } from '@/lib/constants';
 import { dataCache, cacheKeys } from '@/lib/dataCache';
@@ -64,6 +64,31 @@ function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): 
     return norm.toLowerCase();
 }
 
+/**
+ * HELPER: Clean up phase names for robust comparison
+ */
+function normalizePhase(phase: string | undefined | null): string {
+    if (!phase) return '';
+    return String(phase)
+        .toLowerCase()
+        .trim()
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace('qualifications', 'qual')
+        .replace('final', 'final');
+}
+
+/**
+ * HELPER: Robustly check if two phase names match regardless of case or formatting
+ */
+function phasesMatch(a: string | undefined | null, b: string | undefined | null): boolean {
+    const normA = normalizePhase(a);
+    const normB = normalizePhase(b);
+    if (!normA && !normB) return true;
+    if (!normA || !normB) return false;
+    return normA === normB;
+}
+
 export default function ScoreHistoryView({
     isSentToTeamOnly = false,
     isAdmin = false,
@@ -93,6 +118,7 @@ export default function ScoreHistoryView({
     const [drawState, setDrawState] = useState<'idle' | 'counting' | 'success'>('idle');
     const [countdown, setCountdown] = useState<number>(3);
     const [mounted, setMounted] = useState(false);
+    const lastLiveSessionIdRef = useRef<string>("");
 
     useEffect(() => {
         setMounted(true);
@@ -141,11 +167,68 @@ export default function ScoreHistoryView({
         return uniqueTeams.filter(t => !t.isPlaceholder);
     }, [selectedCompetition, competitions, allTeams, resolvedCompId, selectedCompData]);
 
-    // 2. Calculate match plan preview
+    // 2. Identify eligible teams for the CURRENTly selected phase
+    const eligibleTeams = useMemo(() => {
+        const currentPhase = selectedPhaseFilter;
+        const phaseIdx = allCompetitionPhases.indexOf(currentPhase);
+        const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
+
+        if (!prevPhase) {
+            // First phase: all registered teams are eligible
+            return trulyUniqueTeams;
+        }
+
+        // Subsequent phases: ONLY winners/qualified from the previous round
+        const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+        const winners = groupedScores.filter(g => {
+            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+            if (canonicalGComp !== canonicalTarget) return false;
+
+            if (g.type === 'match') {
+                return (g.participants || []).some((p: any) => {
+                    const subs = (p.submissions || [])
+                        .filter((s: any) => phasesMatch(s.phase, prevPhase))
+                        .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                    if (subs.length === 0) return false;
+                    const st = (subs[0].status || '').toLowerCase();
+                    return st === 'winner' || st === 'qualified';
+                });
+            }
+
+            const subs = (g.submissions || [])
+                .filter((s: any) => phasesMatch(s.phase, prevPhase))
+                .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            if (subs.length === 0) return false;
+            const st = (subs[0].status || '').toLowerCase();
+            return st === 'winner' || st === 'qualified';
+        }).flatMap(g => {
+            if (g.type === 'match') {
+                return (g.participants || [])
+                    .filter((p: any) => {
+                        const subs = (p.submissions || [])
+                            .filter((s: any) => phasesMatch(s.phase, prevPhase))
+                            .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+                        if (subs.length === 0) return false;
+                        const st = (subs[0].status || '').toLowerCase();
+                        return st === 'winner' || st === 'qualified';
+                    })
+                    .map((p: any) => p.team);
+            }
+            return [g.team];
+        });
+
+        // Deduplicate finalized list of winners
+        const uniqueWinners = Array.from(new Map((winners.filter(Boolean)).map(t => [t.id, t])).values());
+        return uniqueWinners;
+    }, [trulyUniqueTeams, groupedScores, selectedPhaseFilter, allCompetitionPhases, selectedCompetition, competitions]);
+
+    // 3. Calculate match plan preview
     const drawPlan = useMemo(() => {
-        if (!trulyUniqueTeams.length || !isMatchBasedComp) return null;
+        if (!eligibleTeams.length || !isMatchBasedComp) return null;
         const K = drawTeamsCount;
-        const N = trulyUniqueTeams.length;
+        const N = eligibleTeams.length;
         const numGroups = Math.ceil(N / K);
         let sizes: number[] = [];
         let currentIndex = 0;
@@ -155,7 +238,7 @@ export default function ScoreHistoryView({
             currentIndex += groupSize;
         }
         return { total: N, sizes, groups: numGroups };
-    }, [trulyUniqueTeams, drawTeamsCount, isMatchBasedComp]);
+    }, [eligibleTeams, drawTeamsCount, isMatchBasedComp]);
 
     // Sync state when props change (navigation)
     useEffect(() => {
@@ -178,70 +261,48 @@ export default function ScoreHistoryView({
 
 
     // Realtime Updates
+    const handleScoresUpdate = async () => {
+        try {
+            // Use allSettled to be resilient to partial connection failures on mobile
+            const results = await Promise.allSettled([
+                fetchScoresFromSupabase(),
+                fetchTeamsFromSupabase(),
+                fetchCompetitionsFromSupabase()
+            ]);
 
-    // Realtime Updates with Debouncing
-    const scoreUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const liveUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+            const scores = results[0].status === 'fulfilled' ? results[0].value : [];
+            const teams = results[1].status === 'fulfilled' ? results[1].value : allTeams; // Fallback to current
+            const comps = results[2].status === 'fulfilled' ? results[2].value : competitions;
 
-    const handleScoresUpdate = useCallback(() => {
-        if (scoreUpdateTimeoutRef.current) clearTimeout(scoreUpdateTimeoutRef.current);
+            // Parity with Init: merge local metadata
+            const allComps = [...(comps || [])];
+            GLOBAL_CATEGORIES.forEach(localCat => {
+                if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
+                    allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
+                }
+            });
 
-        scoreUpdateTimeoutRef.current = setTimeout(async () => {
-            try {
-                // Invalidate caches to ensure we get fresh data
-                dataCache.invalidate(cacheKeys.scores());
-                dataCache.invalidatePattern('teams');
-                dataCache.invalidate(cacheKeys.competitions());
+            const order = COMPETITION_CATEGORIES.map(c => c.id);
+            const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
 
-                // Use allSettled to be resilient to partial connection failures on mobile
-                const results = await Promise.allSettled([
-                    fetchScoresFromSupabase(),
-                    fetchTeamsFromSupabase(),
-                    fetchCompetitionsFromSupabase()
-                ]);
-
-                const scores = results[0].status === 'fulfilled' ? results[0].value : [];
-                const teams = results[1].status === 'fulfilled' ? results[1].value : allTeams; // Fallback to current
-                const comps = results[2].status === 'fulfilled' ? results[2].value : competitions;
-
-                // Parity with Init: merge local metadata
-                const allComps = [...(comps || [])];
-                GLOBAL_CATEGORIES.forEach(localCat => {
-                    if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
-                        allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
-                    }
-                });
-
-                const order = COMPETITION_CATEGORIES.map(c => c.id);
-                const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
-
-                setCompetitions(sortedComps);
-                setAllTeams(teams);
-                processScores(scores, teams, sortedComps);
-            } catch (e) {
-                console.error("Realtime sync failed", e);
-            } finally {
-                setLoading(false);
-            }
-        }, 500); // 500ms debounce
-    }, [allTeams, competitions]); // Dependencies might need check, but refs are stable. 
-    // Ideally use empty deps for debounce wrapper, but valid for fetch
+            setCompetitions(sortedComps);
+            setAllTeams(teams);
+            processScores(scores, teams, sortedComps);
+        } catch (e) {
+            console.error("Realtime sync failed", e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useSupabaseRealtime('scores', handleScoresUpdate);
     useSupabaseRealtime('teams', handleScoresUpdate);
     useSupabaseRealtime('competitions', handleScoresUpdate);
 
-    const handleLiveUpdate = useCallback(() => {
-        if (liveUpdateTimeoutRef.current) clearTimeout(liveUpdateTimeoutRef.current);
-
-        liveUpdateTimeoutRef.current = setTimeout(async () => {
-            // Invalidate cache
-            dataCache.invalidate(cacheKeys.liveSessions());
-
-            const sessions = await fetchLiveSessionsFromSupabase();
-            updateCompetitionState({ liveSessions: sessions });
-        }, 500);
-    }, []);
+    const handleLiveUpdate = async () => {
+        const sessions = await fetchLiveSessionsFromSupabase();
+        updateCompetitionState({ liveSessions: sessions });
+    };
 
     useSupabaseRealtime('live_sessions', handleLiveUpdate);
 
@@ -472,14 +533,15 @@ export default function ScoreHistoryView({
             console.log(`FilteredGroups: Group '${g.matchId || g.teamId}' (Comp: '${g.competitionType}' -> Canonical: '${canonicalGComp}') matches target '${canonicalTarget}': ${matchesComp}`);
 
             // Phase filtering:
-            // 1. ALWAYS show individual teams in the sidebar registry so they can be selected/scored
-            // 2. ONLY show match groups if they belong to the selected phase (or are the match draw)
+            // 1. ALWAYS show individual teams in the sidebar registry (single type)
+            // 2. ONLY show match groups that have participants with submissions matching the selected phase
             const matchesPhase =
                 selectedPhaseFilter === 'all' ||
                 selectedPhaseFilter === '' ||
-                g.type === 'single' || // Registry: Always show single units in sidebar
-                (g.type === 'match' && (g.participants?.every((p: any) => !(p.submissions || []).some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())) || false)) || // Draw: Show groups if no results in this phase yet
-                (g.type === 'match' && (g.participants || []).some((p: any) => (p.submissions || []).some((s: any) => (s.phase || '').toLowerCase() === (selectedPhaseFilter || '').toLowerCase())));
+                g.type === 'single' ||
+                (g.type === 'match' && (g.participants || []).some((p: any) =>
+                    (p.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter))
+                ));
 
             // Team ID filtering (Strict for team role)
             const matchesTeamId = !teamId || (
@@ -517,81 +579,58 @@ export default function ScoreHistoryView({
         return filtered;
     }, [groupedScores, searchQuery, selectedCompType, selectedPhaseFilter, resolvedCompId, selectedCompetition, teamId, competitions]);
 
-    // Synchronize selection when competition changes
+    // Synchronize selection when competition changes or filtered registry updates
     useEffect(() => {
-        // Only run if filtered groups actually changed or we have no selection
+        if (!mounted) return;
+
         const first = filteredGroups[0];
         if (!first) return;
 
-        // Reset specific selection states to avoid mismatching data
-        setSelectedGroup((prev: any) => {
-            // Guard against resetting if already correctly selected
-            const prevId = prev?.matchId || prev?.teamId;
-            const newId = first?.matchId || first?.teamId;
-            if (prevId === newId && prev?.type === first?.type) return prev;
+        // If nothing is selected, or current selection is no longer in view, pick first
+        const currentId = selectedGroup?.matchId || selectedGroup?.teamId;
+        const exists = filteredGroups.some(g => (g.matchId || g.teamId) === currentId);
 
-            // If we are changing, update child states
+        if (!selectedGroup || !exists) {
+            setSelectedGroup(first);
             if (first.type === 'single') {
-                setActivePhase(first.submissions[0]?.phase || '');
+                setActivePhase(selectedPhaseFilter || first.submissions[0]?.phase || '');
                 setSelectedTeamInGroup(null);
             } else if (first.participants?.length > 0) {
                 setSelectedTeamInGroup(first.participants[0].teamId);
-                setActivePhase(first.participants[0].submissions[0]?.phase || '');
+                setActivePhase(selectedPhaseFilter || first.participants[0].submissions[0]?.phase || '');
             }
-            return first;
-        });
-    }, [selectedCompetition, filteredGroups.length]);
+        }
+    }, [filteredGroups, selectedCompetition, mounted]);
 
-    // Live Phase & Selection Synchronization for Visitors/Jury
+    // Live Phase & Selection Synchronization for Visitors/Jury - ONLY on NEW live change
     useEffect(() => {
         if (!mounted || isAdmin) return;
 
-        const currentPhaseInDB = selectedCompData?.current_phase;
-        if (currentPhaseInDB && selectedPhaseFilter !== currentPhaseInDB) {
-            setSelectedPhaseFilter(currentPhaseInDB);
-        }
-
-        // Auto-select Live session for visitors
         const liveSess = liveSessions[resolvedCompId];
-        if (liveSess) {
+        if (!liveSess) return;
+
+        const sessionKey = `${liveSess.teamId}-${liveSess.phase}`;
+        const isNewSessionFromDb = lastLiveSessionIdRef.current !== sessionKey;
+
+        if (isNewSessionFromDb) {
             const liveGroup = groupedScores.find(g =>
                 (g.type === 'match' && g.participants?.some((p: any) => p.teamId === liveSess.teamId)) ||
                 (g.type === 'single' && g.teamId === liveSess.teamId)
             );
 
             if (liveGroup) {
-                // IMPORTANT: Use deep identity checks for groups
-                const selectedGroupId = selectedGroup?.matchId || selectedGroup?.teamId;
-                const liveGroupId = liveGroup.matchId || liveGroup.teamId;
-
-                if (selectedGroupId !== liveGroupId || selectedGroup?.type !== liveGroup.type) {
-                    setSelectedGroup(liveGroup);
-                }
-
-                if (liveSess.phase && activePhase !== liveSess.phase) {
+                setSelectedGroup(liveGroup);
+                if (liveSess.phase) {
                     setActivePhase(liveSess.phase);
+                    setSelectedPhaseFilter(liveSess.phase);
                 }
+                if (liveGroup.type === 'match') setSelectedTeamInGroup(liveSess.teamId);
 
-                if (liveGroup.type === 'match' && selectedTeamInGroup !== liveSess.teamId) {
-                    setSelectedTeamInGroup(liveSess.teamId);
-                }
+                // Track that we've sync'd to this session
+                lastLiveSessionIdRef.current = sessionKey;
             }
         }
-    }, [selectedCompData?.current_phase, isAdmin, liveSessions, resolvedCompId, mounted, groupedScores, selectedGroup?.matchId, selectedGroup?.teamId, activePhase, selectedTeamInGroup]);
-
-    // Secondary sync for phase filter and internal selection
-    useEffect(() => {
-        if (!selectedGroup && filteredGroups.length > 0) {
-            const first = filteredGroups[0];
-            setSelectedGroup(first);
-            if (first.type === 'single') {
-                setActivePhase(first.submissions[0]?.phase || '');
-            } else if (first.participants?.length > 0) {
-                setSelectedTeamInGroup(first.participants[0].teamId);
-                setActivePhase(first.participants[0].submissions[0]?.phase || '');
-            }
-        }
-    }, [filteredGroups, selectedPhaseFilter]);
+    }, [liveSessions, resolvedCompId, mounted, groupedScores, isAdmin]);
 
     // Get current score data for display
     const currentScoreGroup = useMemo(() => {
@@ -615,12 +654,29 @@ export default function ScoreHistoryView({
             const participant = activeGroup.participants.find((p: any) => p.teamId === targetTeamId);
 
             if (participant) {
+                // Nuclear Fetch: Find ALL submissions for this team in this competition category
+                // We use canonical comparison to catch scores even if they use UUID vs Slug vs Legacy ID
+                const activeCanon = canonicalizeCompId(activeGroup.competitionType, competitions);
+                const allTeamSubmissions = groupedScores
+                    .filter(g => {
+                        const gCanon = canonicalizeCompId(g.competitionType, competitions);
+                        const isMatchForTeam = g.teamId === participant.teamId || g.participants?.some((p: any) => p.teamId === participant.teamId);
+                        return isMatchForTeam && gCanon === activeCanon;
+                    })
+                    .flatMap(g => g.type === 'single'
+                        ? (g.teamId === participant.teamId ? g.submissions : [])
+                        : (g.participants?.find((p: any) => p.teamId === participant.teamId)?.submissions || [])
+                    );
+
+                // Deduplicate by submission ID
+                const uniqueSubs = Array.from(new Map(allTeamSubmissions.map(s => [s.id, s])).values());
+
                 return {
                     type: 'match',
                     teamId: participant.teamId,
                     team: participant.team,
                     competitionType: activeGroup.competitionType,
-                    submissions: participant.submissions,
+                    submissions: uniqueSubs,
                     latestTimestamp: activeGroup.latestTimestamp
                 };
             }
@@ -636,89 +692,152 @@ export default function ScoreHistoryView({
     }, [currentScoreGroup]);
 
 
-    // Draw Logic: Should we show the "Start the Draw" initializer?
-    const hasAnyScoresForCompetition = useMemo(() => {
-        if (!selectedCompType) return true;
+    // --- Phase and Progress Logic ---
 
-        const targetId = resolvedCompId.toLowerCase();
-        const targetType = selectedCompType.toLowerCase();
+    /**
+     * Helper: Check if a phase is 'finished' (all scores submitted and none pending)
+     * A phase is finished when:
+     * 1. At least one match/score exists for this phase.
+     * 2. EVERY match group in the competition has finalized results for THIS phase.
+     * 3. No participants are missing scores or have pending status.
+     */
+    const getPhaseProgress = useCallback((phaseName: string) => {
+        if (!phaseName) return { exists: false, finished: true };
 
-        const compGroups = groupedScores.filter(g => {
-            const gComp = (g.competitionType || '').toLowerCase();
-            return gComp === targetType || gComp === targetId;
+        const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+        const compGroups = groupedScores.filter(g =>
+            canonicalizeCompId(g.competitionType, competitions) === canonicalTarget
+        );
+
+        // 1. Identify all match groups that BELONG to this specific phase
+        // A match group belongs to a phase if it has submissions matching that phase
+        const allMatchGroups = compGroups.filter(g =>
+            g.type === 'match' &&
+            (g.participants || []).some((p: any) =>
+                (p.submissions || []).some((s: any) => phasesMatch(s.phase, phaseName))
+            )
+        );
+
+        console.log(`[Phase Progress] Checking "${phaseName}" | Comp: "${canonicalTarget}"`);
+        console.log(`[Phase Progress] Relevant Match groups for this phase: ${allMatchGroups.length}`);
+
+        if (allMatchGroups.length === 0) {
+            // If No match groups for this phase yet, it hasn't started
+            // But check if it's a single-score competition style (Line Follower)
+            const singleScores = compGroups.filter(g =>
+                g.type === 'single' && (g.submissions || []).some((s: any) => phasesMatch(s.phase, phaseName))
+            );
+            if (singleScores.length === 0) return { exists: false, finished: false };
+
+            const allSingleFinished = singleScores.every(g =>
+                g.submissions.filter((s: any) => phasesMatch(s.phase, phaseName))
+                    .every((s: any) => s.status && s.status.toLowerCase() !== 'pending')
+            );
+            return { exists: true, finished: allSingleFinished };
+        }
+
+        // 2. CHECK ALL RELEVANT MATCH GROUPS
+        let totalFinishedMatches = 0;
+        let blockingMatches: string[] = [];
+
+        const allFinished = allMatchGroups.every((group, gIdx) => {
+            const groupName = `Group ${gIdx + 1} (${group.matchId})`;
+            let groupIsOk = true;
+
+            const participantResults = (group.participants || []).map((p: any, pIdx: number) => {
+                // Get all submissions for this phase and sort by latest first
+                const subs = (p.submissions || [])
+                    .filter((s: any) => phasesMatch(s.phase, phaseName))
+                    .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                const teamName = p.team?.name || p.teamId;
+
+                if (subs.length === 0) {
+                    console.log(`[Phase Progress] ❌ ${groupName} | Team: ${teamName} | MISSING SCORE for ${phaseName}`);
+                    groupIsOk = false;
+                    return false;
+                }
+
+                // We ONLY care about the LATEST submission status
+                const latestScore = subs[0];
+                const st = (latestScore.status || '').toLowerCase().trim();
+                const isFinalized = st !== '' && st !== 'pending';
+
+                if (!isFinalized) {
+                    console.log(`[Phase Progress] ❌ ${groupName} | Team: ${teamName} | LATEST IS STILL PENDING`);
+                    groupIsOk = false;
+                }
+
+                return isFinalized;
+            });
+
+            const allFinalized = participantResults.every((r: boolean) => r === true);
+            if (allFinalized && groupIsOk) {
+                totalFinishedMatches++;
+            } else {
+                blockingMatches.push(groupName);
+            }
+            return allFinalized;
         });
 
-        if (isMatchBasedComp) {
-            // For match-based, the "list is set" only if we have match groups
-            return compGroups.some(g => g.type === 'match');
-        } else {
-            // For single, it's set if anyone has a score (or just teams exist)
-            return compGroups.some(g => g.submissions && g.submissions.length > 0);
-        }
-    }, [groupedScores, selectedCompType, isMatchBasedComp, resolvedCompId]);
+        // 3. Final validation
+        const hasStarted = allMatchGroups.length > 0;
+        const isComplete = allFinished && hasStarted;
+
+        console.log(`[Phase Progress] "${phaseName}" Summary: ${totalFinishedMatches}/${allMatchGroups.length} groups finished. Complete: ${isComplete}`);
+        return { exists: hasStarted, finished: isComplete };
+    }, [groupedScores, selectedCompetition, competitions]);
+
+    const phaseAccessibility = useMemo(() => {
+        const map: Record<string, boolean> = {};
+        allCompetitionPhases.forEach((phase, idx) => {
+            if (idx === 0) {
+                map[phase] = true;
+            } else {
+                const prev = allCompetitionPhases[idx - 1];
+                const progress = getPhaseProgress(prev);
+                map[phase] = progress.finished;
+            }
+        });
+        return map;
+    }, [allCompetitionPhases, getPhaseProgress]);
+
+    const isPhaseDrawn = useMemo(() => {
+        if (!selectedPhaseFilter || !isMatchBasedComp) return true;
+
+        const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+        return groupedScores.some(g => {
+            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+            if (canonicalGComp !== canonicalTarget) return false;
+
+            if (g.type === 'match') {
+                return (g.participants || []).some((p: any) =>
+                    (p.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter))
+                );
+            }
+            return false;
+        });
+    }, [selectedPhaseFilter, isMatchBasedComp, groupedScores, selectedCompetition, competitions]);
+
+    const isPrevPhaseFinished = useMemo(() => {
+        const idx = allCompetitionPhases.indexOf(selectedPhaseFilter);
+        if (idx <= 0) return true;
+        return phaseAccessibility[selectedPhaseFilter];
+    }, [selectedPhaseFilter, allCompetitionPhases, phaseAccessibility]);
 
     // Auto-select first phase when competition type changes or if current filter is invalid
     useEffect(() => {
         if (allCompetitionPhases.length > 0) {
             const isInvalid = selectedPhaseFilter !== 'all' && selectedPhaseFilter !== '' && !allCompetitionPhases.includes(selectedPhaseFilter);
 
-            // Only reset if the filter is empty OR actually invalid
-            // Don't reset if it's already a valid phase (prevents resetting when clicking cards)
             if (selectedPhaseFilter === '' || isInvalid) {
-                setSelectedPhaseFilter(allCompetitionPhases[0]);
+                const firstPhase = allCompetitionPhases[0];
+                setSelectedPhaseFilter(firstPhase);
+                setActivePhase(firstPhase);
             }
         }
-    }, [allCompetitionPhases.length, selectedCompType, selectedPhaseFilter]); // Use length and type to avoid array size warnings
+    }, [allCompetitionPhases, selectedCompType, selectedPhaseFilter]);
 
-    // Check which phases are accessible (all previous phases must be completed)
-    const phaseAccessibility = useMemo(() => {
-        if (!isMatchBasedComp) return {}; // Line follower doesn't have phase restrictions
-
-        const accessibility: Record<string, boolean> = {};
-
-        for (let i = 0; i < allCompetitionPhases.length; i++) {
-            const currentPhase = allCompetitionPhases[i];
-
-            if (i === 0) {
-                // First phase is always accessible
-                accessibility[currentPhase] = true;
-            } else {
-                // Check if previous phase is completed
-                const prevPhase = allCompetitionPhases[i - 1];
-                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
-
-                const prevPhaseScores = groupedScores.filter(g => {
-                    const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
-                    if (canonicalGComp !== canonicalTarget) return false;
-
-                    if (g.type === 'match') {
-                        return g.participants?.some((p: any) =>
-                            p.submissions?.some((s: any) => s.phase === prevPhase)
-                        );
-                    }
-                    return g.submissions?.some((s: any) => s.phase === prevPhase);
-                });
-
-                // Previous phase is completed if:
-                // 1. There are scores for it AND
-                // 2. All scores have status !== 'pending'
-                const isPrevPhaseCompleted = prevPhaseScores.length > 0 && prevPhaseScores.every(g => {
-                    if (g.type === 'match') {
-                        return g.participants?.every((p: any) =>
-                            p.submissions?.filter((s: any) => s.phase === prevPhase)
-                                .every((s: any) => s.status !== 'pending')
-                        );
-                    }
-                    return g.submissions?.filter((s: any) => s.phase === prevPhase)
-                        .every((s: any) => s.status !== 'pending');
-                });
-
-                accessibility[currentPhase] = isPrevPhaseCompleted;
-            }
-        }
-
-        return accessibility;
-    }, [allCompetitionPhases, groupedScores, selectedCompetition, competitions, isMatchBasedComp]);
 
     if (loading) {
         return (
@@ -728,14 +847,14 @@ export default function ScoreHistoryView({
         );
     }
 
-    const currentScore = currentScoreGroup?.submissions?.find((s: any) => s.phase === activePhase) || currentScoreGroup?.submissions?.[0] || null;
+    const currentScore = currentScoreGroup?.submissions?.find((s: any) => phasesMatch(s.phase, activePhase)) || null;
     // lockedComp is already defined at the top via useMemo
 
     const handleSelectTeam = (group: any, teamId?: string) => {
         setDrawState('idle'); // Clear any draw success message
         setSelectedGroup(group);
         if (group.type === 'single') {
-            const targetPhase = selectedPhaseFilter !== 'all' && group.submissions.some((s: any) => s.phase === selectedPhaseFilter)
+            const targetPhase = (selectedPhaseFilter && selectedPhaseFilter !== 'all')
                 ? selectedPhaseFilter
                 : (group.submissions[0]?.phase || '');
             setActivePhase(targetPhase);
@@ -743,14 +862,10 @@ export default function ScoreHistoryView({
         } else if (group.type === 'match' && teamId) {
             setSelectedTeamInGroup(teamId);
             const participant = group.participants.find((p: any) => p.teamId === teamId);
-            if (participant?.submissions?.length > 0) {
-                const targetPhase = selectedPhaseFilter !== 'all' && participant.submissions.some((s: any) => s.phase === selectedPhaseFilter)
-                    ? selectedPhaseFilter
-                    : (participant.submissions[0]?.phase || '');
-                setActivePhase(targetPhase);
-            } else {
-                setActivePhase('');
-            }
+            const targetPhase = (selectedPhaseFilter && selectedPhaseFilter !== 'all')
+                ? selectedPhaseFilter
+                : (participant?.submissions?.[0]?.phase || '');
+            setActivePhase(targetPhase);
         }
         setMobileView('detail');
     };
@@ -786,47 +901,6 @@ export default function ScoreHistoryView({
         try {
             const competitionId = resolvedCompId;
             const currentPhase = selectedPhaseFilter;
-
-            // Calculate eligible teams based on phase
-            let eligibleTeams = [];
-            const phaseIdx = allCompetitionPhases.indexOf(currentPhase);
-            const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
-
-            if (!prevPhase) {
-                // First phase: all registered teams
-                eligibleTeams = [...trulyUniqueTeams];
-            } else {
-                // Subsequent phases: winners/qualified from previous phase
-                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
-                const winners = groupedScores.filter(g => {
-                    const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
-                    if (canonicalGComp !== canonicalTarget) return false;
-
-                    if (g.type === 'match') {
-                        return g.participants?.some((p: any) =>
-                            p.submissions?.some((s: any) =>
-                                s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
-                            )
-                        );
-                    }
-                    return g.submissions?.some((s: any) =>
-                        s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
-                    );
-                }).flatMap(g => {
-                    if (g.type === 'match') {
-                        return g.participants
-                            ?.filter((p: any) =>
-                                p.submissions?.some((s: any) =>
-                                    s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
-                                )
-                            )
-                            .map((p: any) => p.team) || [];
-                    }
-                    return [g.team];
-                });
-
-                eligibleTeams = winners.filter(Boolean);
-            }
 
             if (eligibleTeams.length < 2) {
                 alert(`Insufficient teams for ${currentPhase} (Found ${eligibleTeams.length}). Need at least 2 teams to perform a draw.`);
@@ -982,22 +1056,51 @@ export default function ScoreHistoryView({
         if (confirm(confirmMsg)) {
             setLoading(true);
             try {
-                // Context-aware Clear (Multi-variant logic)
-                const compSlug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition).toLowerCase();
-                const variants = new Set([resolvedCompId.toLowerCase(), compSlug]);
-                if (LEGACY_ID_MAP[compSlug]) variants.add(LEGACY_ID_MAP[compSlug]);
-
-                console.log("Clearing registry for variants:", Array.from(variants));
-
-                await Promise.all(
-                    Array.from(variants).map(v => clearCategoryScoresFromSupabase(v))
-                );
-
-                // Combined Functionality: Also clear local browser buffer
+                // 1. Total Cache Purge
+                dataCache.clear();
                 clearAllOfflineScores();
 
-                await handleScoresUpdate();
-                alert("Records and local buffer cleared successfully.");
+                // 2. Identify and Purge ALL identifiers
+                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+                const compSlug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition || "").toLowerCase();
+
+                const variants = new Set<string>([
+                    resolvedCompId.toLowerCase(),
+                    compSlug,
+                    canonicalTarget
+                ]);
+
+                // Broaden variants using the current in-memory lists
+                competitions.forEach(c => {
+                    if (canonicalizeCompId(c.id, competitions) === canonicalTarget) {
+                        variants.add(c.id.toLowerCase());
+                    }
+                });
+                if (LEGACY_ID_MAP[compSlug]) variants.add(LEGACY_ID_MAP[compSlug]);
+
+                // NEW: Dynamic discovery from currently visible scores
+                const rawScores = await fetchScoresFromSupabase(true);
+                rawScores.forEach(s => {
+                    const sComp = s.competitionType;
+                    if (canonicalizeCompId(sComp, competitions) === canonicalTarget) {
+                        variants.add(String(sComp).toLowerCase());
+                    }
+                });
+
+                console.log("Nuclear Reset: Purging discovered variants:", Array.from(variants));
+
+                // 3. Clear Database (Scores and Live Sessions)
+                await Promise.all([
+                    ...Array.from(variants).map(v => clearCategoryScoresFromSupabase(v)),
+                    ...Array.from(variants).map(v => deleteLiveSessionFromSupabase(v))
+                ]);
+
+                // 4. Final Aggressive Refresh
+                setGroupedScores([]);
+                const freshScores = await fetchScoresFromSupabase(true);
+                processScores(freshScores, allTeams, competitions);
+
+                alert(`Category ${targetTitle} has been factory reset. All caches and DB records cleared.`);
             } catch (e) {
                 console.error("Clear failed:", e);
                 alert("Failed to clear records. Please check your connection.");
@@ -1176,22 +1279,30 @@ export default function ScoreHistoryView({
                                     className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 snap-x"
                                 >
                                     {allCompetitionPhases.map((phase: string) => {
-                                        const isSelected = selectedPhaseFilter === phase;
-                                        const isAccessible = phaseAccessibility[phase] !== false; // Default to true for non-match-based
+                                        const isSelected = phasesMatch(selectedPhaseFilter, phase);
+                                        const isAccessible = phaseAccessibility[phase];
+                                        const progress = getPhaseProgress(phase);
 
                                         return (
                                             <button
-                                                key={phase}
-                                                onClick={() => isAccessible && setSelectedPhaseFilter(phase)}
+                                                key={`phase-${phase}`}
                                                 disabled={!isAccessible}
-                                                className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${!isAccessible
-                                                    ? 'bg-muted/30 text-muted-foreground/40 border-card-border/50 cursor-not-allowed opacity-50'
-                                                    : isSelected
-                                                        ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
+                                                onClick={() => {
+                                                    setSelectedPhaseFilter(phase);
+                                                    setActivePhase(phase);
+                                                }}
+                                                className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md flex items-center gap-2 ${isSelected
+                                                    ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
+                                                    : !isAccessible
+                                                        ? 'bg-muted/50 text-muted-foreground/40 border-card-border/50 cursor-not-allowed opacity-60'
                                                         : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
                                                     }`}
                                             >
-                                                {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                                {!isAccessible && <Radar size={12} className="opacity-50" />}
+                                                {(phase || '').replace(/_/g, ' ').replace('qualifications', 'Qualifications').replace('final', 'Final').replace('qual', 'Qualifications')}
+                                                {isAccessible && progress.finished && (
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                                )}
                                             </button>
                                         );
                                     })}
@@ -1260,8 +1371,35 @@ export default function ScoreHistoryView({
                                                                         {participant.team?.logo ? <img src={participant.team.logo} className="w-full h-full object-cover rounded-lg" alt="" /> : (participant.teamId || "?").charAt(0).toUpperCase()}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <div className={`text-[11px] md:text-sm font-black uppercase truncate transition-colors ${isTeamSelected ? 'text-role-primary' : 'text-foreground'}`}>
-                                                                            {participant.team?.name || participant.teamId}
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <div className={`text-[11px] md:text-sm font-black uppercase truncate transition-colors ${isTeamSelected ? 'text-role-primary' : 'text-foreground'}`}>
+                                                                                {participant.team?.name || participant.teamId}
+                                                                            </div>
+                                                                            {/* Submission Indicator for Match Participant */}
+                                                                            {(() => {
+                                                                                const sub = (participant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
+                                                                                if (!sub) return null;
+                                                                                const st = (sub.status || '').toLowerCase();
+                                                                                const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated'].includes(st);
+                                                                                const isWinner = st === 'winner';
+                                                                                const isEliminated = st === 'eliminated';
+
+                                                                                if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
+
+                                                                                if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
+
+                                                                                return (
+                                                                                    <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
+                                                                                        isFinalized ? (isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600') :
+                                                                                            'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
+                                                                                        }`}>
+                                                                                        {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
+                                                                                            isWinner ? 'WIN' :
+                                                                                                isEliminated ? 'OUT' :
+                                                                                                    isFinalized ? '✓' : ''}
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
                                                                         </div>
                                                                         <div className="flex items-center gap-1.5 mt-0.5">
 
@@ -1305,8 +1443,33 @@ export default function ScoreHistoryView({
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <div className={`font-black text-[12px] truncate uppercase ${isSelected ? 'text-role-primary' : 'text-foreground'}`}>
-                                                        {group.team?.name || group.teamId}
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className={`font-black text-[12px] truncate uppercase ${isSelected ? 'text-role-primary' : 'text-foreground'}`}>
+                                                            {group.team?.name || group.teamId}
+                                                        </div>
+                                                        {/* Submission Indicator for Single Team */}
+                                                        {(() => {
+                                                            const sub = (group.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
+                                                            if (!sub) return null;
+                                                            const st = (sub.status || '').toLowerCase();
+                                                            const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated'].includes(st);
+                                                            const isWinner = st === 'winner';
+                                                            const isEliminated = st === 'eliminated';
+
+                                                            if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
+
+                                                            return (
+                                                                <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
+                                                                    isFinalized ? (isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600') :
+                                                                        'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
+                                                                    }`}>
+                                                                    {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
+                                                                        isWinner ? 'WIN' :
+                                                                            isEliminated ? 'OUT' :
+                                                                                isFinalized ? '✓' : ''}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-0.5">
                                                         <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
@@ -1333,7 +1496,7 @@ export default function ScoreHistoryView({
             </div>
 
             {/* Main Content Area */}
-            <div className={`flex-1 bg-white/40 backdrop-blur-xl border border-card-border rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-6 lg:p-10 shadow-2xl relative lg:h-[650px] flex flex-col items-center overflow-y-auto lg:overflow-hidden ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}`}>
+            <div className={`flex-1 bg-white/40 backdrop-blur-xl border border-card-border rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-6 lg:p-8 shadow-2xl relative lg:min-h-[750px] lg:max-h-[850px] flex flex-col items-center overflow-y-auto ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}`}>
                 {/* Mobile Back Button */}
                 <div className="lg:hidden w-full mb-4">
                     <button
@@ -1346,90 +1509,8 @@ export default function ScoreHistoryView({
                 </div >
 
                 <AnimatePresence mode="wait">
-                    {(isAdmin || isJury) && isMatchBasedComp && (() => {
-                        // Check if current phase has been drawn
-                        const phaseIdx = allCompetitionPhases.indexOf(selectedPhaseFilter);
-                        const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
-
-                        // Check if previous phase is finished (all scores are not 'pending')
-                        const isPrevPhaseFinished = !prevPhase || groupedScores.filter(g => {
-                            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
-                            const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
-                            if (canonicalGComp !== canonicalTarget) return false;
-
-                            if (g.type === 'match') {
-                                return g.participants?.some((p: any) =>
-                                    p.submissions?.some((s: any) => s.phase === prevPhase)
-                                );
-                            }
-                            return g.submissions?.some((s: any) => s.phase === prevPhase);
-                        }).every(g => {
-                            if (g.type === 'match') {
-                                return g.participants?.every((p: any) =>
-                                    p.submissions?.filter((s: any) => s.phase === prevPhase)
-                                        .every((s: any) => s.status !== 'pending')
-                                );
-                            }
-                            return g.submissions?.filter((s: any) => s.phase === prevPhase)
-                                .every((s: any) => s.status !== 'pending');
-                        });
-
-                        // Check if current phase has matches drawn
-                        const isPhaseDrawn = groupedScores.some(g => {
-                            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
-                            const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
-                            if (canonicalGComp !== canonicalTarget) return false;
-
-                            if (g.type === 'match') {
-                                return g.participants?.some((p: any) =>
-                                    p.submissions?.some((s: any) => s.phase === selectedPhaseFilter)
-                                );
-                            }
-                            return false;
-                        });
-
-                        return !isPrevPhaseFinished || (!isPhaseDrawn || drawState !== 'idle');
-                    })() ? (
-                        !(() => {
-                            const phaseIdx = allCompetitionPhases.indexOf(selectedPhaseFilter);
-                            const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
-                            const isPrevPhaseFinished = !prevPhase || groupedScores.filter(g => {
-                                const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
-                                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
-                                return canonicalGComp === canonicalTarget;
-                            }).every(g => {
-                                if (g.type === 'match') {
-                                    return g.participants?.every((p: any) =>
-                                        p.submissions?.filter((s: any) => s.phase === prevPhase)
-                                            .every((s: any) => s.status !== 'pending')
-                                    );
-                                }
-                                return g.submissions?.filter((s: any) => s.phase === prevPhase)
-                                    .every((s: any) => s.status !== 'pending');
-                            });
-                            return isPrevPhaseFinished;
-                        })() ? (
-                            <motion.div
-                                key="phase-locked"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className="flex flex-col items-center justify-center py-20 text-center space-y-6"
-                            >
-                                <div className="p-6 bg-rose-500/10 rounded-full text-rose-500 relative">
-                                    <AlertCircle size={60} />
-                                    <div className="absolute inset-0 bg-rose-500/20 blur-[40px] rounded-full" />
-                                </div>
-                                <div>
-                                    <h2 className="text-3xl font-black text-foreground uppercase italic tracking-tighter">
-                                        {selectedPhaseFilter} Has Not Started Yet
-                                    </h2>
-                                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs mt-2 opacity-60">
-                                        Awaiting completion of previous tactical phase: {allCompetitionPhases[allCompetitionPhases.indexOf(selectedPhaseFilter) - 1]}
-                                    </p>
-                                </div>
-                            </motion.div>
-                        ) : (
+                    {(isAdmin || isJury) && isMatchBasedComp && (!isPhaseDrawn || drawState !== 'idle') ? (
+                        <div className="flex-1 flex flex-col justify-center w-full min-h-full py-4 md:py-8">
                             <DrawInterface
                                 drawState={drawState}
                                 countdown={countdown}
@@ -1439,26 +1520,28 @@ export default function ScoreHistoryView({
                                 drawPlan={drawPlan}
                                 selectedPhase={selectedPhaseFilter}
                             />
-                        )
+                        </div>
                     ) : currentScoreGroup ? (
-                        <motion.div
-                            key={`${currentScoreGroup.teamId}-${currentScoreGroup.competitionType}-${activePhase}`}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            className="w-full"
-                        >
-                            <ScoreCard
-                                group={currentScoreGroup}
-                                activePhase={activePhase}
-                                onPhaseChange={setActivePhase}
-                                isAdmin={isAdmin}
-                                onDelete={() => handleScoresUpdate()}
-                                matchParticipants={selectedGroup?.type === 'match' ? selectedGroup.participants : undefined}
-                                allCompetitions={competitions}
-                            />
-                        </motion.div>
+                        <div className="flex-1 flex flex-col justify-center w-full min-h-full py-4 md:py-8">
+                            <motion.div
+                                key={`${currentScoreGroup.teamId}-${currentScoreGroup.competitionType}-${activePhase}`}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.2 }}
+                                className="w-full flex justify-center"
+                            >
+                                <ScoreCard
+                                    group={currentScoreGroup}
+                                    activePhase={activePhase}
+                                    onPhaseChange={setActivePhase}
+                                    isAdmin={isAdmin}
+                                    onDelete={() => handleScoresUpdate()}
+                                    matchParticipants={selectedGroup?.type === 'match' ? selectedGroup.participants : undefined}
+                                    allCompetitions={competitions}
+                                />
+                            </motion.div>
+                        </div>
                     ) : (
                         <div className="text-center opacity-30 space-y-4">
                             <Target size={48} className="mx-auto text-muted-foreground" />

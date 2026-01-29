@@ -85,10 +85,6 @@ export default function AdminTeamsPage() {
         };
         loadTeams();
 
-        if (activeTab === 'order' && selectedCategory === 'all' && categories.length > 0) {
-            setSelectedCategory(categories[0].id);
-        }
-
         window.addEventListener('teams-updated', loadTeams);
         window.addEventListener('storage', (e) => {
             if (e.key === 'enstarobots_teams_v1') loadTeams();
@@ -98,7 +94,14 @@ export default function AdminTeamsPage() {
             window.removeEventListener('teams-updated', loadTeams);
             window.removeEventListener('storage', loadTeams);
         };
-    }, [activeTab, selectedCategory]);
+    }, []);
+
+    // Separate effect to initialize category only once
+    useEffect(() => {
+        if (activeTab === 'order' && selectedCategory === 'all' && categories.length > 0) {
+            setSelectedCategory(categories[0].id);
+        }
+    }, [activeTab]);
 
     return (
         <div className="min-h-screen bg-background relative overflow-hidden flex flex-col">

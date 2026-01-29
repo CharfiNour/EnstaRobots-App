@@ -1,5 +1,5 @@
 
-import { syncLiveStateToSupabase, deleteLiveSessionFromSupabase } from './supabaseData';
+import { syncLiveStateToSupabase, deleteLiveSessionFromSupabase, syncGlobalProfilesLockToSupabase } from './supabaseData';
 
 export interface LiveSession {
     teamId: string;
@@ -116,7 +116,9 @@ export function toggleCompetitionOrdered(compId: string) {
 
 export function toggleProfilesLock() {
     const state = getCompetitionState();
-    updateCompetitionState({ profilesLocked: !state.profilesLocked });
+    const newLocked = !state.profilesLocked;
+    updateCompetitionState({ profilesLocked: newLocked });
+    syncGlobalProfilesLockToSupabase(newLocked);
 }
 
 export async function startLiveSession(teamId: string, competitionId: string, phase: string) {

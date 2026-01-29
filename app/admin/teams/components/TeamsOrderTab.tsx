@@ -72,29 +72,107 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
             );
         });
 
-    const moveTeamAcrossFiltered = (filteredIndex: number, direction: 'up' | 'down') => {
+    const syncPositionsToSupabase = async (updatedTeams: Team[]) => {
+        try {
+            const { supabase } = await import('@/lib/supabase');
+
+            // Batch update all teams with their new positions
+            for (let i = 0; i < updatedTeams.length; i++) {
+                const team = updatedTeams[i];
+                const { error } = await (supabase.from('teams') as any)
+                    .update({ display_order: i })
+                    .eq('id', team.id);
+
+                if (error) {
+                    // If the column doesn't exist, log a helpful message
+                    if (error.message?.includes('display_order')) {
+                        console.warn('⚠️ display_order column not found. Run: ALTER TABLE teams ADD COLUMN display_order INTEGER;');
+                        return; // Stop trying after first error
+                    }
+                    throw error;
+                }
+            }
+
+            console.log('✅ Team positions synced to Supabase');
+        } catch (err: any) {
+            console.warn('Position sync skipped:', err.message || err);
+        }
+    };
+
+    const moveTeamAcrossFiltered = async (filteredIndex: number, direction: 'up' | 'down') => {
         const currentFiltered = mainDisplayTeams;
+        console.log('🔄 Move triggered:', { filteredIndex, direction, totalTeams: teams.length, filteredCount: currentFiltered.length });
 
         if (direction === 'up' && filteredIndex > 0) {
             const teamToMove = currentFiltered[filteredIndex];
             const targetTeam = currentFiltered[filteredIndex - 1];
+            console.log('Moving UP:', teamToMove.name, 'to position of', targetTeam.name);
+
             const newTeams = [...teams];
             const originIdx = newTeams.findIndex(t => t.id === teamToMove.id);
             const targetIdx = newTeams.findIndex(t => t.id === targetTeam.id);
+
+            console.log('Indices:', { originIdx, targetIdx });
+
+            // Remove the team from its current position
             const [moved] = newTeams.splice(originIdx, 1);
+
+            // Insert it at the target position
+            // If we're moving up, insert BEFORE the target (at targetIdx)
             newTeams.splice(targetIdx, 0, moved);
+
+            console.log('✅ New teams order:', newTeams.map(t => t.name));
+
+            // Invalidate cache before saving to prevent cache from overwriting
+            const { dataCache } = await import('@/lib/dataCache');
+            dataCache.invalidatePattern('teams');
+
             setTeams(newTeams);
             saveTeams(newTeams);
+            // Fire and forget - don't block UI on database sync
+            syncPositionsToSupabase(newTeams).catch(err =>
+                console.warn('Background sync failed:', err)
+            );
         } else if (direction === 'down' && filteredIndex < currentFiltered.length - 1) {
             const teamToMove = currentFiltered[filteredIndex];
             const targetTeam = currentFiltered[filteredIndex + 1];
+            console.log('Moving DOWN:', teamToMove.name, 'to position of', targetTeam.name);
+
             const newTeams = [...teams];
             const originIdx = newTeams.findIndex(t => t.id === teamToMove.id);
             const targetIdx = newTeams.findIndex(t => t.id === targetTeam.id);
+
+            console.log('Indices:', { originIdx, targetIdx });
+
+            // Remove the team from its current position
             const [moved] = newTeams.splice(originIdx, 1);
-            newTeams.splice(targetIdx, 0, moved);
+
+            // Recalculate target index after removal (if we removed before target, index shifts)
+            const finalTargetIdx = originIdx < targetIdx ? targetIdx : targetIdx + 1;
+
+            console.log('Final target index:', finalTargetIdx);
+
+            // Insert it AFTER the target
+            newTeams.splice(finalTargetIdx, 0, moved);
+
+            console.log('✅ New teams order:', newTeams.map(t => t.name));
+
+            // Invalidate cache before saving to prevent cache from overwriting
+            const { dataCache } = await import('@/lib/dataCache');
+            dataCache.invalidatePattern('teams');
+
             setTeams(newTeams);
             saveTeams(newTeams);
+            // Fire and forget - don't block UI on database sync
+            syncPositionsToSupabase(newTeams).catch(err =>
+                console.warn('Background sync failed:', err)
+            );
+        } else {
+            console.warn('⚠️ Move blocked:', {
+                reason: direction === 'up' ? 'Already at top' : 'Already at bottom',
+                filteredIndex,
+                maxIndex: currentFiltered.length - 1
+            });
         }
     };
 

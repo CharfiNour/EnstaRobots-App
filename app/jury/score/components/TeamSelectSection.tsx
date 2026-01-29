@@ -97,7 +97,7 @@ export default function TeamSelectSection({
                         <div key={index} className="flex flex-col md:flex-row gap-4 p-5 rounded-[2rem] bg-muted/20 border border-card-border group transition-all hover:bg-muted/30 shadow-sm relative z-0 focus-within:z-50">
                             <div className="flex-1">
                                 <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] opacity-60">
-                                    {isLineFollower ? 'Robot Name' : `Team ${index + 1} Robot`}
+                                    {isHomo ? 'Robot Selection' : (isLineFollower ? 'Robot Name' : `Team ${index + 1} Robot`)}
                                 </label>
 
                                 <CustomSelector

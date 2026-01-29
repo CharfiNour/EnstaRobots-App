@@ -83,21 +83,6 @@ export default function AnnouncementsPage() {
                 </p>
             </motion.div>
 
-            {/* Filters */}
-            <div className="mb-10 flex items-center justify-start md:justify-center gap-2 overflow-x-auto pb-4 no-scrollbar">
-                {filters.map((filter) => (
-                    <button
-                        key={filter.id}
-                        onClick={() => setSelectedFilter(filter.id)}
-                        className={`flex-shrink-0 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.15em] transition-all border ${selectedFilter === filter.id
-                                ? 'bg-accent text-slate-900 border-accent shadow-md shadow-accent/10'
-                                : 'bg-white/80 backdrop-blur-sm border-card-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
-                            }`}
-                    >
-                        {filter.label}
-                    </button>
-                ))}
-            </div>
 
             <div className="max-w-3xl mx-auto space-y-6">
                 {loading ? (

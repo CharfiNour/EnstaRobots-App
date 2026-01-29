@@ -28,6 +28,7 @@ export interface OfflineScore {
     synced: boolean;
     isSentToTeam?: boolean;
     status?: string;
+    remarks?: string;
 }
 
 const OFFLINE_SCORES_KEY = 'enstarobots_offline_scores_v2';

@@ -27,9 +27,22 @@ interface ScoreCardProps {
 }
 
 export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, onDelete, matchParticipants, allCompetitions }: ScoreCardProps) {
-    const currentScore = group.submissions.find((s) =>
-        (s.phase || '').toLowerCase() === (activePhase || '').toLowerCase()
-    ) || group.submissions[0];
+    // Robust phase matching helper
+    const matchesPhase = (phaseA: string | undefined, phaseB: string | undefined) => {
+        const norm = (p: string | undefined) => (p || '').toLowerCase().trim().replace(/_/g, ' ').replace('qualifications', 'qual');
+        return norm(phaseA) === norm(phaseB);
+    };
+
+    // Filter and sort submissions for the current phase (latest first)
+    const phaseSubmissions = group.submissions
+        .filter((s) => matchesPhase(s.phase, activePhase))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    const currentScore = phaseSubmissions[0];
+
+    const homologationScore = group.submissions.find((s) =>
+        matchesPhase(s.phase, 'homologation')
+    );
 
     // Resolve competition metadata
     const compMetadata = allCompetitions?.find(c => c.id === group.competitionType || c.type === group.competitionType);
@@ -41,6 +54,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
 
     // Determine the layout style:
     const isLineFollower = competitionType === 'line_follower' || competitionType === 'junior_line_follower' || competitionName.toLowerCase().includes('line follower');
+    const isHomologation = (activePhase || '').toLowerCase() === 'homologation';
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -50,11 +64,13 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
     const hasScore = !!currentScore;
 
     const handleStartEdit = () => {
+        if (!currentScore) return;
         setEditData({ ...currentScore });
         setIsEditing(true);
     };
 
     const handleSave = () => {
+        if (!currentScore) return;
         updateScore(currentScore.id, editData);
         setIsEditing(false);
         onDelete?.(); // Re-trigger load in parent
@@ -84,26 +100,29 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
-            className="max-w-lg mx-auto"
+            className="w-full max-w-[480px] mx-auto"
         >
 
             {/* Main Record Card */}
-            <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-[0_20px_40px_-8px_rgba(0,0,0,0.15)] relative">
+            <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-[0_20px_40px_-8px_rgba(0,0,0,0.15)] relative h-[540px] flex flex-col">
                 {/* Brand Header */}
-                <div className={`bg-gradient-to-br ${styleMeta?.color || 'from-accent/5 to-card'} p-4 md:p-5 border-b ${styleMeta?.borderColor || 'border-card-border'} flex justify-between items-center`}>
+                <div className={`bg-gradient-to-br ${styleMeta?.color || 'from-accent/5 to-card'} p-2.5 md:p-3 border-b ${styleMeta?.borderColor || 'border-card-border'} flex justify-between items-center`}>
                     <div>
                         <div className={`flex items-center gap-2 mb-1 ${styleMeta?.badgeColor ? styleMeta.badgeColor.split(' ').find((c: string) => c.startsWith('text-')) : 'text-accent'}`}>
                             <Shield size={14} />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Official Record</span>
                         </div>
-                        <h2 className="text-xl md:text-2xl font-black text-foreground uppercase italic leading-none">
+                        <h2 className="text-xl md:text-2xl font-black text-foreground uppercase italic leading-none flex items-center gap-1">
                             {competitionName}
+                            {isHomologation && (
+                                <span className="text-[10px] not-italic px-2 py-0.5 rounded-full bg-role-primary/10 border border-role-primary/30 text-role-primary tracking-widest font-black uppercase">Registry</span>
+                            )}
                         </h2>
                     </div>
 
                     <div className="flex items-center gap-2">
                         {/* Admin Delete Action */}
-                        {isAdmin && (
+                        {isAdmin && hasScore && (
                             <>
                                 {isEditing ? (
                                     <div className="flex items-center gap-1">
@@ -133,7 +152,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                         </button>
                                         <button
                                             onClick={async () => {
-                                                if (confirm('Are you sure you want to delete this phase/score record?')) {
+                                                if (currentScore && confirm('Are you sure you want to delete this phase/score record?')) {
                                                     try {
                                                         // 1. Delete from Supabase first
                                                         await deleteScoreFromSupabase(currentScore.id);
@@ -159,12 +178,12 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                     </div>
                 </div>
 
-                <div className="p-4 md:p-5 space-y-4">
+                <div className="p-4 md:p-6 space-y-4 flex-1 flex flex-col min-h-0">
                     {/* Team Profile Card */}
                     <div className="relative bg-gradient-to-br from-accent/5 via-muted/30 to-muted/10 rounded-xl border border-card-border overflow-hidden">
-                        <div className="p-4 flex items-center gap-4">
+                        <div className="p-3 flex items-center gap-4">
                             {/* Team Logo */}
-                            <div className="w-16 h-16 rounded-lg bg-card border-2 border-accent/30 shadow-lg overflow-hidden flex-shrink-0">
+                            <div className="w-14 h-14 rounded-lg bg-card border-2 border-accent/30 shadow-lg overflow-hidden flex-shrink-0">
                                 {group.team?.logo ? (
                                     <img src={group.team.logo} alt="Team Logo" className="w-full h-full object-cover" />
                                 ) : (
@@ -177,31 +196,32 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             </div>
 
                             {/* Team Info */}
-                            <div className="flex-1 min-w-0 pr-24">
-                                <div className="text-xl font-black text-foreground uppercase mb-1.5 leading-tight truncate">
+                            <div className="flex-1 min-w-0 pr-16">
+                                <div className="text-lg font-black text-foreground uppercase mb-1 leading-tight truncate">
                                     {group.team?.name || group.teamId}
                                 </div>
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
+                                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
-                                        <span className="font-semibold">{group.team?.club || 'Robotics Club'}</span>
+                                        <span className="font-bold">{group.team?.club || 'Robotics Club'}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
                                         <div className="w-1 h-1 rounded-full bg-accent"></div>
-                                        <span className="font-semibold">{group.team?.university || 'Engineering University'}</span>
+                                        <span className="font-bold opacity-75">{group.team?.university || 'Official Entry'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Result Badge for selected team (Absolute) */}
-                            {!isLineFollower && hasScore && currentScore.status && (
+                            {hasScore && currentScore.status && (
                                 <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${currentScore.status === 'winner' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
                                     currentScore.status === 'qualified' ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
-                                        currentScore.status === 'pending' ? 'bg-muted border-card-border text-muted-foreground' :
-                                            'bg-red-500/10 border-red-500/30 text-red-600'
+                                        (currentScore.status === 'validated' || currentScore.status === 'finished' || currentScore.status === 'success') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
+                                            currentScore.status === 'pending' ? 'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none' :
+                                                'bg-red-500/10 border-red-500/30 text-red-600'
                                     }`}>
                                     {currentScore.status === 'winner' && '🏆 '}
-                                    {currentScore.status}
+                                    {isHomologation ? `${currentScore.totalPoints} PTS` : currentScore.status}
                                 </div>
                             )}
                         </div>
@@ -209,17 +229,71 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
 
 
                     {/* Performance Breakdown / Match Participants */}
-                    <div className="space-y-3">
+                    <div className="space-y-4 flex-1 flex flex-col min-h-0">
                         <div className="flex items-center gap-2">
                             <div className="h-px flex-1 bg-card-border" />
                             <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">
-                                {isLineFollower ? 'Performance Breakdown' : 'Match Opponents'}
+                                {isHomologation ? 'Technical Analysis' : isLineFollower ? 'Performance Breakdown' : 'Match Opponents'}
                             </span>
                             <div className="h-px flex-1 bg-card-border" />
                         </div>
 
-                        <div className="h-[250px] overflow-y-auto custom-scrollbar pr-2">
-                            {isLineFollower ? (
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+
+                            {isHomologation ? (
+                                <div className="grid gap-3">
+                                    {hasScore ? (
+                                        <div className="space-y-2">
+
+                                            {/* Itemized Technical Breakdown */}
+                                            <div className="grid gap-2">
+                                                {Object.entries(currentScore.detailedScores || {}).map(([id, pts]) => {
+                                                    const label = id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                                    const isFighter = competitionType === 'fight';
+                                                    const max = isFighter ? (
+                                                        ['conception_mecanique', 'conception_electrique'].includes(id) ? 15 :
+                                                            ['carte_puissance', 'carte_commande'].includes(id) ? 10 :
+                                                                id === 'arme' ? 20 :
+                                                                    id === 'telecommande' ? 15 : 10
+                                                    ) : 10;
+
+                                                    return (
+                                                        <div key={id} className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-card-border/50 group hover:bg-muted/30 transition-all">
+                                                            <div className="text-[10px] font-black uppercase tracking-tight text-foreground/80 group-hover:text-foreground transition-colors">{label}</div>
+                                                            <div className="text-sm font-black italic text-accent flex items-baseline gap-1">
+                                                                {pts}
+                                                                <span className="text-[8px] not-italic opacity-30 text-muted-foreground uppercase">/ {max}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Total Summary for Homologation (Moved to bottom) */}
+                                            <div className="flex items-center justify-between p-3 bg-role-primary/5 rounded-xl border border-role-primary/20 mt-2 mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-role-primary/20 rounded-lg text-role-primary">
+                                                        <Shield size={16} />
+                                                    </div>
+                                                    <span className="text-xs font-black uppercase tracking-wide text-role-primary">Homologation Score</span>
+                                                </div>
+                                                <span className="text-xl font-black italic text-foreground tracking-tighter">
+                                                    {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ 40 PTS</span>
+                                                </span>
+                                            </div>
+
+                                        </div>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center py-8 text-center bg-muted/5 rounded-xl border border-dashed border-card-border">
+                                            <div className="w-12 h-12 rounded-full bg-card border border-card-border flex items-center justify-center mb-3 text-muted-foreground/30">
+                                                <Shield size={24} />
+                                            </div>
+                                            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Technical Registry Pending</div>
+                                            <div className="text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]">Waiting for tactical entry in the registry sector.</div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : isLineFollower ? (
                                 <div className="grid gap-3">
                                     {hasScore ? (
                                         <>
@@ -284,7 +358,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                     <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
                                                 </div>
                                                 <span className="text-xl font-black italic text-foreground tracking-tighter">
-                                                    {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">Pts</span>
+                                                    {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ 215 PTS</span>
                                                 </span>
                                             </div>
 
@@ -324,6 +398,36 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                             });
                                                         })()}
                                                     </div>
+
+                                                    {/* Homologation Score inside Tactical Analysis for LF */}
+                                                    {!isHomologation && homologationScore && (
+                                                        <div className="mt-4 p-4 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
+                                                            <div className="flex flex-col gap-3 w-full">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="p-2 bg-role-primary/20 rounded-lg text-role-primary">
+                                                                            <Shield size={16} />
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-xs font-black uppercase tracking-widest text-role-primary leading-tight">Homologation Score</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="text-2xl font-black italic text-foreground tracking-tighter flex items-baseline gap-1">
+                                                                        {homologationScore.totalPoints} <span className="text-[11px] not-italic uppercase opacity-60">/ 40 PTS</span>
+                                                                    </span>
+                                                                </div>
+
+                                                                {homologationScore.remarks && (
+                                                                    <div className="pt-2 border-t border-role-primary/20">
+                                                                        <div className="text-[9px] font-black uppercase text-role-primary/80 mb-1 tracking-widest">Technician Notes</div>
+                                                                        <div className="text-[10px] font-bold text-foreground leading-relaxed">
+                                                                            "{homologationScore.remarks}"
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </>
@@ -358,9 +462,9 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                     key={participant.teamId}
                                                     className="relative bg-muted/10 rounded-xl border border-card-border overflow-hidden"
                                                 >
-                                                    <div className="p-4 flex items-center gap-4">
+                                                    <div className="p-2 flex items-center gap-3">
                                                         {/* Team Logo */}
-                                                        <div className="w-10 h-10 rounded-lg bg-card border border-card-border shadow overflow-hidden flex-shrink-0">
+                                                        <div className="w-8 h-8 rounded-lg bg-card border border-card-border shadow overflow-hidden flex-shrink-0">
                                                             {participant.team?.logo ? (
                                                                 <img src={participant.team.logo} alt="Team Logo" className="w-full h-full object-cover" />
                                                             ) : (
@@ -405,16 +509,54 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             )}
                         </div>
 
+                        {/* Tactical Analysis Section for Match-based */}
+                        {!isHomologation && !isLineFollower && (
+                            <div className="mt-2 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-px flex-1 bg-card-border" />
+                                    <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.25em]">Tactical Analysis</span>
+                                    <div className="h-px flex-1 bg-card-border" />
+                                </div>
+
+                                {homologationScore ? (
+                                    <div className="p-2 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-1.5 bg-role-primary/20 rounded-lg text-role-primary">
+                                                    <Shield size={14} />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-role-primary leading-tight">Homologation</span>
+                                            </div>
+                                            <span className="text-lg font-black italic text-foreground tracking-tighter flex items-baseline gap-1">
+                                                {homologationScore.totalPoints} <span className="text-[9px] not-italic uppercase opacity-60">/ 40 PTS</span>
+                                            </span>
+                                        </div>
+
+                                    </div>
+                                ) : (
+                                    <div className="p-2 bg-orange-500/5 rounded-xl border border-orange-500/10 shadow-sm flex items-center justify-center gap-2">
+                                        <Shield size={12} className="text-orange-500/60" />
+                                        <div className="text-[9px] font-black text-orange-600 uppercase tracking-widest">Technical Registration Missing</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Verified Results bottom bar - Only show if DONE */}
-                {hasScore && currentScore.status !== 'pending' && (
-                    <div className="bg-green-500/10 p-4 border-t border-green-500/20 flex items-center justify-center gap-2.5">
-                        <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-                        <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
-                    </div>
-                )}
+                {/* Verified Results bottom bar - Only show if DONE or officially cleared */}
+                {hasScore && currentScore && (
+                    (currentScore.status && currentScore.status !== 'pending') ||
+                    isHomologation ||
+                    isLineFollower ||
+                    (homologationScore) || // If they are homologated, they are an official verified participant
+                    (!currentScore.status) // Default to verified if no status is present (legacy/LF)
+                ) && (
+                        <div className="bg-green-500/10 p-3 border-t border-green-500/20 flex items-center justify-center gap-2.5">
+                            <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                            <span className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.35em]">Verified Official Result</span>
+                        </div>
+                    )}
             </div>
         </motion.div>
     );
