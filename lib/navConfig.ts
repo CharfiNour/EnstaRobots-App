@@ -12,8 +12,8 @@ export interface NavItem {
 export const navConfig: Record<UserRole, NavItem[]> = {
     visitor: [
         { name: 'Home', href: '/', icon: 'Home' },
-        { name: 'Score', href: '/score', icon: 'History' },
         { name: 'Announcements', href: '/announcements', icon: 'Bell' },
+        { name: 'Teams', href: '/teams', icon: 'Users' },
         { name: 'Competitions', href: '/competitions', icon: 'Trophy' },
     ],
     team: [
@@ -37,8 +37,8 @@ export const navConfig: Record<UserRole, NavItem[]> = {
 // Desktop nav items
 export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]> = {
     visitor: [
-        { name: 'Score', href: '/score' },
         { name: 'Announcements', href: '/announcements' },
+        { name: 'Teams', href: '/teams' },
         { name: 'Competitions', href: '/competitions' },
     ],
     team: [

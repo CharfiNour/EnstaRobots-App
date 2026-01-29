@@ -18,6 +18,7 @@ interface TeamSelectSectionProps {
     selectedGroup?: string;
     setSelectedGroup?: (v: string) => void;
     groups?: string[];
+    scoringMode?: 'performance' | 'homologation';
 }
 
 export default function TeamSelectSection({
@@ -34,16 +35,19 @@ export default function TeamSelectSection({
     STATUS_OPTIONS,
     selectedGroup,
     setSelectedGroup,
-    groups = []
+    groups = [],
+    scoringMode = 'performance'
 }: TeamSelectSectionProps) {
+    const isHomo = scoringMode === 'homologation';
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4">
                 <h2 className="text-xl font-black text-foreground flex items-center gap-3 uppercase tracking-tight italic">
                     <Shield size={22} className="text-accent" />
-                    Teams & Competition Phases
+                    Teams & {isHomo ? 'Technical Registration' : 'Competition Phases'}
                 </h2>
-                {!isLineFollower && (
+                {!isLineFollower && !isHomo && (
                     <div className="flex flex-row flex-wrap items-center gap-2">
                         <CustomSelector
                             prefix="Phase"
@@ -60,7 +64,7 @@ export default function TeamSelectSection({
                                 return {
                                     value: p,
                                     label: p + (isLocked ? ' (Locked)' : ''),
-                                    disabled: isLocked
+                                    disabled: false // Allow selection so Jury can see the "Not Started" message
                                 };
                             })}
                         />
@@ -86,7 +90,7 @@ export default function TeamSelectSection({
 
             <div className="grid gap-3">
                 {teams.map((team, index) => {
-                    const phaseToCheck = isLineFollower ? team.phase : globalPhase;
+                    const phaseToCheck = isHomo ? 'Homologation' : (isLineFollower ? team.phase : globalPhase);
                     const hasSubmitted = isPhaseSubmitted(team.id, phaseToCheck!);
 
                     return (
@@ -102,27 +106,31 @@ export default function TeamSelectSection({
                                     placeholder="Select Robot..."
                                     value={team.id}
                                     onChange={(val) => handleTeamChange(index, 'id', val)}
-                                    className={hasSubmitted ? 'ring-1 ring-red-500/50 rounded-2xl' : ''}
+                                    className={hasSubmitted ? 'ring-1 ring-emerald-500/50 rounded-2xl' : ''}
                                     options={competitionTeams.map((t) => ({
                                         value: t.id,
                                         label: t.name + (isPhaseSubmitted(t.id, phaseToCheck!) ? ' ✓' : ''),
-                                        color: isPhaseSubmitted(t.id, phaseToCheck!) ? 'text-accent' : ''
+                                        color: isPhaseSubmitted(t.id, phaseToCheck!) ? 'text-emerald-500' : ''
                                     }))}
                                 />
 
                                 {hasSubmitted && (
-                                    <div className="text-[9px] font-bold text-red-500 dark:text-red-400 mt-2 flex items-center gap-1.5 px-1 uppercase tracking-wider">
+                                    <div className="text-[9px] font-bold text-emerald-500 dark:text-emerald-400 mt-2 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                                         <Info size={10} /> Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
                                     </div>
                                 )}
                             </div>
 
                             <div className="md:w-56 shrink-0">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] opacity-60">
+                                <label className={`text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] ${isHomo ? 'opacity-0 select-none' : 'opacity-60'}`}>
                                     {isLineFollower ? 'Attempt Phase' : 'Match Outcome'}
                                 </label>
 
-                                {isLineFollower ? (
+                                {isHomo ? (
+                                    <div className="w-full px-4 py-[1.125rem] bg-role-primary/10 border border-role-primary/30 rounded-2xl flex items-center justify-center">
+                                        <span className="text-[10px] font-black text-role-primary uppercase tracking-[0.2em]">Ready for Evaluation</span>
+                                    </div>
+                                ) : isLineFollower ? (
                                     <CustomSelector
                                         variant="block"
                                         fullWidth

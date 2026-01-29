@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { Team, TeamMember } from './teams';
 import { OfflineScore } from './offlineScores';
 import { Database } from '../types/supabase';
+import { dataCache, cacheKeys } from './dataCache';
 
 type DBTeam = Database['public']['Tables']['teams']['Row'];
 type DBTeamMember = Database['public']['Tables']['team_members']['Row'];
@@ -11,11 +12,25 @@ type DBScore = Database['public']['Tables']['scores']['Row'];
  * COMPETITIONS SERVICE
  */
 
-export async function fetchCompetitionsFromSupabase() {
+export async function fetchCompetitionsFromSupabase(fields: 'minimal' | 'full' = 'full', forceRefresh: boolean = false): Promise<any[]> {
+    const cacheKey = cacheKeys.competitions(fields);
+    if (!forceRefresh) {
+        const cached = dataCache.get<any[]>(cacheKey);
+
+        if (cached) {
+            console.log(`📦 [CACHE HIT] Competitions (${fields}) loaded from cache`);
+            return cached;
+        }
+    }
+
+    const selectQuery = fields === 'minimal'
+        ? 'id, name, type, current_phase, total_teams, total_matches, arena, schedule'
+        : '*';
+
     try {
         const { data, error } = await supabase
             .from('competitions')
-            .select('*');
+            .select(selectQuery);
 
         if (error) {
             console.error('--- SUPABASE COMPS FETCH ERROR ---', {
@@ -24,6 +39,11 @@ export async function fetchCompetitionsFromSupabase() {
             });
             return [];
         }
+
+        // Store in cache
+        dataCache.set(cacheKey, data as any);
+        console.log('💾 [CACHE SET] Competitions cached');
+
         return data as any;
     } catch (e: any) {
         console.error("Critical error in fetchCompetitionsFromSupabase:", e.message || e);
@@ -95,6 +115,9 @@ export async function updateCompetitionToSupabase(competitionId: string, updates
 
     } catch (e: any) {
         console.error("Critical error in updateCompetitionToSupabase:", e.message || JSON.stringify(e));
+    } finally {
+        // Invalidate competitions cache after mutation
+        dataCache.invalidate(cacheKeys.competitions());
     }
 }
 
@@ -102,7 +125,18 @@ export async function updateCompetitionToSupabase(competitionId: string, updates
  * TEAMS SERVICE
  */
 
-export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'): Promise<Team[]> {
+export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full', forceRefresh: boolean = false): Promise<Team[]> {
+    // Check cache first (unless forced)
+    const cacheKey = cacheKeys.teams(fields);
+    if (!forceRefresh) {
+        const cached = dataCache.get<Team[]>(cacheKey);
+
+        if (cached) {
+            console.log(`📦 [CACHE HIT] Teams (${fields}) loaded from cache`);
+            return cached;
+        }
+    }
+
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
         console.error("CRITICAL: NEXT_PUBLIC_SUPABASE_URL is not defined in the environment!");
         return [];
@@ -146,12 +180,11 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
                 role: m.role || '',
                 isLeader: m.is_leader
             })),
-            organization: t.university || '',
         }));
 
         // Strict system-wide filter for dead/dummy data
         // Strict system-wide filter for dead/dummy data (Aggressive version)
-        return processedTeams.filter((t: any) => {
+        const filteredTeams = processedTeams.filter((t: any) => {
             const teamName = String(t.name || '').toUpperCase();
             const robotName = String(t.robotName || '').toUpperCase();
             const clubName = String(t.club || '').toUpperCase();
@@ -167,9 +200,67 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
 
             return !isTeam42 && !isUnknownClub && !isDummySlot;
         });
+
+        // Store in cache
+        dataCache.set(cacheKey, filteredTeams);
+        console.log(`💾 [CACHE SET] Teams (${fields}) cached`);
+
+        return filteredTeams;
     } catch (e: any) {
         console.error("Critical error in fetchTeamsFromSupabase:", e.message || e);
         return [];
+    }
+}
+
+/**
+ * Fetches a single team with full details (photo, members).
+ * Used for "Deep Detail" view to avoid loading photos for all teams at once.
+ */
+export async function fetchSingleTeamFromSupabase(teamId: string, forceRefresh: boolean = false): Promise<Team | null> {
+    const cacheKey = cacheKeys.teamDetail(teamId);
+    if (!forceRefresh) {
+        const cached = dataCache.get<Team>(cacheKey);
+        if (cached) return cached;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('teams')
+            .select(`
+                id, name, robot_name, club, university, logo_url, photo_url, team_code, competition_id, is_placeholder, visuals_locked,
+                team_members (team_id, name, role, is_leader)
+            `)
+            .eq('id', teamId)
+            .single();
+
+        if (error) throw error;
+        if (!data) return null;
+
+        const t: any = data;
+        const team: Team = {
+            id: t.id,
+            name: t.name,
+            robotName: t.robot_name || t.name,
+            club: t.club || '',
+            university: t.university || '',
+            logo: t.logo_url || '',
+            photo: t.photo_url || '',
+            code: t.team_code || '',
+            competition: t.competition_id || '',
+            isPlaceholder: t.is_placeholder,
+            visualsLocked: t.visuals_locked,
+            members: (t.team_members || []).map((m: any) => ({
+                name: m.name,
+                role: m.role || '',
+                isLeader: m.is_leader
+            })),
+        };
+
+        dataCache.set(cacheKey, team);
+        return team;
+    } catch (e) {
+        console.error(`Error fetching team ${teamId}:`, e);
+        return null;
     }
 }
 
@@ -239,6 +330,10 @@ export async function upsertTeamToSupabase(team: Team): Promise<string> {
             console.warn("Non-critical error updating members:", mErr);
         }
     }
+
+    // Invalidate teams cache after mutation
+    dataCache.invalidatePattern('teams');
+
     return realId;
 }
 
@@ -252,6 +347,9 @@ export async function deleteTeamFromSupabase(teamId: string) {
         console.error('Error deleting team from Supabase:', error);
         throw error;
     }
+
+    // Invalidate teams cache after deletion
+    dataCache.invalidatePattern('teams');
 }
 
 export async function updateClubLogoInSupabase(clubName: string, logoUrl: string) {
@@ -263,6 +361,9 @@ export async function updateClubLogoInSupabase(clubName: string, logoUrl: string
         console.error('Error updating club logo:', error);
         throw error;
     }
+
+    // Invalidate teams cache after logo update
+    dataCache.invalidatePattern('teams');
 }
 
 /**
@@ -270,6 +371,15 @@ export async function updateClubLogoInSupabase(clubName: string, logoUrl: string
  */
 
 export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
+    // Check cache first
+    const cacheKey = cacheKeys.scores();
+    const cached = dataCache.get<OfflineScore[]>(cacheKey);
+
+    if (cached) {
+        console.log('📦 [CACHE HIT] Scores loaded from cache');
+        return cached;
+    }
+
     try {
         const [scoresResponse, compsResponse] = await Promise.all([
             supabase.from('scores').select('*').order('created_at', { ascending: false }),
@@ -299,7 +409,7 @@ export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
             if (c.id && c.type) compMap[c.id] = c.type;
         });
 
-        return scores.map((s: any) => ({
+        const processedScores = scores.map((s: any) => ({
             id: s.id || '',
             matchId: s.match_id || '',
             teamId: s.team_id || '',
@@ -319,6 +429,12 @@ export async function fetchScoresFromSupabase(): Promise<OfflineScore[]> {
             isSentToTeam: s.is_sent_to_team,
             status: s.status || undefined
         }));
+
+        // Store in cache
+        dataCache.set(cacheKey, processedScores);
+        console.log('💾 [CACHE SET] Scores cached');
+
+        return processedScores;
     } catch (e: any) {
         console.error("Critical error in fetchScoresFromSupabase:", e.message || e);
         return [];
@@ -353,6 +469,9 @@ export async function pushScoreToSupabase(score: OfflineScore) {
         console.groupEnd();
         throw error;
     }
+
+    // Invalidate scores cache after mutation
+    dataCache.invalidate(cacheKeys.scores());
 }
 
 export async function deleteScoreFromSupabase(scoreId: string) {
@@ -365,6 +484,9 @@ export async function deleteScoreFromSupabase(scoreId: string) {
         console.error('Error deleting score from Supabase:', error);
         throw error;
     }
+
+    // Invalidate scores cache after deletion
+    dataCache.invalidate(cacheKeys.scores());
 }
 
 export async function clearAllScoresFromSupabase() {
@@ -377,6 +499,9 @@ export async function clearAllScoresFromSupabase() {
         console.error('Error clearing all scores:', error);
         throw error;
     }
+
+    // Invalidate scores cache after clearing
+    dataCache.invalidate(cacheKeys.scores());
 }
 
 export async function clearCategoryMatchesFromSupabase(competitionId: string) {
@@ -391,6 +516,9 @@ export async function clearCategoryMatchesFromSupabase(competitionId: string) {
         console.error('Error clearing category matches:', error);
         throw error;
     }
+
+    // Invalidate scores cache after clearing matches
+    dataCache.invalidate(cacheKeys.scores());
 }
 
 export async function clearCategoryScoresFromSupabase(competitionId: string) {
@@ -404,6 +532,9 @@ export async function clearCategoryScoresFromSupabase(competitionId: string) {
         console.error('Error clearing category scores:', error);
         throw error;
     }
+
+    // Invalidate scores cache after clearing category
+    dataCache.invalidate(cacheKeys.scores());
 }
 
 /**
@@ -441,7 +572,9 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
                 competition_id: targetCompId,
                 team_id: String(sub.teamId),
                 phase: sub.phase || '',
-                start_time: new Date(sub.startTime || Date.now()).toISOString()
+                start_time: new Date(sub.startTime || Date.now()).toISOString(),
+                score_summary: sub.scoreSummary || null,
+                updated_at: new Date().toISOString()
             });
         }
 
@@ -451,15 +584,33 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
                 .upsert(sessionEntries, { onConflict: 'competition_id' });
 
             if (insertError) {
-                console.group('--- SUPABASE LIVE SYNC ERROR ---');
-                console.error('Code:', insertError.code);
-                console.error('Message:', insertError.message);
-                console.log('Attempted Data:', sessionEntries);
-                console.groupEnd();
+                // Graceful Degradation: If schema is missing columns, retry with legacy payload
+                if (insertError.code === 'PGRST204') {
+                    console.warn("⚠️ Database Schema Mismatch: Retrying live sync without 'score_summary' or 'updated_at' columns.");
+
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const legacyEntries = sessionEntries.map(({ score_summary, updated_at, ...rest }) => rest);
+
+                    const { error: retryError } = await (supabase.from('live_sessions') as any)
+                        .upsert(legacyEntries, { onConflict: 'competition_id' });
+
+                    if (retryError) {
+                        console.error("❌ Legacy sync failing too:", retryError.message);
+                    }
+                } else {
+                    console.group('--- SUPABASE LIVE SYNC ERROR ---');
+                    console.error('Code:', insertError.code);
+                    console.error('Message:', insertError.message);
+                    console.log('Attempted Data:', sessionEntries);
+                    console.groupEnd();
+                }
             }
         }
     } catch (e) {
         console.error("Critical error in syncLiveStateToSupabase:", e);
+    } finally {
+        // Invalidate live sessions cache after sync
+        dataCache.invalidate(cacheKeys.liveSessions());
     }
 }
 
@@ -505,6 +656,9 @@ export async function deleteLiveSessionFromSupabase(competitionId: string) {
 
     } catch (e: any) {
         console.error("Critical error in deleteLiveSessionFromSupabase:", e?.message || e);
+    } finally {
+        // Invalidate live sessions cache after deletion
+        dataCache.invalidate(cacheKeys.liveSessions());
     }
 }
 
@@ -528,10 +682,22 @@ export async function clearAllLiveSessionsFromSupabase() {
             code: e.code,
             hint: e.hint
         });
+    } finally {
+        // Invalidate live sessions cache after clearing
+        dataCache.invalidate(cacheKeys.liveSessions());
     }
 }
 
 export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, any>> {
+    // Check cache first
+    const cacheKey = cacheKeys.liveSessions();
+    const cached = dataCache.get<Record<string, any>>(cacheKey);
+
+    if (cached) {
+        console.log('📦 [CACHE HIT] Live sessions loaded from cache');
+        return cached;
+    }
+
     try {
         const [sessResponse, compsResponse] = await Promise.all([
             supabase.from('live_sessions').select('*'),
@@ -570,9 +736,15 @@ export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, an
             sessions[key] = {
                 teamId: s.team_id,
                 phase: s.phase,
-                startTime: new Date(s.start_time).getTime()
+                startTime: new Date(s.start_time).getTime(),
+                scoreSummary: s.score_summary || undefined,
+                lastUpdate: s.updated_at ? new Date(s.updated_at).getTime() : undefined
             };
         });
+
+        // Store in cache
+        dataCache.set(cacheKey, sessions);
+        console.log('💾 [CACHE SET] Live sessions cached');
 
         return sessions;
     } catch (e: any) {

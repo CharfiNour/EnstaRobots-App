@@ -48,6 +48,8 @@ export default function PerformanceDataForm({
         setHomologationPoints(total.toString());
     };
 
+    if (!isLineFollower) return null;
+
     return (
         <div>
             <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2 uppercase tracking-tight">

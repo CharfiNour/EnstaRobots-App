@@ -16,6 +16,7 @@ interface DrawInterfaceProps {
     setDrawTeamsCount: (count: number) => void;
     handleAutoDraw: () => void;
     drawPlan: DrawPlan | null;
+    selectedPhase?: string;
 }
 
 export default function DrawInterface({
@@ -24,11 +25,12 @@ export default function DrawInterface({
     drawTeamsCount,
     setDrawTeamsCount,
     handleAutoDraw,
-    drawPlan
+    drawPlan,
+    selectedPhase
 }: DrawInterfaceProps) {
     if (drawState === 'idle') {
         return (
-            <div className="flex flex-col items-center justify-center space-y-8 w-full">
+            <div className="flex flex-col items-center justify-center space-y-8 w-full h-full min-h-[500px]">
                 <div className="text-center space-y-2">
                     <h2 className="text-3xl font-black uppercase tracking-tighter italic text-foreground">
                         Start the Draw
@@ -104,7 +106,7 @@ export default function DrawInterface({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 1.5, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="flex flex-col items-center justify-center"
+                className="flex flex-col items-center justify-center h-full min-h-[500px]"
             >
                 <div className="text-[120px] font-black text-role-primary italic leading-none text-shadow-glow">
                     {countdown}
@@ -118,7 +120,7 @@ export default function DrawInterface({
 
     if (drawState === 'success') {
         return (
-            <div className="flex flex-col items-center justify-center animate-in zoom-in duration-300">
+            <div className="flex flex-col items-center justify-center animate-in zoom-in duration-300 h-full min-h-[500px]">
                 <div className="w-24 h-24 rounded-full bg-role-primary text-white flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(var(--role-primary),0.5)]">
                     <ClipboardCheck size={48} />
                 </div>

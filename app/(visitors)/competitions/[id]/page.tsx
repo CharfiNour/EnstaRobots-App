@@ -6,6 +6,7 @@ import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 import { canonicalizeCompId, getCategoryMetadata } from '@/lib/constants';
 import { useCompetitionDetail } from './hooks/useCompetitionDetail';
 import { CompetitionHeader } from './components/CompetitionHeader';
+import { fetchSingleTeamFromSupabase } from '@/lib/supabaseData';
 import { TeamSidebar } from './components/TeamSidebar';
 import { TeamDetail } from './components/TeamDetail';
 import { Team } from '@/lib/teams';
@@ -19,6 +20,7 @@ export default function CompetitionDetailPage() {
     const metadata = getCategoryMetadata(resolvedCategory);
 
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+    const [fullTeamDetails, setFullTeamDetails] = useState<Record<string, Team>>({});
     const [activeTab, setActiveTab] = useState('teams');
     const [showMobileDetail, setShowMobileDetail] = useState(false);
 
@@ -28,6 +30,25 @@ export default function CompetitionDetailPage() {
             setSelectedTeam(teams[0]);
         }
     }, [teams, selectedTeam]);
+
+    // Lazy load full details for selected team
+    useEffect(() => {
+        if (selectedTeam && !fullTeamDetails[selectedTeam.id]) {
+            // Check if it's already "full" enough (has members or photo)
+            const isFull = (selectedTeam.members && selectedTeam.members.length > 0) || !!selectedTeam.photo;
+
+            if (!isFull) {
+                fetchSingleTeamFromSupabase(selectedTeam.id).then(full => {
+                    if (full) {
+                        setFullTeamDetails(prev => ({ ...prev, [full.id]: full }));
+                    }
+                });
+            }
+        }
+    }, [selectedTeam, fullTeamDetails]);
+
+    // Combined data for detail view
+    const effectiveSelectedTeam = selectedTeam ? (fullTeamDetails[selectedTeam.id] || selectedTeam) : null;
 
     // Live session auto-selection
     const liveSession = compState.liveSessions[resolvedCategory];
@@ -77,9 +98,10 @@ export default function CompetitionDetailPage() {
                         {/* Detail View */}
                         <div className={`${showMobileDetail ? 'flex' : 'hidden lg:flex'} justify-center items-start lg:sticky lg:top-8`}>
                             <TeamDetail
-                                team={selectedTeam}
+                                team={effectiveSelectedTeam}
                                 currentCategory={resolvedCategory}
                                 isActuallyLive={isActuallyLive && liveSession?.teamId === selectedTeam?.id}
+                                liveScore={liveSession?.scoreSummary}
                                 onBack={() => setShowMobileDetail(false)}
                             />
                         </div>

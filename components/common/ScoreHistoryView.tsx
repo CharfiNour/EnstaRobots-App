@@ -13,6 +13,7 @@ import { updateCompetitionState, getCompetitionState } from '@/lib/competitionSt
 import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP } from '@/lib/constants';
+import { dataCache, cacheKeys } from '@/lib/dataCache';
 import DrawInterface from './DrawInterface';
 
 const COMPETITION_CATEGORIES = GLOBAL_CATEGORIES;
@@ -177,48 +178,70 @@ export default function ScoreHistoryView({
 
 
     // Realtime Updates
-    const handleScoresUpdate = async () => {
-        try {
-            // Use allSettled to be resilient to partial connection failures on mobile
-            const results = await Promise.allSettled([
-                fetchScoresFromSupabase(),
-                fetchTeamsFromSupabase(),
-                fetchCompetitionsFromSupabase()
-            ]);
 
-            const scores = results[0].status === 'fulfilled' ? results[0].value : [];
-            const teams = results[1].status === 'fulfilled' ? results[1].value : allTeams; // Fallback to current
-            const comps = results[2].status === 'fulfilled' ? results[2].value : competitions;
+    // Realtime Updates with Debouncing
+    const scoreUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const liveUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-            // Parity with Init: merge local metadata
-            const allComps = [...(comps || [])];
-            GLOBAL_CATEGORIES.forEach(localCat => {
-                if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
-                    allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
-                }
-            });
+    const handleScoresUpdate = useCallback(() => {
+        if (scoreUpdateTimeoutRef.current) clearTimeout(scoreUpdateTimeoutRef.current);
 
-            const order = COMPETITION_CATEGORIES.map(c => c.id);
-            const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+        scoreUpdateTimeoutRef.current = setTimeout(async () => {
+            try {
+                // Invalidate caches to ensure we get fresh data
+                dataCache.invalidate(cacheKeys.scores());
+                dataCache.invalidatePattern('teams');
+                dataCache.invalidate(cacheKeys.competitions());
 
-            setCompetitions(sortedComps);
-            setAllTeams(teams);
-            processScores(scores, teams, sortedComps);
-        } catch (e) {
-            console.error("Realtime sync failed", e);
-        } finally {
-            setLoading(false);
-        }
-    };
+                // Use allSettled to be resilient to partial connection failures on mobile
+                const results = await Promise.allSettled([
+                    fetchScoresFromSupabase(),
+                    fetchTeamsFromSupabase(),
+                    fetchCompetitionsFromSupabase()
+                ]);
+
+                const scores = results[0].status === 'fulfilled' ? results[0].value : [];
+                const teams = results[1].status === 'fulfilled' ? results[1].value : allTeams; // Fallback to current
+                const comps = results[2].status === 'fulfilled' ? results[2].value : competitions;
+
+                // Parity with Init: merge local metadata
+                const allComps = [...(comps || [])];
+                GLOBAL_CATEGORIES.forEach(localCat => {
+                    if (!allComps.find(c => c.type === localCat.id || c.id === localCat.id)) {
+                        allComps.push({ id: localCat.id, type: localCat.id, name: localCat.name });
+                    }
+                });
+
+                const order = COMPETITION_CATEGORIES.map(c => c.id);
+                const sortedComps = allComps.sort((a: any, b: any) => order.indexOf(a.type) - order.indexOf(b.type));
+
+                setCompetitions(sortedComps);
+                setAllTeams(teams);
+                processScores(scores, teams, sortedComps);
+            } catch (e) {
+                console.error("Realtime sync failed", e);
+            } finally {
+                setLoading(false);
+            }
+        }, 500); // 500ms debounce
+    }, [allTeams, competitions]); // Dependencies might need check, but refs are stable. 
+    // Ideally use empty deps for debounce wrapper, but valid for fetch
 
     useSupabaseRealtime('scores', handleScoresUpdate);
     useSupabaseRealtime('teams', handleScoresUpdate);
     useSupabaseRealtime('competitions', handleScoresUpdate);
 
-    const handleLiveUpdate = async () => {
-        const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions });
-    };
+    const handleLiveUpdate = useCallback(() => {
+        if (liveUpdateTimeoutRef.current) clearTimeout(liveUpdateTimeoutRef.current);
+
+        liveUpdateTimeoutRef.current = setTimeout(async () => {
+            // Invalidate cache
+            dataCache.invalidate(cacheKeys.liveSessions());
+
+            const sessions = await fetchLiveSessionsFromSupabase();
+            updateCompetitionState({ liveSessions: sessions });
+        }, 500);
+    }, []);
 
     useSupabaseRealtime('live_sessions', handleLiveUpdate);
 
@@ -639,11 +662,63 @@ export default function ScoreHistoryView({
         if (allCompetitionPhases.length > 0) {
             const isInvalid = selectedPhaseFilter !== 'all' && selectedPhaseFilter !== '' && !allCompetitionPhases.includes(selectedPhaseFilter);
 
+            // Only reset if the filter is empty OR actually invalid
+            // Don't reset if it's already a valid phase (prevents resetting when clicking cards)
             if (selectedPhaseFilter === '' || isInvalid) {
                 setSelectedPhaseFilter(allCompetitionPhases[0]);
             }
         }
-    }, [allCompetitionPhases, selectedCompType]);
+    }, [allCompetitionPhases.length, selectedCompType, selectedPhaseFilter]); // Use length and type to avoid array size warnings
+
+    // Check which phases are accessible (all previous phases must be completed)
+    const phaseAccessibility = useMemo(() => {
+        if (!isMatchBasedComp) return {}; // Line follower doesn't have phase restrictions
+
+        const accessibility: Record<string, boolean> = {};
+
+        for (let i = 0; i < allCompetitionPhases.length; i++) {
+            const currentPhase = allCompetitionPhases[i];
+
+            if (i === 0) {
+                // First phase is always accessible
+                accessibility[currentPhase] = true;
+            } else {
+                // Check if previous phase is completed
+                const prevPhase = allCompetitionPhases[i - 1];
+                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+
+                const prevPhaseScores = groupedScores.filter(g => {
+                    const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+                    if (canonicalGComp !== canonicalTarget) return false;
+
+                    if (g.type === 'match') {
+                        return g.participants?.some((p: any) =>
+                            p.submissions?.some((s: any) => s.phase === prevPhase)
+                        );
+                    }
+                    return g.submissions?.some((s: any) => s.phase === prevPhase);
+                });
+
+                // Previous phase is completed if:
+                // 1. There are scores for it AND
+                // 2. All scores have status !== 'pending'
+                const isPrevPhaseCompleted = prevPhaseScores.length > 0 && prevPhaseScores.every(g => {
+                    if (g.type === 'match') {
+                        return g.participants?.every((p: any) =>
+                            p.submissions?.filter((s: any) => s.phase === prevPhase)
+                                .every((s: any) => s.status !== 'pending')
+                        );
+                    }
+                    return g.submissions?.filter((s: any) => s.phase === prevPhase)
+                        .every((s: any) => s.status !== 'pending');
+                });
+
+                accessibility[currentPhase] = isPrevPhaseCompleted;
+            }
+        }
+
+        return accessibility;
+    }, [allCompetitionPhases, groupedScores, selectedCompetition, competitions, isMatchBasedComp]);
 
     if (loading) {
         return (
@@ -698,6 +773,7 @@ export default function ScoreHistoryView({
 
 
 
+
     const handleAutoDraw = async () => {
         if (!selectedCompetition || !isMatchBasedComp) return;
         setIsDrawLoading(true);
@@ -709,33 +785,92 @@ export default function ScoreHistoryView({
 
         try {
             const competitionId = resolvedCompId;
+            const currentPhase = selectedPhaseFilter;
 
-            if (trulyUniqueTeams.length < 2) {
-                alert(`Insufficient unique teams found (Found ${trulyUniqueTeams.length}). Need at least 2 teams to perform a draw.`);
+            // Calculate eligible teams based on phase
+            let eligibleTeams = [];
+            const phaseIdx = allCompetitionPhases.indexOf(currentPhase);
+            const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
+
+            if (!prevPhase) {
+                // First phase: all registered teams
+                eligibleTeams = [...trulyUniqueTeams];
+            } else {
+                // Subsequent phases: winners/qualified from previous phase
+                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+                const winners = groupedScores.filter(g => {
+                    const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+                    if (canonicalGComp !== canonicalTarget) return false;
+
+                    if (g.type === 'match') {
+                        return g.participants?.some((p: any) =>
+                            p.submissions?.some((s: any) =>
+                                s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
+                            )
+                        );
+                    }
+                    return g.submissions?.some((s: any) =>
+                        s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
+                    );
+                }).flatMap(g => {
+                    if (g.type === 'match') {
+                        return g.participants
+                            ?.filter((p: any) =>
+                                p.submissions?.some((s: any) =>
+                                    s.phase === prevPhase && (s.status === 'winner' || s.status === 'qualified')
+                                )
+                            )
+                            .map((p: any) => p.team) || [];
+                    }
+                    return [g.team];
+                });
+
+                eligibleTeams = winners.filter(Boolean);
+            }
+
+            if (eligibleTeams.length < 2) {
+                alert(`Insufficient teams for ${currentPhase} (Found ${eligibleTeams.length}). Need at least 2 teams to perform a draw.`);
                 setIsDrawLoading(false);
                 return;
             }
 
-            // Shuffle
-            const shuffled = [...trulyUniqueTeams];
-            for (let i = shuffled.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            // INTELLIGENT MATCHING: Club-aware interleaving
+            // 1. Group by club
+            const clubMap: Record<string, any[]> = {};
+            eligibleTeams.forEach(t => {
+                const c = t.club && t.club.trim() !== '' ? t.club : `unique-${t.id}`;
+                if (!clubMap[c]) clubMap[c] = [];
+                clubMap[c].push(t);
+            });
+
+            // 2. Shuffle each club's teams
+            Object.values(clubMap).forEach(teams => {
+                teams.sort(() => Math.random() - 0.5);
+            });
+
+            // 3. Interleave to separate club members
+            const interleaved: any[] = [];
+            const clubNames = Object.keys(clubMap).sort(() => Math.random() - 0.5);
+            let maxCount = Math.max(...Object.values(clubMap).map(ts => ts.length));
+
+            for (let i = 0; i < maxCount; i++) {
+                clubNames.forEach(c => {
+                    if (clubMap[c][i]) interleaved.push(clubMap[c][i]);
+                });
             }
 
+            // 4. Create match groups
             const K = drawTeamsCount;
-            const N = shuffled.length;
+            const N = interleaved.length;
             const numGroups = Math.ceil(N / K);
             let chunks: any[][] = [];
             let currentIndex = 0;
 
             for (let i = 0; i < numGroups; i++) {
                 const groupSize = Math.ceil((N - currentIndex) / (numGroups - i));
-                chunks.push(shuffled.slice(currentIndex, currentIndex + groupSize));
+                chunks.push(interleaved.slice(currentIndex, currentIndex + groupSize));
                 currentIndex += groupSize;
             }
-
-            const numMatches = chunks.length;
 
             // 3. Skip confirmation and start countdown
             setDrawState('counting');
@@ -753,13 +888,12 @@ export default function ScoreHistoryView({
                     // Wait 1.5s to show "matches are set" then process
                     setTimeout(async () => {
                         try {
-                            // 0. COMPREHENSIVE CLEAR: Identify all possible ID variants for this competition
+                            // 0. CLEAR only pending matches for THIS PHASE of this competition
                             const variants = new Set<string>();
                             if (competitionId) variants.add(competitionId);
                             const slug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition).toLowerCase();
                             if (slug) variants.add(slug);
 
-                            // Map legacy numeric IDs if they exist in the display map
                             const legacyMap: Record<string, string> = {
                                 'junior_line_follower': '1',
                                 'junior_all_terrain': '2',
@@ -769,15 +903,17 @@ export default function ScoreHistoryView({
                             };
                             if (legacyMap[slug]) variants.add(legacyMap[slug]);
 
-                            console.log("Clearing all pending matches for variants:", Array.from(variants));
+                            console.log(`Clearing pending matches for ${currentPhase} in:`, Array.from(variants));
 
-                            await Promise.all(
-                                Array.from(variants).map(v => clearCategoryMatchesFromSupabase(v))
-                            );
-
-                            // 1. RE-USE CALCULATED CHUNKS
-                            // Using the chunks calculated at the start of handleAutoDraw to ensure
-                            // the preview match plan perfectly matches the applied result.
+                            // Clear only this phase's pending matches
+                            const currentScores = await fetchScoresFromSupabase();
+                            const scoresToKeep = currentScores.filter((s: any) => {
+                                const matchesThisComp = Array.from(variants).some(v =>
+                                    s.competitionType === v || canonicalizeCompId(s.competitionType, competitions) === v
+                                );
+                                // Keep if: different comp, different phase, or not pending
+                                return !(matchesThisComp && s.phase === currentPhase && s.status === 'pending');
+                            });
 
                             // 2. CREATE DATABASE ENTRIES
                             const newScores: any[] = [];
@@ -791,7 +927,7 @@ export default function ScoreHistoryView({
                                         matchId: matchId,
                                         teamId: team.id,
                                         competitionType: competitionId,
-                                        phase: 'Qualifications',
+                                        phase: currentPhase,
                                         timestamp: Date.now(),
                                         totalPoints: 0,
                                         synced: true,
@@ -803,29 +939,21 @@ export default function ScoreHistoryView({
                                 });
                             });
 
-                            // 1. Instantly update the local UI using current scores + new ones
-                            // We merge newScores with existing scores from fetchScoresFromSupabase (mocked or real)
-                            // to ensure old scores don't disappear during the update.
+                            // 1. Instantly update the local UI
                             console.log("Applying optimistic update to UI...");
-                            const currentScores = await fetchScoresFromSupabase();
-                            const combinedScores = [...currentScores.filter((s: any) => {
-                                // Filter out old pending matches for this competition type to avoid duplicates
-                                const matchesThisComp = s.competitionType === competitionId || s.competitionType === slug;
-                                return !(matchesThisComp && s.status === 'pending');
-                            }), ...newScores];
-
+                            const combinedScores = [...scoresToKeep, ...newScores];
                             processScores(combinedScores, allTeams, competitions);
 
                             // AUTO-SWITCH PHASE: Ensure the user sees the new draw immediately
                             if (newScores.length > 0) {
-                                setSelectedPhaseFilter('Qualifications');
+                                setSelectedPhaseFilter(currentPhase);
                             }
 
                             // 2. Perform DB sync in background
                             console.log(`Syncing ${pushPromises.length} entries to Supabase...`);
                             await Promise.all(pushPromises);
 
-                            // 3. Final sync to refresh everything from DB and ensure total consistency
+                            // 3. Final sync to refresh everything from DB
                             await handleScoresUpdate();
 
                         } catch (e: any) {
@@ -1047,18 +1175,26 @@ export default function ScoreHistoryView({
                                     ref={phaseScrollRef}
                                     className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 snap-x"
                                 >
-                                    {allCompetitionPhases.map((phase: string) => (
-                                        <button
-                                            key={phase}
-                                            onClick={() => setSelectedPhaseFilter(phase)}
-                                            className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${selectedPhaseFilter === phase
-                                                ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
-                                                : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
-                                                }`}
-                                        >
-                                            {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
-                                        </button>
-                                    ))}
+                                    {allCompetitionPhases.map((phase: string) => {
+                                        const isSelected = selectedPhaseFilter === phase;
+                                        const isAccessible = phaseAccessibility[phase] !== false; // Default to true for non-match-based
+
+                                        return (
+                                            <button
+                                                key={phase}
+                                                onClick={() => isAccessible && setSelectedPhaseFilter(phase)}
+                                                disabled={!isAccessible}
+                                                className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border shrink-0 snap-start whitespace-nowrap shadow-md ${!isAccessible
+                                                    ? 'bg-muted/30 text-muted-foreground/40 border-card-border/50 cursor-not-allowed opacity-50'
+                                                    : isSelected
+                                                        ? 'bg-gradient-to-r from-role-primary to-role-primary/80 text-white border-transparent shadow-role-primary/25 scale-105'
+                                                        : 'bg-white text-muted-foreground border-card-border hover:bg-white/80 hover:text-foreground hover:border-role-primary/20'
+                                                    }`}
+                                            >
+                                                {(phase || '').replace('qualifications', 'Qual').replace('final', 'Final').replace(/_/g, ' ')}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
@@ -1210,15 +1346,100 @@ export default function ScoreHistoryView({
                 </div >
 
                 <AnimatePresence mode="wait">
-                    {((isAdmin || isJury) && isMatchBasedComp && (!hasAnyScoresForCompetition || drawState !== 'idle')) ? (
-                        <DrawInterface
-                            drawState={drawState}
-                            countdown={countdown}
-                            drawTeamsCount={drawTeamsCount}
-                            setDrawTeamsCount={setDrawTeamsCount}
-                            handleAutoDraw={handleAutoDraw}
-                            drawPlan={drawPlan}
-                        />
+                    {(isAdmin || isJury) && isMatchBasedComp && (() => {
+                        // Check if current phase has been drawn
+                        const phaseIdx = allCompetitionPhases.indexOf(selectedPhaseFilter);
+                        const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
+
+                        // Check if previous phase is finished (all scores are not 'pending')
+                        const isPrevPhaseFinished = !prevPhase || groupedScores.filter(g => {
+                            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+                            const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+                            if (canonicalGComp !== canonicalTarget) return false;
+
+                            if (g.type === 'match') {
+                                return g.participants?.some((p: any) =>
+                                    p.submissions?.some((s: any) => s.phase === prevPhase)
+                                );
+                            }
+                            return g.submissions?.some((s: any) => s.phase === prevPhase);
+                        }).every(g => {
+                            if (g.type === 'match') {
+                                return g.participants?.every((p: any) =>
+                                    p.submissions?.filter((s: any) => s.phase === prevPhase)
+                                        .every((s: any) => s.status !== 'pending')
+                                );
+                            }
+                            return g.submissions?.filter((s: any) => s.phase === prevPhase)
+                                .every((s: any) => s.status !== 'pending');
+                        });
+
+                        // Check if current phase has matches drawn
+                        const isPhaseDrawn = groupedScores.some(g => {
+                            const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+                            const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+                            if (canonicalGComp !== canonicalTarget) return false;
+
+                            if (g.type === 'match') {
+                                return g.participants?.some((p: any) =>
+                                    p.submissions?.some((s: any) => s.phase === selectedPhaseFilter)
+                                );
+                            }
+                            return false;
+                        });
+
+                        return !isPrevPhaseFinished || (!isPhaseDrawn || drawState !== 'idle');
+                    })() ? (
+                        !(() => {
+                            const phaseIdx = allCompetitionPhases.indexOf(selectedPhaseFilter);
+                            const prevPhase = phaseIdx > 0 ? allCompetitionPhases[phaseIdx - 1] : null;
+                            const isPrevPhaseFinished = !prevPhase || groupedScores.filter(g => {
+                                const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
+                                const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+                                return canonicalGComp === canonicalTarget;
+                            }).every(g => {
+                                if (g.type === 'match') {
+                                    return g.participants?.every((p: any) =>
+                                        p.submissions?.filter((s: any) => s.phase === prevPhase)
+                                            .every((s: any) => s.status !== 'pending')
+                                    );
+                                }
+                                return g.submissions?.filter((s: any) => s.phase === prevPhase)
+                                    .every((s: any) => s.status !== 'pending');
+                            });
+                            return isPrevPhaseFinished;
+                        })() ? (
+                            <motion.div
+                                key="phase-locked"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="flex flex-col items-center justify-center py-20 text-center space-y-6"
+                            >
+                                <div className="p-6 bg-rose-500/10 rounded-full text-rose-500 relative">
+                                    <AlertCircle size={60} />
+                                    <div className="absolute inset-0 bg-rose-500/20 blur-[40px] rounded-full" />
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-black text-foreground uppercase italic tracking-tighter">
+                                        {selectedPhaseFilter} Has Not Started Yet
+                                    </h2>
+                                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs mt-2 opacity-60">
+                                        Awaiting completion of previous tactical phase: {allCompetitionPhases[allCompetitionPhases.indexOf(selectedPhaseFilter) - 1]}
+                                    </p>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <DrawInterface
+                                drawState={drawState}
+                                countdown={countdown}
+                                drawTeamsCount={drawTeamsCount}
+                                setDrawTeamsCount={setDrawTeamsCount}
+                                handleAutoDraw={handleAutoDraw}
+                                drawPlan={drawPlan}
+                                selectedPhase={selectedPhaseFilter}
+                            />
+                        )
                     ) : currentScoreGroup ? (
                         <motion.div
                             key={`${currentScoreGroup.teamId}-${currentScoreGroup.competitionType}-${activePhase}`}

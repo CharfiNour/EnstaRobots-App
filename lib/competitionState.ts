@@ -5,6 +5,13 @@ export interface LiveSession {
     teamId: string;
     phase: string;
     startTime: number;
+    scoreSummary?: {
+        time?: number; // Total ms
+        points?: number; // Total points
+        completedRoad?: boolean;
+        [key: string]: any;
+    };
+    lastUpdate?: number;
 }
 
 export interface CompetitionState {
@@ -59,8 +66,14 @@ export function getCompetitionState(): CompetitionState {
     }
 }
 
-export async function updateCompetitionState(updates: Partial<CompetitionState>, syncRemote: boolean = true): Promise<CompetitionState> {
+export async function updateCompetitionState(
+    updates: Partial<CompetitionState>,
+    options: boolean | { syncRemote?: boolean, suppressEvent?: boolean } = true
+): Promise<CompetitionState> {
     if (typeof window === 'undefined') return INITIAL_STATE;
+
+    const syncRemote = typeof options === 'boolean' ? options : (options.syncRemote ?? true);
+    const suppressEvent = typeof options === 'object' ? (options.suppressEvent ?? false) : false;
 
     const current = getCompetitionState();
     const newState = { ...current, ...updates };
@@ -81,7 +94,9 @@ export async function updateCompetitionState(updates: Partial<CompetitionState>,
     }
 
     // Dispatch event for local updates
-    window.dispatchEvent(new Event('competition-state-updated'));
+    if (!suppressEvent) {
+        window.dispatchEvent(new Event('competition-state-updated'));
+    }
     return newState;
 }
 

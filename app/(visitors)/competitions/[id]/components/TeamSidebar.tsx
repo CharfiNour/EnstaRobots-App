@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import { Team } from '@/lib/teams';
 import { LiveBadge } from '@/components/common/LiveBadge';
@@ -15,13 +15,14 @@ interface TeamSidebarProps {
     liveTeamId?: string | null;
 }
 
-export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category, liveTeamId }: TeamSidebarProps) {
+export const TeamSidebar = React.memo(({ teams, selectedTeamId, onSelect, loading, category, liveTeamId }: TeamSidebarProps) => {
     const [mounted, setMounted] = useState(false);
     const metadata = getCategoryMetadata(category);
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
     const colorMatch = metadata?.color?.match(/from-([\w-]+)/);
     const baseColor = colorMatch ? colorMatch[1] : 'accent';
     const themeColor = `text-${baseColor}`;
@@ -37,11 +38,13 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
         );
     }
 
-    const sortedTeams = [...teams].sort((a, b) => {
-        if (a.id === liveTeamId) return -1;
-        if (b.id === liveTeamId) return 1;
-        return 0;
-    });
+    const sortedTeams = React.useMemo(() => {
+        return [...teams].sort((a, b) => {
+            if (a.id === liveTeamId) return -1;
+            if (b.id === liveTeamId) return 1;
+            return 0;
+        });
+    }, [teams, liveTeamId]);
 
     return (
         <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 no-scrollbar">
@@ -59,9 +62,9 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
                 <button
                     key={team.id}
                     onClick={() => onSelect(team)}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 flex items-center gap-5 group relative overflow-hidden ${selectedTeamId === team.id
-                        ? `bg-${baseColor}/5 ${themeBorder} shadow-[0_0_30px_rgba(var(--accent-rgb),0.05)]`
-                        : `bg-white/60 border-card-border hover:${themeBorder}/20 hover:bg-white/80 shadow-sm`
+                    className={`w-full text-left p-4 rounded-2xl border transition-all duration-200 flex items-center gap-5 group relative overflow-hidden ${selectedTeamId === team.id
+                        ? `bg-${baseColor}/5 ${themeBorder} shadow-sm`
+                        : `bg-white/60 border-card-border hover:border-${baseColor}/30 hover:bg-white/80 shadow-sm`
                         }`}
                 >
                     {mounted && liveTeamId === team.id && (
@@ -70,9 +73,16 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
                         </div>
                     )}
 
-                    <div className="w-14 h-14 rounded-xl bg-white flex-shrink-0 overflow-hidden border border-card-border shadow-md group-hover:scale-105 transition-transform duration-500">
+                    <div className="w-14 h-14 rounded-xl bg-white flex-shrink-0 overflow-hidden border border-card-border shadow-sm transition-transform duration-300">
                         {team.logo ? (
-                            <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
+                            <img
+                                src={team.logo}
+                                alt={team.name}
+                                loading="lazy"
+                                width={56}
+                                height={56}
+                                className="w-full h-full object-cover"
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
                                 <Shield size={24} />
@@ -98,4 +108,6 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
             ))}
         </div>
     );
-}
+});
+
+TeamSidebar.displayName = 'TeamSidebar';

@@ -40,25 +40,14 @@ export default function HomePage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {mounted && role !== 'visitor' && (
-                <Link href={dashboardHref}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-8 py-4 bg-primary text-white rounded-xl font-black text-lg shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all flex items-center gap-2 uppercase tracking-tight italic"
-                  >
-                    Go to Dashboard
-                    <ArrowRight size={20} />
-                  </motion.div>
-                </Link>
-              )}
               <Link href="/competitions">
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-white border-2 border-primary/20 text-primary rounded-xl font-black text-lg shadow-sm hover:border-primary/40 transition-all uppercase tracking-tight italic"
+                  className="px-8 py-4 bg-primary text-white rounded-xl font-black text-lg shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all flex items-center gap-2 uppercase tracking-tight italic"
                 >
                   View Competitions
+                  <ArrowRight size={20} />
                 </motion.div>
               </Link>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft, Cpu, Building2, Crown,
@@ -15,15 +15,25 @@ interface TeamDetailProps {
     currentCategory: string;
     onBack?: () => void;
     isActuallyLive?: boolean;
+    liveScore?: any;
 }
 
-export function TeamDetail({ team, currentCategory, onBack, isActuallyLive }: TeamDetailProps) {
+export const TeamDetail = React.memo(({ team, currentCategory, onBack, isActuallyLive, liveScore }: TeamDetailProps) => {
     const [mounted, setMounted] = useState(false);
     const metadata = getCategoryMetadata(currentCategory);
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    // Format time helper (ms -> MM:SS:mmm)
+    const formatTime = (ms: number) => {
+        if (!ms && ms !== 0) return "--:--:--";
+        const minutes = Math.floor(ms / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000);
+        const millis = ms % 1000;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${millis.toString().padStart(3, '0')}`;
+    };
 
     // Safely extract theme colors from metadata
     const colorMatch = metadata?.color?.match(/from-([\w-]+)/);
@@ -58,12 +68,15 @@ export function TeamDetail({ team, currentCategory, onBack, isActuallyLive }: Te
                         <img
                             src={team.photo}
                             alt="Robot"
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            loading="lazy"
+                            width={400}
+                            height={400}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                         />
                     ) : (
                         <div className="text-center p-6 opacity-40">
-                            <Cpu size={50} className="mx-auto mb-3 text-muted-foreground" />
-                            <p className="font-black uppercase tracking-tighter text-[10px]">Unit Visual Required</p>
+                            <Cpu size={40} className="mx-auto mb-3 text-muted-foreground" />
+                            <p className="font-black uppercase tracking-tighter text-[9px]">Visual Feed Offline</p>
                         </div>
                     )}
 
@@ -86,7 +99,14 @@ export function TeamDetail({ team, currentCategory, onBack, isActuallyLive }: Te
                         <div className="flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-1.5 shrink-0 overflow-hidden shadow-2xl">
                                 {team?.logo ? (
-                                    <img src={team.logo} alt="Club" className="w-full h-full object-cover rounded-xl" />
+                                    <img
+                                        src={team.logo}
+                                        alt="Club"
+                                        loading="lazy"
+                                        width={56}
+                                        height={56}
+                                        className="w-full h-full object-cover rounded-xl"
+                                    />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-white/40">
                                         <ImageIcon size={24} />
@@ -120,6 +140,47 @@ export function TeamDetail({ team, currentCategory, onBack, isActuallyLive }: Te
                         </div>
                     </div>
                 </div>
+
+                {/* Live Performance Panel */}
+                {mounted && isActuallyLive && liveScore && (
+                    <div className={`mx-4 mt-4 p-4 rounded-2xl border ${themeBorder}/30 ${themeBg}/5 animate-pulse`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className={`text-[10px] font-black uppercase ${themeColor} tracking-[0.25em] flex items-center gap-2.5`}>
+                                <Activity size={12} />
+                                Live Telemetry
+                            </h3>
+                            <span className="text-[8px] font-bold text-red-500 uppercase tracking-widest px-2 py-0.5 bg-red-500/10 rounded-full border border-red-500/20">Realtime</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            {liveScore.time !== undefined && (
+                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Race Time</div>
+                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground">
+                                        {formatTime(liveScore.time)}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Show Points or Other Stats depending on availability */}
+                            {(liveScore.knockouts !== undefined || liveScore.juryPoints !== undefined) ? (
+                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Fight Score</div>
+                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground">
+                                        {(liveScore.knockouts || 0) * 10 + (liveScore.juryPoints || 0) + (liveScore.damage || 0)} <span className="text-xs text-muted-foreground/60">PTS</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-white/80 p-3 rounded-xl border border-card-border shadow-sm">
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-wider mb-1">Status</div>
+                                    <div className="text-xl font-black font-mono tracking-tighter text-foreground truncate">
+                                        {liveScore.completedRoad ? "COMPLETED" : "RUNNING"}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Personnel */}
                 <div className={`p-4 md:p-5 bg-gradient-to-b from-transparent to-${baseColor}/5`}>
@@ -157,4 +218,6 @@ export function TeamDetail({ team, currentCategory, onBack, isActuallyLive }: Te
             </motion.div>
         </AnimatePresence>
     );
-}
+});
+
+TeamDetail.displayName = 'TeamDetail';

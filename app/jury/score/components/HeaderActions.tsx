@@ -13,7 +13,9 @@ interface HeaderActionsProps {
     globalPhase: string;
     competition: any;
     isPhaseComplete: boolean;
+    nextPhaseLabel?: string | null;
     submitting?: boolean;
+    scoringMode?: 'performance' | 'homologation';
 }
 
 export default function HeaderActions({
@@ -26,7 +28,9 @@ export default function HeaderActions({
     globalPhase,
     competition,
     isPhaseComplete,
-    submitting = false
+    nextPhaseLabel,
+    submitting = false,
+    scoringMode = 'performance'
 }: HeaderActionsProps) {
     const getColorClasses = (comp: any) => {
         if (!comp) return { start: 'from-green-500 to-green-600', finish: 'border-green-500 text-green-600 bg-green-50', dot: 'bg-green-500' };
@@ -86,16 +90,22 @@ export default function HeaderActions({
                 >
                     <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.2)]`} />
                     <span>
-                        Finish {isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}
+                        Finish {scoringMode === 'homologation' ? 'Homologation' : (isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase)}
                     </span>
                 </button>
             ) : (
                 <button
                     onClick={handleStartMatch}
-                    disabled={isPhaseComplete || submitting}
-                    className={`px-8 py-2.5 rounded-xl bg-gradient-to-r ${isPhaseComplete || submitting ? 'from-muted to-muted text-muted-foreground cursor-not-allowed grayscale' : `${colors.start} text-white hover:shadow-xl hover:-translate-y-0.5`} font-black uppercase tracking-widest shadow-lg transition-all active:scale-95`}
+                    disabled={submitting}
+                    className={`px-8 py-2.5 rounded-xl bg-gradient-to-r ${submitting ? 'from-muted to-muted text-muted-foreground cursor-not-allowed grayscale' : `${colors.start} text-white hover:shadow-xl hover:-translate-y-0.5`} font-black uppercase tracking-widest shadow-lg transition-all active:scale-95`}
                 >
-                    {isPhaseComplete ? 'Phase Completed' : `Start ${isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}`}
+                    {isPhaseComplete
+                        ? (scoringMode === 'homologation'
+                            ? 'Re-evaluate Robot'
+                            : (nextPhaseLabel ? `Start ${nextPhaseLabel}` : 'Re-Start Match'))
+                        : (scoringMode === 'homologation'
+                            ? 'Start Homologation'
+                            : `Start ${isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}`)}
                 </button>
             )}
         </div>
