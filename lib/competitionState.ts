@@ -52,19 +52,32 @@ export function getCompetitionState(): CompetitionState {
     return memoryState;
 }
 
+import { fetchAppSettings, updateEventDayStatus as updateAppSettings } from './appSettings';
+
 /**
  * Sync Event Day status from Supabase to local state
  * This should be called on page load to ensure cross-device consistency
  */
 export async function syncEventDayStatusFromSupabase(): Promise<boolean> {
     try {
+        // PRIORITY 1: Check App Settings (Single Source of Truth)
+        const settings = await fetchAppSettings();
+        if (settings) {
+            console.log('[SYNC] Event Day status from App Settings:', settings.event_day_started);
+            await updateCompetitionState({ eventDayStarted: settings.event_day_started }, { syncRemote: false, suppressEvent: false });
+            return settings.event_day_started;
+        }
+
+        // PRIORITY 2: Fallback to Competitions Table (Legacy)
         const { fetchCompetitionsFromSupabase } = await import('./supabaseData');
         const competitions = await fetchCompetitionsFromSupabase('minimal', true); // Force refresh
 
         if (competitions && competitions.length > 0) {
-            // Use the first competition's event_day_started status as the global flag
-            const eventDayStarted = competitions[0].event_day_started || false;
-            console.log('[SYNC] Event Day status from Supabase:', eventDayStarted);
+            // Use the first user-created competition as reference (skipping slot-0 if exists)
+            // Wait, fetchCompetitionsFromSupabase returns array from DB. 
+            // We check for consensus or first valid.
+            const eventDayStarted = competitions.some((c: any) => c.event_day_started === true);
+            console.log('[SYNC] Event Day status from Competitions (Legacy):', eventDayStarted);
 
             // Update local state to match database
             await updateCompetitionState({ eventDayStarted }, { syncRemote: false, suppressEvent: false });
@@ -134,11 +147,18 @@ export function toggleProfilesLock() {
 }
 
 
-export function toggleEventDayStatus() {
+export async function toggleEventDayStatus() {
     const state = getCompetitionState();
     const newStatus = !state.eventDayStarted;
     console.log(`🔄 [TOGGLE EVENT DAY] ${state.eventDayStarted ? 'LIVE → CLOSED' : 'CLOSED → LIVE'}`);
+
+    // Update Local State Immediately
     updateCompetitionState({ eventDayStarted: newStatus });
+
+    // Sync to AppSettings
+    await updateAppSettings(newStatus);
+
+    // Sync to Legacy Competitions Table (Backup)
     syncGlobalEventDayStatusToSupabase(newStatus);
 }
 
