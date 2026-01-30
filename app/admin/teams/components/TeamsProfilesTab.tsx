@@ -27,6 +27,7 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
     const [profilesLocked, setProfilesLocked] = useState(false);
     const [eventDayStarted, setEventDayStarted] = useState(false);
     const [competitions, setCompetitions] = useState<any[]>([]);
+    const [isSyncing, setIsSyncing] = useState(true);
 
     useEffect(() => {
         const checkStatus = () => {
@@ -38,12 +39,20 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
         window.addEventListener('competition-state-updated', checkStatus);
 
         const init = async () => {
-            // Sync status from Supabase to ensure the UI reflects the DB on refresh
-            await syncEventDayStatusFromSupabase();
+            setIsSyncing(true);
+            try {
+                // Sync status from Supabase to ensure the UI reflects the DB on refresh
+                console.log('[PROFILES TAB] Initializing global state sync...');
+                await syncEventDayStatusFromSupabase();
 
-            const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
-            const data = await fetchCompetitionsFromSupabase();
-            setCompetitions(data);
+                const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
+                const data = await fetchCompetitionsFromSupabase();
+                setCompetitions(data);
+            } catch (err) {
+                console.error('[PROFILES TAB] Init failed:', err);
+            } finally {
+                setIsSyncing(false);
+            }
         };
         init();
 
@@ -73,15 +82,26 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
             {/* Sidebar: Filters & Quick List */}
             <div className="w-full lg:w-80 flex flex-col gap-6 animate-in slide-in-from-left duration-500">
                 {/* Global Filters Block */}
-                <div className="bg-card border border-card-border rounded-2xl p-4 shadow-sm space-y-4">
+                <div className="bg-card border border-card-border rounded-2xl p-4 shadow-sm space-y-4 relative">
+                    {/* Sync Overlay */}
+                    {isSyncing && (
+                        <div className="absolute inset-0 bg-card/60 backdrop-blur-[2px] z-20 flex items-center justify-center rounded-2xl">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted border border-card-border rounded-lg shadow-xl animate-bounce">
+                                <div className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Syncing...</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Master Lock Switch */}
                     <div className="pb-4 border-b border-card-border/30">
                         <button
                             onClick={toggleProfilesLock}
+                            disabled={isSyncing}
                             className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all active:scale-95 ${profilesLocked
                                 ? 'bg-rose-500/10 border-rose-500/30 text-rose-500'
                                 : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
-                                }`}
+                                } ${isSyncing ? 'opacity-50 grayscale' : ''}`}
                         >
                             <div className="flex items-center gap-3">
                                 {profilesLocked ? <Lock size={16} /> : <Unlock size={16} />}
@@ -105,10 +125,11 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
                     <div className="pb-4 border-b border-card-border/30">
                         <button
                             onClick={toggleEventDayStatus}
+                            disabled={isSyncing}
                             className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all active:scale-95 ${eventDayStarted
                                 ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500'
                                 : 'bg-slate-500/10 border-slate-500/30 text-slate-500'
-                                }`}
+                                } ${isSyncing ? 'opacity-50 grayscale' : ''}`}
                         >
                             <div className="flex items-center gap-3">
                                 {eventDayStarted ? <Eye size={16} /> : <EyeOff size={16} />}

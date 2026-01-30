@@ -1,36 +1,43 @@
 import { Trophy, Users, Calendar, Bell } from 'lucide-react';
 import { AdminStats, ActivityItemData } from '../types';
 
-const STORAGE_KEY = 'admin_dashboard_stats';
+import { fetchAppSettings, updateDashboardStats } from '@/lib/appSettings';
 
 const DEFAULT_STATS: AdminStats = {
-    totalCompetitions: 5,
-    totalTeams: 48,
-    totalMatches: 156,
-    liveMatches: 2,
-    upcomingMatches: 12,
-    pendingScores: 3,
-    eventDuration: "3 Days",
+    totalCompetitions: 0,
+    totalTeams: 0,
+    totalMatches: 0,
+    liveMatches: 0,
+    upcomingMatches: 0,
+    pendingScores: 0,
+    eventDuration: "Preparing",
 };
 
-export const getAdminStats = (): AdminStats => {
-    if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (e) {
-                console.error('Error parsing admin stats:', e);
-            }
+export const getAdminStats = async (): Promise<AdminStats> => {
+    try {
+        const settings = await fetchAppSettings();
+        if (settings) {
+            return {
+                ...DEFAULT_STATS,
+                totalCompetitions: settings.total_competitions ?? 0,
+                totalTeams: settings.total_teams ?? 0,
+                totalMatches: settings.total_matches ?? 0,
+                eventDuration: settings.event_duration ?? "TBD"
+            };
         }
+    } catch (e) {
+        console.error('Error fetching admin stats:', e);
     }
     return DEFAULT_STATS;
 };
 
-export const saveAdminStats = (stats: AdminStats): void => {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
-    }
+export const saveAdminStats = async (stats: AdminStats): Promise<void> => {
+    await updateDashboardStats({
+        total_competitions: stats.totalCompetitions,
+        total_teams: stats.totalTeams,
+        total_matches: stats.totalMatches,
+        event_duration: stats.eventDuration
+    });
 };
 
 export const getRecentActivity = (): ActivityItemData[] => {

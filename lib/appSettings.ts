@@ -9,8 +9,36 @@ export interface AppSettings {
     id: string;
     event_day_started: boolean;
     profiles_locked: boolean;
+    total_competitions?: number;
+    total_teams?: number;
+    total_matches?: number;
+    event_duration?: string;
     updated_at: string;
     created_at: string;
+}
+
+/**
+ * Update global dashboard stats (admin only)
+ */
+export async function updateDashboardStats(stats: Partial<AppSettings>): Promise<boolean> {
+    try {
+        const { error } = await (supabase
+            .from('app_settings' as any) as any)
+            .upsert({
+                id: 'global',
+                ...stats,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+
+        if (error) {
+            console.error('[APP SETTINGS] Stats update error:', error);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('[APP SETTINGS] Critical stats update error:', e);
+        return false;
+    }
 }
 
 /**

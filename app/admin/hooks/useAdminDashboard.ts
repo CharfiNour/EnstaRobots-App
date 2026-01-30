@@ -20,16 +20,24 @@ export function useAdminDashboard() {
             return;
         }
         setSession(currentSession);
-        setStats(getAdminStats());
-        setActivities(getRecentActivity());
-        setLoading(false);
+
+        const loadDashboard = async () => {
+            const [fetchedStats, fetchedActivities] = await Promise.all([
+                getAdminStats(),
+                getRecentActivity()
+            ]);
+            setStats(fetchedStats);
+            setActivities(fetchedActivities);
+            setLoading(false);
+        };
+        loadDashboard();
     }, [router]);
 
-    const updateStat = (key: keyof AdminStats, value: string | number) => {
+    const updateStat = async (key: keyof AdminStats, value: string | number) => {
         if (!stats) return;
         const newStats = { ...stats, [key]: value };
         setStats(newStats);
-        saveAdminStats(newStats);
+        await saveAdminStats(newStats);
     };
 
     return {
