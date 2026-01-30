@@ -153,9 +153,11 @@ export function toggleProfilesLock() {
     syncGlobalProfilesLockToSupabase(newLocked);
 }
 
+
 export function toggleEventDayStatus() {
     const state = getCompetitionState();
     const newStatus = !state.eventDayStarted;
+    console.log(`🔄 [TOGGLE EVENT DAY] ${state.eventDayStarted ? 'LIVE → CLOSED' : 'CLOSED → LIVE'}`);
     updateCompetitionState({ eventDayStarted: newStatus });
     syncGlobalEventDayStatusToSupabase(newStatus);
 }
