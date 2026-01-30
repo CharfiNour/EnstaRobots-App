@@ -488,8 +488,11 @@ export default function ScoreCardPage() {
     const handleStartMatch = async () => {
         // Find current team ID being scored (first input team)
         const activeTeamId = teams[0].id;
-        if (activeTeamId) {
-            console.log("🚀 Starting live session for team:", activeTeamId);
+
+        // EXCEPTION: Homologation allows unlocking first (to select team later)
+        // For Live Matches, we MUST have a team selected to broadcast
+        if (activeTeamId || isHomo) {
+            console.log("🚀 Starting session for team:", activeTeamId || "(Pending Selection)");
             setStarting(true);
             liveActionLock.current = true;
 
@@ -511,6 +514,13 @@ export default function ScoreCardPage() {
                 if (isHomo) {
                     setLocalHomoActive(true);
                 } else {
+                    // Safety: Double check we have a team for live mode
+                    if (!activeTeamId) {
+                        alert("Protocol Violation: No team selected for deployment.");
+                        setStarting(false);
+                        return;
+                    }
+
                     // OPTIMISTIC UPDATE: Set live locally first
                     setIsLive(true);
                     // Perform remote registration
