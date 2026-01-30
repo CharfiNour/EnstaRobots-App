@@ -68,11 +68,11 @@ export function getCompetitionState(): CompetitionState {
 
 export async function updateCompetitionState(
     updates: Partial<CompetitionState>,
-    options: boolean | { syncRemote?: boolean, suppressEvent?: boolean } = true
+    options: boolean | { syncRemote?: boolean, suppressEvent?: boolean } = false
 ): Promise<CompetitionState> {
     if (typeof window === 'undefined') return INITIAL_STATE;
 
-    const syncRemote = typeof options === 'boolean' ? options : (options.syncRemote ?? true);
+    const syncRemote = typeof options === 'boolean' ? options : (options.syncRemote ?? false);
     const suppressEvent = typeof options === 'object' ? (options.suppressEvent ?? false) : false;
 
     const current = getCompetitionState();
@@ -89,7 +89,7 @@ export async function updateCompetitionState(
         try {
             await syncLiveStateToSupabase(newState.liveSessions);
         } catch (err: any) {
-            console.error("Failed to sync live state:", err);
+            console.warn("Failed to sync live state (likely offline):", err);
         }
     }
 
@@ -133,7 +133,7 @@ export async function startLiveSession(teamId: string, competitionId: string, ph
 
     await updateCompetitionState({
         liveSessions: newSessions
-    });
+    }, { syncRemote: true });
 }
 
 export async function stopLiveSession(competitionId?: string) {
@@ -154,15 +154,15 @@ export async function stopLiveSession(competitionId?: string) {
         }
     }
 
-    // Await all deletions before local update
+    // Update local state IMMEDIATELY to reflect stop in UI/Storage, avoiding race conditions with network timeouts
+    await updateCompetitionState({
+        liveSessions: newSessions
+    }, { syncRemote: true });
+
+    // Await all deletions (background network operations)
     try {
         await Promise.all(promises);
     } catch (err) {
-        console.error("Errors during Supabase session teardown:", err);
+        console.warn("Errors during Supabase session teardown (likely offline):", err);
     }
-
-    // Update local state without re-triggering global sync (avoiding redundant operations)
-    await updateCompetitionState({
-        liveSessions: newSessions
-    }, false);
 }

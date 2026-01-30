@@ -56,10 +56,11 @@ export function useMatchesPage() {
                 // Robust lookup: Resolve myTeam.competition (which could be UUID or slug) to the actual DB UUID
                 const relevantComp = remoteComps.find((c: Competition) => c.id === myTeam.competition || c.type === myTeam.competition);
 
-                // We check BOTH the UUID and the Type (slug) in the sessions map
-                const session = (relevantComp?.id && sessions[relevantComp.id])
-                    || (relevantComp?.type && sessions[relevantComp.type])
-                    || (myTeam.competition && sessions[myTeam.competition]);
+                // We check BOTH the UUID and the Type (slug) in the sessions map (handle null sessions)
+                const safeSessions = sessions || {};
+                const session = (relevantComp?.id && safeSessions[relevantComp.id])
+                    || (relevantComp?.type && safeSessions[relevantComp.type])
+                    || (myTeam.competition && safeSessions[myTeam.competition]);
 
                 if (session) {
                     setCurrentPhase(session.phase);

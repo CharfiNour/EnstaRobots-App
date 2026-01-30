@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowUp, ArrowDown, ChevronDown, Search, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Shuffle, Loader2, Lock, AlertCircle, ChevronDown } from 'lucide-react';
 import { Team, saveTeams } from '@/lib/teams';
-import { getCompetitionState, toggleCompetitionOrdered } from '@/lib/competitionState';
+import { supabase } from '@/lib/supabase';
+import { toggleCompetitionOrdered } from '@/lib/competitionState';
 
 const COMPETITION_CATEGORIES = [
     { id: 'junior_line_follower', name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
@@ -23,8 +24,11 @@ interface TeamsOrderTabProps {
 
 export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSelectedCategory }: TeamsOrderTabProps) {
     const [searchQuery, setSearchQuery] = useState('');
-    const [isOrdered, setIsOrdered] = useState(false);
     const [competitions, setCompetitions] = useState<any[]>([]);
+
+    // Draw States
+    const [drawing, setDrawing] = useState(false);
+    const [countdown, setCountdown] = useState<number | null>(null);
 
     useEffect(() => {
         const fetchComps = async () => {
@@ -35,176 +39,127 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
         fetchComps();
     }, []);
 
-    useEffect(() => {
-        const checkOrdered = () => {
-            const state = getCompetitionState();
-            setIsOrdered(state.orderedCompetitions.includes(selectedCategory));
-        };
-        checkOrdered();
-        window.addEventListener('competition-state-updated', checkOrdered);
-        return () => window.removeEventListener('competition-state-updated', checkOrdered);
-    }, [selectedCategory]);
-
-    const handleToggleOrder = () => {
-        toggleCompetitionOrdered(selectedCategory);
-    };
-
-    const mainDisplayTeams = teams
-        .filter(t => {
-            // Resolution Logic: Match by UUID or slug
+    // Filter by Category Only (Source for Draw)
+    const categoryTeams = useMemo(() => {
+        return teams.filter(t => {
             let matchesCat = selectedCategory === 'all';
             if (!matchesCat) {
-                if (!t.competition) return false; // Ensure competition exists for non-'all' categories
+                if (!t.competition) return false;
                 const comp = competitions.find(c => c.id === t.competition || c.type === t.competition);
                 const teamCategory = comp ? comp.type : t.competition;
                 matchesCat = teamCategory === selectedCategory;
             }
             return matchesCat;
-        })
-        .filter(t => {
-            if (!searchQuery) return true;
-            const query = searchQuery.toLowerCase();
-            return (
-                t.robotName?.toLowerCase().includes(query) ||
-                t.name.toLowerCase().includes(query) ||
-                t.club.toLowerCase().includes(query) ||
-                t.university?.toLowerCase().includes(query)
-            );
         });
+    }, [teams, selectedCategory, competitions]);
 
-    const syncPositionsToSupabase = async (updatedTeams: Team[]) => {
-        try {
-            const { supabase } = await import('@/lib/supabase');
+    // Filter by Search & Sorted (Source for List Display)
+    const displayTeams = useMemo(() => {
+        return categoryTeams
+            .filter(t => {
+                if (!searchQuery) return true;
+                const query = searchQuery.toLowerCase();
+                return (
+                    t.robotName?.toLowerCase().includes(query) ||
+                    t.name.toLowerCase().includes(query) ||
+                    t.club.toLowerCase().includes(query) ||
+                    t.university?.toLowerCase().includes(query)
+                );
+            })
+            // Always sort by displayOrder if present (0s go to end)
+            .sort((a, b) => {
+                const orderA = a.displayOrder || 9999;
+                const orderB = b.displayOrder || 9999;
+                return orderA - orderB;
+            });
+    }, [categoryTeams, searchQuery]);
 
-            // Batch update all teams with their new positions
-            for (let i = 0; i < updatedTeams.length; i++) {
-                const team = updatedTeams[i];
-                const { error } = await (supabase.from('teams') as any)
-                    .update({ display_order: i })
-                    .eq('id', team.id);
+    // Check if order is already set for this category
+    const isOrderSet = useMemo(() => {
+        if (categoryTeams.length === 0) return false;
+        // If ANY team has a real order (1+), we consider the category drawn
+        return categoryTeams.some(t => t.displayOrder && t.displayOrder > 0);
+    }, [categoryTeams]);
 
-                if (error) {
-                    // If the column doesn't exist, log a helpful message
-                    if (error.message?.includes('display_order')) {
-                        console.warn('⚠️ display_order column not found. Run: ALTER TABLE teams ADD COLUMN display_order INTEGER;');
-                        return; // Stop trying after first error
-                    }
-                    throw error;
+    // Perform the Random Draw
+    const performDraw = async () => {
+        if (categoryTeams.length < 2) return;
+
+        setDrawing(true);
+        setCountdown(3);
+
+        // Animation Timer
+        const countInterval = setInterval(() => {
+            setCountdown(prev => {
+                if (prev === 1) {
+                    clearInterval(countInterval);
+                    finalizeDraw();
+                    return 0;
                 }
-            }
-
-            console.log('✅ Team positions synced to Supabase');
-        } catch (err: any) {
-            console.warn('Position sync skipped:', err.message || err);
-        }
+                return (prev || 0) - 1;
+            });
+        }, 800);
     };
 
-    const moveTeamAcrossFiltered = async (filteredIndex: number, direction: 'up' | 'down') => {
-        const currentFiltered = mainDisplayTeams;
-        console.log('🔄 Move triggered:', { filteredIndex, direction, totalTeams: teams.length, filteredCount: currentFiltered.length });
+    const finalizeDraw = async () => {
+        try {
+            // 1. Shuffle
+            const shuffled = [...categoryTeams];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
 
-        if (direction === 'up' && filteredIndex > 0) {
-            const teamToMove = currentFiltered[filteredIndex];
-            const targetTeam = currentFiltered[filteredIndex - 1];
-            console.log('Moving UP:', teamToMove.name, 'to position of', targetTeam.name);
+            // 2. Assign Orders
+            const updates = shuffled.map((t, index) => ({
+                ...t,
+                displayOrder: index + 1
+            }));
 
-            const newTeams = [...teams];
-            const originIdx = newTeams.findIndex(t => t.id === teamToMove.id);
-            const targetIdx = newTeams.findIndex(t => t.id === targetTeam.id);
-
-            console.log('Indices:', { originIdx, targetIdx });
-
-            // Remove the team from its current position
-            const [moved] = newTeams.splice(originIdx, 1);
-
-            // Insert it at the target position
-            // If we're moving up, insert BEFORE the target (at targetIdx)
-            newTeams.splice(targetIdx, 0, moved);
-
-            console.log('✅ New teams order:', newTeams.map(t => t.name));
-
-            // Invalidate cache before saving to prevent cache from overwriting
-            const { dataCache } = await import('@/lib/dataCache');
-            dataCache.invalidatePattern('teams');
-
-            setTeams(newTeams);
-            saveTeams(newTeams);
-            // Fire and forget - don't block UI on database sync
-            syncPositionsToSupabase(newTeams).catch(err =>
-                console.warn('Background sync failed:', err)
-            );
-        } else if (direction === 'down' && filteredIndex < currentFiltered.length - 1) {
-            const teamToMove = currentFiltered[filteredIndex];
-            const targetTeam = currentFiltered[filteredIndex + 1];
-            console.log('Moving DOWN:', teamToMove.name, 'to position of', targetTeam.name);
-
-            const newTeams = [...teams];
-            const originIdx = newTeams.findIndex(t => t.id === teamToMove.id);
-            const targetIdx = newTeams.findIndex(t => t.id === targetTeam.id);
-
-            console.log('Indices:', { originIdx, targetIdx });
-
-            // Remove the team from its current position
-            const [moved] = newTeams.splice(originIdx, 1);
-
-            // Recalculate target index after removal (if we removed before target, index shifts)
-            const finalTargetIdx = originIdx < targetIdx ? targetIdx : targetIdx + 1;
-
-            console.log('Final target index:', finalTargetIdx);
-
-            // Insert it AFTER the target
-            newTeams.splice(finalTargetIdx, 0, moved);
-
-            console.log('✅ New teams order:', newTeams.map(t => t.name));
-
-            // Invalidate cache before saving to prevent cache from overwriting
-            const { dataCache } = await import('@/lib/dataCache');
-            dataCache.invalidatePattern('teams');
-
-            setTeams(newTeams);
-            saveTeams(newTeams);
-            // Fire and forget - don't block UI on database sync
-            syncPositionsToSupabase(newTeams).catch(err =>
-                console.warn('Background sync failed:', err)
-            );
-        } else {
-            console.warn('⚠️ Move blocked:', {
-                reason: direction === 'up' ? 'Already at top' : 'Already at bottom',
-                filteredIndex,
-                maxIndex: currentFiltered.length - 1
+            // 3. Update Local State (Merging back into full teams list)
+            const newAllTeams = teams.map(t => {
+                const updated = updates.find(u => u.id === t.id);
+                return updated || t;
             });
+
+            setTeams(newAllTeams);
+            saveTeams(newAllTeams);
+
+            // 4. Persist to DB
+            for (const team of updates) {
+                await (supabase.from('teams') as any)
+                    .update({ display_order: team.displayOrder })
+                    .eq('id', team.id);
+            }
+
+            // Update Competition State Flag
+            toggleCompetitionOrdered(selectedCategory);
+
+            setDrawing(false);
+            setCountdown(null);
+
+        } catch (err) {
+            console.error("Draw Failed:", err);
+            setDrawing(false);
+            setCountdown(null);
         }
     };
 
     return (
         <div className="space-y-6">
+            {/* Header */}
             <div className="border-b border-card-border pb-6">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-6">
-                        <div>
-                            <h2 className="text-xl font-bold italic uppercase leading-none mb-1 text-foreground">
-                                {COMPETITION_CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Competition Order'}
-                            </h2>
-                            <p className="text-[10px] text-muted-foreground font-black tracking-[0.2em] uppercase opacity-50">
-                                Priority sequence protocol
-                            </p>
-                        </div>
-
-                        <div className="h-10 w-px bg-card-border/30" />
-
-                        <button
-                            onClick={handleToggleOrder}
-                            className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all active:scale-95 ${isOrdered
-                                ? 'bg-accent text-slate-900 border-accent shadow-lg shadow-accent/20'
-                                : 'bg-muted/30 text-muted-foreground border-card-border hover:border-accent/30 hover:text-foreground'
-                                }`}
-                        >
-                            <CheckCircle2 size={16} className={isOrdered ? 'animate-pulse' : ''} />
-                            <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-                                {isOrdered ? 'Order is confirmed' : 'Confirm Order'}
-                            </span>
-                        </button>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold italic uppercase leading-none mb-1 text-foreground flex items-center gap-2">
+                            {COMPETITION_CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Competition Order'}
+                            {isOrderSet && <Lock size={16} className="text-accent/60" />}
+                        </h2>
+                        <p className="text-[10px] text-muted-foreground font-black tracking-[0.2em] uppercase opacity-50">
+                            {isOrderSet ? 'Sequence Locked • Action Restricted' : 'Awaiting Sequence Generation'}
+                        </p>
                     </div>
+
                     <div className="relative min-w-[200px]">
                         <select
                             value={selectedCategory}
@@ -219,86 +174,140 @@ export default function TeamsOrderTab({ teams, setTeams, selectedCategory, setSe
                     </div>
                 </div>
 
-                {/* Search Field */}
-                <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                    <input
-                        type="text"
-                        placeholder="SEARCH TEAMS..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-muted/50 border border-card-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-accent/50 transition-all placeholder:opacity-40"
-                    />
-                </div>
+                {/* Search - Only show if list is visible */}
+                {isOrderSet && (
+                    <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                        <input
+                            type="text"
+                            placeholder="SEARCH TEAMS..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-muted/50 border border-card-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-accent/50 transition-all placeholder:opacity-40"
+                        />
+                    </div>
+                )}
             </div>
 
-            <div className="max-h-[440px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
-                {mainDisplayTeams.map((team, index) => {
-                    const compConfig = COMPETITION_CATEGORIES.find(c => c.id === team.competition);
-                    return (
+            {/* Content Area */}
+            <div className="min-h-[400px]">
+                <AnimatePresence mode="wait">
+                    {/* CASE 1: DRAW INTERFACE */}
+                    {!isOrderSet && !drawing && (
                         <motion.div
-                            key={team.id}
-                            layout
-                            transition={{
-                                layout: { type: "spring", stiffness: 600, damping: 35 },
-                                opacity: { duration: 0.2 }
-                            }}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className={`group relative bg-card/40 backdrop-blur-md border border-card-border p-3 rounded-2xl flex items-center gap-4 transition-all hover:bg-muted/30 hover:shadow-2xl hover:shadow-accent/5 ${team.isPlaceholder ? 'border-dashed opacity-50' : 'hover:border-accent/40'}`}
+                            key="draw-ui"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="flex flex-col items-center justify-center py-20 text-center space-y-6"
                         >
-                            {/* Rank Indicator */}
-                            <div className="relative flex-shrink-0">
-                                <div className="w-12 h-12 rounded-xl bg-muted border border-card-border flex flex-col items-center justify-center font-black shadow-inner">
-                                    <span className="text-[9px] text-muted-foreground/40 uppercase leading-none mb-1">POS</span>
-                                    <span className="text-lg text-foreground italic leading-none">{index + 1}</span>
+                            <div className="w-24 h-24 bg-accent/10 rounded-full flex items-center justify-center mb-4">
+                                <Shuffle size={48} className="text-accent" />
+                            </div>
+
+                            <div>
+                                <h3 className="text-2xl font-black uppercase italic mb-2">Initialize Sequence</h3>
+                                <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+                                    Generate a randomized, immutable starting order for {categoryTeams.length} qualified units.
+                                </p>
+                            </div>
+
+                            {categoryTeams.length < 2 ? (
+                                <div className="flex items-center gap-2 px-6 py-3 bg-amber-500/10 text-amber-500 rounded-lg text-sm font-bold">
+                                    <AlertCircle size={16} />
+                                    <span>Insufficient Units ({categoryTeams.length}/2)</span>
                                 </div>
-                            </div>
-
-                            {/* Team Identity */}
-                            <div className="w-12 h-12 rounded-xl bg-muted border border-card-border overflow-hidden flex-shrink-0 shadow-sm transition-transform group-hover:scale-105">
-                                {team.logo ? (
-                                    <img src={team.logo} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 font-black text-lg italic uppercase">
-                                        {team.id.slice(-2)}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-extrabold text-base truncate italic uppercase text-foreground leading-none tracking-tight mb-1">
-                                    {team.robotName || team.name}
-                                </h3>
-                                <div className="text-[10px] text-muted-foreground font-bold flex items-center gap-2 uppercase tracking-wide opacity-70">
-                                    <span className="text-accent/80 italic">{team.club}</span>
-                                    <span className="w-1 h-1 bg-muted-foreground/30 rounded-full"></span>
-                                    <span className="truncate">{team.university || 'Sector Unassigned'}</span>
-                                </div>
-                            </div>
-
-                            {/* Dynamic Actions */}
-                            <div className={`flex flex-col gap-1 transition-all duration-300 ${isOrdered ? 'opacity-20 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0'}`}>
+                            ) : (
                                 <button
-                                    onClick={() => moveTeamAcrossFiltered(index, 'up')}
-                                    disabled={index === 0 || isOrdered}
-                                    className="p-1.5 bg-card hover:bg-accent hover:text-white rounded-lg text-muted-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-                                    title={isOrdered ? "Order Locked" : "Prioritize Unit"}
+                                    onClick={performDraw}
+                                    className="group relative px-10 py-4 bg-accent text-slate-950 font-black uppercase italic tracking-widest text-lg rounded-xl overflow-hidden shadow-lg hover:shadow-accent/25 hover:scale-105 transition-all"
                                 >
-                                    <ArrowUp size={14} strokeWidth={3} />
+                                    <span className="relative z-10 flex items-center gap-3">
+                                        <Loader2 size={20} className="animate-spin hidden group-active:block" />
+                                        Generate Order
+                                    </span>
                                 </button>
-                                <button
-                                    onClick={() => moveTeamAcrossFiltered(index, 'down')}
-                                    disabled={index === mainDisplayTeams.length - 1 || isOrdered}
-                                    className="p-1.5 bg-card hover:bg-accent hover:text-white rounded-lg text-muted-foreground border border-card-border disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-                                    title={isOrdered ? "Order Locked" : "De-prioritize Unit"}
-                                >
-                                    <ArrowDown size={14} strokeWidth={3} />
-                                </button>
-                            </div>
+                            )}
                         </motion.div>
-                    );
-                })}
+                    )}
+
+                    {/* CASE 2: ANIMATION */}
+                    {drawing && (
+                        <motion.div
+                            key="drawing-anim"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex flex-col items-center justify-center py-32"
+                        >
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-accent/40 blur-[60px] rounded-full animate-pulse" />
+                                <span className="relative z-10 text-8xl font-black italic text-foreground text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500">
+                                    {countdown === 0 ? 'LOCKED' : countdown}
+                                </span>
+                            </div>
+                            <p className="mt-8 text-xs font-black uppercase tracking-[0.5em] text-accent animate-pulse">
+                                Randomizing Sequence...
+                            </p>
+                        </motion.div>
+                    )}
+
+                    {/* CASE 3: LIST VIEW (LOCKED) */}
+                    {isOrderSet && !drawing && (
+                        <motion.div
+                            key="list-view"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="max-h-[440px] overflow-y-auto pr-2 custom-scrollbar space-y-3"
+                        >
+                            {displayTeams.map((team, index) => (
+                                <motion.div
+                                    key={team.id}
+                                    layout
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className="group relative bg-card/40 backdrop-blur-md border border-card-border p-3 rounded-2xl flex items-center gap-4 hover:bg-muted/30"
+                                >
+                                    {/* Locked Position */}
+                                    <div className="relative flex-shrink-0">
+                                        <div className="w-12 h-12 rounded-xl bg-muted/50 border border-card-border flex flex-col items-center justify-center font-black">
+                                            <span className="text-[9px] text-muted-foreground/40 uppercase leading-none mb-1">POS</span>
+                                            <span className="text-lg text-foreground/80 italic leading-none">{team.displayOrder}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Team Identity */}
+                                    <div className="w-12 h-12 rounded-xl bg-muted border border-card-border overflow-hidden flex-shrink-0">
+                                        {team.logo ? (
+                                            <img src={team.logo} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 font-black text-lg italic uppercase">
+                                                {team.id.slice(-2)}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-extrabold text-base truncate italic uppercase text-foreground leading-none tracking-tight mb-1">
+                                            {team.robotName || team.name}
+                                        </h3>
+                                        <div className="text-[10px] text-muted-foreground font-bold flex items-center gap-2 uppercase tracking-wide opacity-70">
+                                            <span className="text-accent/60 italic">{team.club}</span>
+                                            <span className="w-1 h-1 bg-muted-foreground/30 rounded-full"></span>
+                                            <span className="truncate">{team.university}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Lock Icon */}
+                                    <div className="pr-4 opacity-10">
+                                        <Lock size={20} />
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

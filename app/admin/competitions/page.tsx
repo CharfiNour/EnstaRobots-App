@@ -38,7 +38,7 @@ export default function CompetitionsPage() {
                 fetchCompetitionsFromSupabase()
             ]);
 
-            if (Object.keys(sessions).length > 0) {
+            if (sessions && Object.keys(sessions).length > 0) {
                 updateCompetitionState({ liveSessions: sessions });
             }
 
@@ -70,10 +70,12 @@ export default function CompetitionsPage() {
     const handleRealtimeUpdate = async () => {
         const { fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
         const [sessions, comps] = await Promise.all([
-            fetchLiveSessionsFromSupabase(),
+            fetchLiveSessionsFromSupabase(true),
             fetchCompetitionsFromSupabase()
         ]);
-        updateCompetitionState({ liveSessions: sessions });
+        if (sessions) {
+            updateCompetitionState({ liveSessions: sessions }, false);
+        }
 
         // Update local competitions list from DB if we want to sync with other admins
         // Note: We might want to merge this carefully with localStorage

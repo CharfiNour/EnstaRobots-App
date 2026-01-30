@@ -135,7 +135,9 @@ export default function CompetitionsPage() {
         // 2. Live Data (Background)
         try {
             const sessions = await fetchLiveSessionsFromSupabase();
-            updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            if (sessions) {
+                updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            }
             setCompState(getCompetitionState());
         } catch (e) {
             console.warn("Live sync failed", e);
@@ -146,8 +148,10 @@ export default function CompetitionsPage() {
     const handleLiveUpdate = useCallback(async () => {
         try {
             // Only fetch the tiny live_sessions delta
-            const sessions = await fetchLiveSessionsFromSupabase();
-            updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            const sessions = await fetchLiveSessionsFromSupabase(true);
+            if (sessions) {
+                updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            }
             setCompState(getCompetitionState());
         } catch (e) {
             console.warn("Live update failed", e);

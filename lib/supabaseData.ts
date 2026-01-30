@@ -3,6 +3,7 @@ import { Team, TeamMember } from './teams';
 import { OfflineScore } from './offlineScores';
 import { Database } from '../types/supabase';
 import { dataCache, cacheKeys } from './dataCache';
+import { canonicalizeCompId } from './constants';
 
 type DBTeam = Database['public']['Tables']['teams']['Row'];
 type DBTeamMember = Database['public']['Tables']['team_members']['Row'];
@@ -33,11 +34,10 @@ export async function fetchCompetitionsFromSupabase(fields: 'minimal' | 'full' =
             .select(selectQuery);
 
         if (error) {
-            console.error('--- SUPABASE COMPS FETCH ERROR ---', {
-                code: error.code || 'N/A',
-                message: error.message || 'Network Error or Failed to Fetch'
-            });
-            return [];
+            console.warn('--- COMPS FETCH SKIPPED (Supabase) ---', error.message);
+            const stale = dataCache.get<any[]>(cacheKey);
+            if (stale) console.log('📦 [CACHE FALLBACK] Returning stale competitions');
+            return stale || [];
         }
 
         // Store in cache
@@ -46,8 +46,10 @@ export async function fetchCompetitionsFromSupabase(fields: 'minimal' | 'full' =
 
         return data as any;
     } catch (e: any) {
-        console.error("Critical error in fetchCompetitionsFromSupabase:", e.message || e);
-        return [];
+        console.warn("fetchCompetitionsFromSupabase failed (likely offline):", e.message || e);
+        const stale = dataCache.get<any[]>(cacheKey);
+        if (stale) console.log('📦 [CACHE FALLBACK] Returning stale competitions');
+        return stale || [];
     }
 }
 
@@ -159,9 +161,9 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
     }
 
     const selectQuery = fields === 'minimal'
-        ? 'id, name, robot_name, club, university, logo_url, competition_id, is_placeholder'
+        ? 'id, name, robot_name, club, university, logo_url, competition_id, is_placeholder, display_order'
         : `
-            id, name, robot_name, club, university, logo_url, photo_url, team_code, competition_id, is_placeholder, visuals_locked,
+            id, name, robot_name, club, university, logo_url, photo_url, team_code, competition_id, is_placeholder, visuals_locked, display_order,
             team_members (team_id, name, role, is_leader)
         `;
 
@@ -171,11 +173,10 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
             .select(selectQuery);
 
         if (error) {
-            console.error('--- SUPABASE TEAMS FETCH ERROR ---', {
-                code: error.code || 'N/A',
-                message: error.message || 'Network Error or Failed to Fetch'
-            });
-            return [];
+            console.warn('--- TEAMS FETCH SKIPPED (Supabase) ---', error.message);
+            const stale = dataCache.get<Team[]>(cacheKey);
+            if (stale) console.log('📦 [CACHE FALLBACK] Returning stale teams');
+            return stale || [];
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,6 +192,7 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
             competition: t.competition_id || '',
             isPlaceholder: t.is_placeholder,
             visualsLocked: t.visuals_locked,
+            displayOrder: t.display_order || 0,
             members: (t.team_members || []).map((m: any) => ({
                 name: m.name,
                 role: m.role || '',
@@ -223,8 +225,10 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
 
         return filteredTeams;
     } catch (e: any) {
-        console.error("Critical error in fetchTeamsFromSupabase:", e.message || e);
-        return [];
+        console.warn("fetchTeamsFromSupabase failed (likely offline):", e.message || e);
+        const stale = dataCache.get<Team[]>(cacheKey);
+        if (stale) console.log('📦 [CACHE FALLBACK] Returning stale teams');
+        return stale || [];
     }
 }
 
@@ -405,12 +409,12 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
 
         if (scoresResponse.error) {
             const err = scoresResponse.error;
-            console.error('--- SUPABASE SCORES FETCH ERROR ---', {
-                code: err.code || 'N/A',
-                message: err.message || 'Network Error or Failed to Fetch',
-                details: err.details || 'Check console network tab'
+            console.warn('--- SCORES FETCH SKIPPED (Network/Supabase) ---', {
+                message: err.message || 'Failed to fetch',
             });
-            return [];
+            const stale = dataCache.get<OfflineScore[]>(cacheKey);
+            if (stale) console.log('📦 [CACHE FALLBACK] Returning stale scores');
+            return stale || [];
         }
 
         if (compsResponse.error) {
@@ -453,8 +457,10 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
 
         return processedScores;
     } catch (e: any) {
-        console.error("Critical error in fetchScoresFromSupabase:", e.message || e);
-        return [];
+        console.warn("fetchScoresFromSupabase failed (likely offline):", e.message || e);
+        const stale = dataCache.get<OfflineScore[]>(cacheKey);
+        if (stale) console.log('📦 [CACHE FALLBACK] Returning stale scores');
+        return stale || [];
     }
 }
 
@@ -560,33 +566,18 @@ export async function clearCategoryScoresFromSupabase(competitionId: string) {
 
 export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
     try {
+        // Resolve all local session slugs to UUIDs where possible
         const sessionEntries = [];
 
+        // Fetch competitions once for resolution
+        const { data: dbComps } = await (supabase.from('competitions').select('id, type') as any);
+        const compsList = dbComps || [];
+
         for (const [compId, sub] of Object.entries(sessions)) {
-            let targetCompId = String(compId);
-
-            // Verify if it's a UUID
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetCompId);
-
-            if (!isUuid) {
-                // Resolution: check 'type' (slug) first, then 'name'
-                const { data } = await (supabase
-                    .from('competitions')
-                    .select('id')
-                    .or(`id.eq.${targetCompId},type.eq.${targetCompId},name.ilike.${targetCompId}`)
-                    .limit(1) as any);
-
-                const comp = data && data.length > 0 ? data[0] : null;
-
-                if (comp) {
-                    targetCompId = comp.id;
-                } else {
-                    console.warn(`Could not resolve competition ID for slug: ${targetCompId}. Attempting to use slug as ID.`);
-                }
-            }
+            const resolvedId = canonicalizeToUuid(compId, compsList);
 
             sessionEntries.push({
-                competition_id: targetCompId,
+                competition_id: resolvedId,
                 team_id: String(sub.teamId),
                 phase: sub.phase || '',
                 start_time: new Date(sub.startTime || Date.now()).toISOString(),
@@ -595,40 +586,31 @@ export async function syncLiveStateToSupabase(sessions: Record<string, any>) {
             });
         }
 
+        // Upsert only. We DO NOT delete orphans here as it causes race conditions between multiple open tabs.
+        // Explicit deletions are handled by deleteLiveSessionFromSupabase.
         if (sessionEntries.length > 0) {
-            // Use upsert to be robust against race conditions
             const { error: insertError } = await (supabase.from('live_sessions') as any)
                 .upsert(sessionEntries, { onConflict: 'competition_id' });
 
-            if (insertError) {
-                // Graceful Degradation: If schema is missing columns, retry with legacy payload
-                if (insertError.code === 'PGRST204') {
-                    console.warn("⚠️ Database Schema Mismatch: Retrying live sync without 'score_summary' or 'updated_at' columns.");
-
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    const legacyEntries = sessionEntries.map(({ score_summary, updated_at, ...rest }) => rest);
-
-                    const { error: retryError } = await (supabase.from('live_sessions') as any)
-                        .upsert(legacyEntries, { onConflict: 'competition_id' });
-
-                    if (retryError) {
-                        console.error("❌ Legacy sync failing too:", retryError.message);
-                    }
-                } else {
-                    console.group('--- SUPABASE LIVE SYNC ERROR ---');
-                    console.error('Code:', insertError.code);
-                    console.error('Message:', insertError.message);
-                    console.log('Attempted Data:', sessionEntries);
-                    console.groupEnd();
-                }
+            if (insertError && insertError.code === 'PGRST204') {
+                const legacyEntries = sessionEntries.map(({ score_summary, updated_at, ...rest }) => rest);
+                await (supabase.from('live_sessions') as any).upsert(legacyEntries, { onConflict: 'competition_id' });
             }
         }
     } catch (e) {
         console.error("Critical error in syncLiveStateToSupabase:", e);
     } finally {
-        // Invalidate live sessions cache after sync
         dataCache.invalidate(cacheKeys.liveSessions());
     }
+}
+
+// Helper for sync internal resolution
+function canonicalizeToUuid(id: string, comps: any[]): string {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) return id;
+
+    const match = comps.find(c => c.type === id || c.id === id);
+    return match ? match.id : id;
 }
 
 export async function deleteLiveSessionFromSupabase(competitionId: string) {
@@ -705,14 +687,15 @@ export async function clearAllLiveSessionsFromSupabase() {
     }
 }
 
-export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, any>> {
+export async function fetchLiveSessionsFromSupabase(force: boolean = false): Promise<Record<string, any> | null> {
     // Check cache first
     const cacheKey = cacheKeys.liveSessions();
-    const cached = dataCache.get<Record<string, any>>(cacheKey);
-
-    if (cached) {
-        console.log('📦 [CACHE HIT] Live sessions loaded from cache');
-        return cached;
+    if (!force) {
+        const cached = dataCache.get<Record<string, any>>(cacheKey);
+        if (cached) {
+            console.log('📦 [CACHE HIT] Live sessions loaded from cache');
+            return cached;
+        }
     }
 
     try {
@@ -723,12 +706,11 @@ export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, an
 
         if (sessResponse.error) {
             const err = sessResponse.error;
-            console.error('--- SUPABASE LIVE FETCH ERROR ---', {
-                code: err.code || 'N/A',
-                message: err.message || 'Network Error or Failed to Fetch',
-                hint: err.hint || 'Ensure your device has internet access and correct API keys'
+            // Downgrade to WARN to avoid alarming users during temporary network glitches
+            console.warn('--- LIVE FETCH SKIPPED (Network/Supabase) ---', {
+                message: err.message || 'Failed to fetch',
             });
-            return {};
+            return null;
         }
 
         if (compsResponse.error) {
@@ -749,7 +731,8 @@ export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, an
 
         const sessions: Record<string, any> = {};
         sessionsData.forEach((s: any) => {
-            const key = compMap[s.competition_id] || s.competition_id;
+            // Ensure we use canonical slugs for keys to maintain cross-component consistency
+            const key = canonicalizeCompId(s.competition_id, compsData);
             sessions[key] = {
                 teamId: s.team_id,
                 phase: s.phase,
@@ -765,12 +748,9 @@ export async function fetchLiveSessionsFromSupabase(): Promise<Record<string, an
 
         return sessions;
     } catch (e: any) {
-        console.error("Critical error in fetchLiveSessionsFromSupabase:", {
-            message: e.message || e,
-            code: e.code,
-            hint: e.hint
-        });
-        return {};
+        // Network errors (fetch failed) are common, log as warning
+        console.warn("fetchLiveSessionsFromSupabase failed (likely offline):", e.message || e);
+        return null;
     }
 }
 

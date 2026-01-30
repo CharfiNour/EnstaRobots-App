@@ -296,141 +296,150 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             ) : isLineFollower ? (
                                 <div className="grid gap-3">
                                     {hasScore ? (
-                                        <>
-                                            {/* Lap Time Box */}
-                                            <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border shadow-inner">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-accent/10 rounded-lg text-accent">
-                                                        <Timer size={16} />
-                                                    </div>
-                                                    <span className="text-xs font-black uppercase tracking-wide text-foreground">Official Lap Time</span>
+                                        (!isEditing && currentScore.status === 'pending') ? (
+                                            <div className="h-full flex flex-col items-center justify-center py-8 text-center bg-muted/5 rounded-xl border border-dashed border-card-border">
+                                                <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-3 text-accent animate-pulse">
+                                                    <Timer size={24} />
                                                 </div>
-                                                {isEditing ? (
-                                                    <div className="flex gap-1 items-center">
-                                                        <input
-                                                            type="number"
-                                                            value={editData.timeMs || 0}
-                                                            onChange={(e) => setEditData({ ...editData, timeMs: parseInt(e.target.value) })}
-                                                            className="w-24 bg-card border border-card-border p-1 rounded font-mono text-sm text-right"
-                                                        />
-                                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">ms</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xl font-mono text-foreground font-black tracking-tight">
-                                                        {(() => {
-                                                            const ms = currentScore.timeMs || 0;
-                                                            const min = Math.floor(ms / 60000);
-                                                            const sec = Math.floor((ms % 60000) / 1000);
-                                                            const mls = ms % 1000;
-                                                            return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
-                                                        })()}
-                                                    </span>
-                                                )}
+                                                <div className="text-xs font-black uppercase tracking-widest text-accent">Ready for Run</div>
+                                                <div className="text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]">Waiting for official start signal.</div>
                                             </div>
-
-                                            {/* Road Completion Box */}
-                                            <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                                        <Shield size={16} />
-                                                    </div>
-                                                    <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
-                                                </div>
-                                                {isEditing ? (
-                                                    <button
-                                                        onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
-                                                        className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
-                                                    >
-                                                        {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                                    </button>
-                                                ) : (
-                                                    <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
-                                                        {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {/* Total Summary for LF */}
-                                            <div className="flex items-center justify-between p-4 bg-accent/5 rounded-xl border border-accent/20 mb-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-accent/20 rounded-lg text-accent">
-                                                        <Trophy size={16} />
-                                                    </div>
-                                                    <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
-                                                </div>
-                                                <span className="text-xl font-black italic text-foreground tracking-tighter">
-                                                    {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ 215 PTS</span>
-                                                </span>
-                                            </div>
-
-                                            {/* Itemized Segments Breakdown */}
-                                            {currentScore.detailedScores && Object.keys(currentScore.detailedScores).length > 0 && (
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 mt-2 mb-3">
-                                                        <div className="h-px flex-1 bg-card-border" />
-                                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">Tactical Analysis</span>
-                                                        <div className="h-px flex-1 bg-card-border" />
-                                                    </div>
-                                                    <div className="grid gap-2">
-                                                        {(() => {
-                                                            const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR } = require('@/lib/constants');
-                                                            const sections = competitionType === 'junior_line_follower' ? LINE_FOLLOWER_SECTIONS_JUNIOR : LINE_FOLLOWER_SECTIONS_STANDARD;
-
-                                                            return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
-                                                                const section = sections.find((s: any) => s.id === id);
-                                                                if (!section) return null;
-
-                                                                return (
-                                                                    <div key={id} className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-card-border/50">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <div className="w-8 h-8 rounded-lg bg-card border border-card-border overflow-hidden">
-                                                                                <img src={section.image} alt="" className="w-full h-full object-cover opacity-80" />
-                                                                            </div>
-                                                                            <div>
-                                                                                <div className="text-[10px] font-black uppercase tracking-tight text-foreground">{section.label}</div>
-                                                                                <div className="text-[8px] font-bold uppercase text-muted-foreground opacity-60">Max {section.maxPoints} Pts</div>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="text-sm font-black italic text-accent">
-                                                                            {pts} <span className="text-[8px] not-italic opacity-40">PTS</span>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            });
-                                                        })()}
-                                                    </div>
-
-                                                    {/* Homologation Score inside Tactical Analysis for LF */}
-                                                    {!isHomologation && homologationScore && (
-                                                        <div className="mt-4 p-4 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
-                                                            <div className="flex flex-col gap-3 w-full">
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="p-2 bg-role-primary/20 rounded-lg text-role-primary">
-                                                                            <Shield size={16} />
-                                                                        </div>
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-xs font-black uppercase tracking-widest text-role-primary leading-tight">Homologation Score</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <span className="text-2xl font-black italic text-foreground tracking-tighter flex items-baseline gap-1">
-                                                                        {homologationScore.totalPoints} <span className="text-[11px] not-italic uppercase opacity-60">/ 40 PTS</span>
-                                                                    </span>
-                                                                </div>
-
-                                                                {homologationScore.remarks && (
-                                                                    <div className="pt-2 border-t border-role-primary/20">
-                                                                        <div className="text-[9px] font-black uppercase text-role-primary/80 mb-1 tracking-widest">Technician Notes</div>
-                                                                        <div className="text-[10px] font-bold text-foreground leading-relaxed">
-                                                                            "{homologationScore.remarks}"
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Lap Time Box */}
+                                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border shadow-inner">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                                                            <Timer size={16} />
                                                         </div>
+                                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Official Lap Time</span>
+                                                    </div>
+                                                    {isEditing ? (
+                                                        <div className="flex gap-1 items-center">
+                                                            <input
+                                                                type="number"
+                                                                value={editData.timeMs || 0}
+                                                                onChange={(e) => setEditData({ ...editData, timeMs: parseInt(e.target.value) })}
+                                                                className="w-24 bg-card border border-card-border p-1 rounded font-mono text-sm text-right"
+                                                            />
+                                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">ms</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xl font-mono text-foreground font-black tracking-tight">
+                                                            {(() => {
+                                                                const ms = currentScore.timeMs || 0;
+                                                                const min = Math.floor(ms / 60000);
+                                                                const sec = Math.floor((ms % 60000) / 1000);
+                                                                const mls = ms % 1000;
+                                                                return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${mls.toString().padStart(3, '0')}`;
+                                                            })()}
+                                                        </span>
                                                     )}
                                                 </div>
-                                            )}
-                                        </>
+
+                                                {/* Road Completion Box */}
+                                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                            <Shield size={16} />
+                                                        </div>
+                                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
+                                                    </div>
+                                                    {isEditing ? (
+                                                        <button
+                                                            onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
+                                                            className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
+                                                        >
+                                                            {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                                        </button>
+                                                    ) : (
+                                                        <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* Total Summary for LF */}
+                                                <div className="flex items-center justify-between p-4 bg-accent/5 rounded-xl border border-accent/20 mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-accent/20 rounded-lg text-accent">
+                                                            <Trophy size={16} />
+                                                        </div>
+                                                        <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
+                                                    </div>
+                                                    <span className="text-xl font-black italic text-foreground tracking-tighter">
+                                                        {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ 215 PTS</span>
+                                                    </span>
+                                                </div>
+
+                                                {/* Itemized Segments Breakdown */}
+                                                {currentScore.detailedScores && Object.keys(currentScore.detailedScores).length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center gap-2 mt-2 mb-3">
+                                                            <div className="h-px flex-1 bg-card-border" />
+                                                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em]">Tactical Analysis</span>
+                                                            <div className="h-px flex-1 bg-card-border" />
+                                                        </div>
+                                                        <div className="grid gap-2">
+                                                            {(() => {
+                                                                const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR } = require('@/lib/constants');
+                                                                const sections = competitionType === 'junior_line_follower' ? LINE_FOLLOWER_SECTIONS_JUNIOR : LINE_FOLLOWER_SECTIONS_STANDARD;
+
+                                                                return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
+                                                                    const section = sections.find((s: any) => s.id === id);
+                                                                    if (!section) return null;
+
+                                                                    return (
+                                                                        <div key={id} className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-card-border/50">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <div className="w-8 h-8 rounded-lg bg-card border border-card-border overflow-hidden">
+                                                                                    <img src={section.image} alt="" className="w-full h-full object-cover opacity-80" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <div className="text-[10px] font-black uppercase tracking-tight text-foreground">{section.label}</div>
+                                                                                    <div className="text-[8px] font-bold uppercase text-muted-foreground opacity-60">Max {section.maxPoints} Pts</div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-sm font-black italic text-accent">
+                                                                                {pts} <span className="text-[8px] not-italic opacity-40">PTS</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                });
+                                                            })()}
+                                                        </div>
+
+                                                        {/* Homologation Score inside Tactical Analysis for LF */}
+                                                        {!isHomologation && homologationScore && (
+                                                            <div className="mt-4 p-4 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
+                                                                <div className="flex flex-col gap-3 w-full">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="p-2 bg-role-primary/20 rounded-lg text-role-primary">
+                                                                                <Shield size={16} />
+                                                                            </div>
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-xs font-black uppercase tracking-widest text-role-primary leading-tight">Homologation Score</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <span className="text-2xl font-black italic text-foreground tracking-tighter flex items-baseline gap-1">
+                                                                            {homologationScore.totalPoints} <span className="text-[11px] not-italic uppercase opacity-60">/ 40 PTS</span>
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {homologationScore.remarks && (
+                                                                        <div className="pt-2 border-t border-role-primary/20">
+                                                                            <div className="text-[9px] font-black uppercase text-role-primary/80 mb-1 tracking-widest">Technician Notes</div>
+                                                                            <div className="text-[10px] font-bold text-foreground leading-relaxed">
+                                                                                "{homologationScore.remarks}"
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </>)
                                     ) : (
                                         /* Empty State for Line Follower */
                                         <div className="h-full flex flex-col items-center justify-center py-8 text-center bg-muted/5 rounded-xl border border-dashed border-card-border">

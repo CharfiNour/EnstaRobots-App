@@ -69,6 +69,7 @@ export default function ScoreCardPage() {
     const [showCompList, setShowCompList] = useState(false);
     const router = useRouter();
     const liveActionLock = useRef(false);
+    const lastEndMatchTimestamp = useRef<Record<string, number>>({});
 
     // Juries
     const [jury1, setJury1] = useState('');
@@ -158,7 +159,7 @@ export default function ScoreCardPage() {
 
         // Initial fetch from supabase
         fetchLiveSessionsFromSupabase().then(sessions => {
-            if (Object.keys(sessions).length > 0) {
+            if (sessions && Object.keys(sessions).length > 0) {
                 // Pass false to avoid syncing back what we just fetched
                 updateCompetitionState({ liveSessions: sessions }, false);
             }
@@ -171,12 +172,25 @@ export default function ScoreCardPage() {
     }, [competition.id, competition.type]);
 
     const handleRealtimeUpdate = async () => {
-        // If we are actively starting/stopping a match, ignore background syncs 
+        // If we are actively starting/stopping a match, ignore background syncs
         // to avoid the "flinch" (old state overwriting local state via Supabase)
         if (liveActionLock.current) return;
 
-        const sessions = await fetchLiveSessionsFromSupabase();
-        await updateCompetitionState({ liveSessions: sessions }, false);
+        const sessions = await fetchLiveSessionsFromSupabase(true); // FORCE bypass cache
+        if (sessions) {
+            // MUTATION GUARD: filter out sessions that we just locally ended
+            // but might still be showing up as live in a stale server response
+            const filtered: Record<string, any> = { ...sessions };
+            for (const [compId, sess] of Object.entries(filtered)) {
+                const manualEnd = lastEndMatchTimestamp.current[compId];
+                if (manualEnd && sess.startTime && sess.startTime < manualEnd) {
+                    console.log(`🛡️ [GUARD] Blocking stale session for ${compId} (Server Start: ${sess.startTime} < Local End: ${manualEnd})`);
+                    delete filtered[compId];
+                }
+            }
+
+            updateCompetitionState({ liveSessions: filtered }, false);
+        }
     };
 
     const handleTeamsUpdate = async () => {
@@ -496,7 +510,7 @@ export default function ScoreCardPage() {
                 // We keep it live locally so they can still type scores
             } finally {
                 setStarting(false);
-                setTimeout(() => { liveActionLock.current = false; }, 2000);
+                setTimeout(() => { liveActionLock.current = false; }, 4000);
             }
         } else {
             alert("Protocol Violation: No team selected for deployment.");
@@ -506,6 +520,8 @@ export default function ScoreCardPage() {
     const handleEndMatch = async () => {
         setStopping(true);
         liveActionLock.current = true;
+        // Mark termination time for the mutation guard
+        lastEndMatchTimestamp.current[competition.id] = Date.now();
 
         console.log("🏁 Finalizing score session for:", competition.id);
 
@@ -536,8 +552,13 @@ export default function ScoreCardPage() {
             await stopLiveSession(competition.id).catch(() => { });
         } finally {
             setStopping(false);
-            // Give some buffer for the database update to propagate
-            setTimeout(() => { liveActionLock.current = false; }, 2000);
+            // Re-sync local storage derived state one last time to be sure
+            const state = getCompetitionState();
+            if (state.liveSessions && !state.liveSessions[competition.id]) {
+                setIsLive(false);
+            }
+            // Give more buffer for the database update to propagate and other clients to receive changes
+            setTimeout(() => { liveActionLock.current = false; }, 4000);
         }
     };
 
@@ -735,84 +756,118 @@ export default function ScoreCardPage() {
             };
         });
 
-        let hasError = false;
-        for (const payload of payloads) {
-            const dbPayload: any = {
-                match_id: payload.matchId,
-                team_id: payload.teamId,
-                competition_id: payload.competitionType,
-                phase: payload.phase,
-                time_ms: payload.timeMs,
-                penalties: 0,
-                bonus_points: payload.bonusPoints,
-                knockouts: payload.knockouts,
-                judge_points: payload.juryPoints,
-                damage_score: payload.damageScore,
-                judge_id: payload.juryId,
-                judge_names: payload.juryNames,
-                completed_road: payload.completedRoad,
-                total_points: payload.totalPoints,
-                detailed_scores: payload.detailedScores || null,
-                is_sent_to_team: true,
-                status: payload.status,
-                remarks: (payload as any).remarks || null
-            };
+        // OPTIMISTIC UPDATE: Save to offline buffer immediately and advance UI
+        payloads.forEach(payload => saveScoreOffline(payload));
 
-            if (isOnline) {
-                try {
-                    const { error } = await (supabase.from('scores') as any).insert(dbPayload);
-                    if (error) {
-                        hasError = true;
-                        saveScoreOffline(payload);
-                    }
-                } catch (err) {
-                    hasError = true;
-                    saveScoreOffline(payload);
-                }
-            } else {
-                saveScoreOffline(payload);
+        setSuccess(true);
+        handleEndMatch(); // Terminates live session and syncs state
+
+        // Reset scores but keep judges
+        setTimeMinutes(''); setTimeSeconds(''); setTimeMillis('');
+        setCompletedRoad(false); setHomologationPoints('');
+        setKnockouts(''); setJuryPoints(''); setDamageScore('');
+        setDetailedScores({});
+        setHomologationScores({});
+        setHomologationRemarks('');
+
+        // Advance to next team
+        const nextIndex = currentTeamIndex + 1;
+        if (nextIndex < competitionTeams.length) {
+            setCurrentTeamIndex(nextIndex);
+            const nextTeam = competitionTeams[nextIndex];
+            const newTeams = [...teams];
+            newTeams[0].id = nextTeam.id;
+
+            // Auto update phase if line follower
+            if (isLineFollowerMode) {
+                const existingScores = getOfflineScores();
+                const hasEssay1 = existingScores.some(s =>
+                    s.teamId === nextTeam.id &&
+                    s.competitionType === competition.id &&
+                    s.phase === 'Essay 1'
+                );
+                newTeams[0].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
             }
+            setTeams(newTeams);
+        } else {
+            setTeams(teams.map(t => ({ ...t, id: '', phase: isLineFollowerMode ? 'Essay 1' : undefined })));
         }
 
-        if (!hasError) {
-            setSuccess(true);
-            handleEndMatch();
-
-            // Reset scores but keep judges
-            setTimeMinutes(''); setTimeSeconds(''); setTimeMillis('');
-            setCompletedRoad(false); setHomologationPoints('');
-            setKnockouts(''); setJuryPoints(''); setDamageScore('');
-            setDetailedScores({});
-            setHomologationScores({});
-            setHomologationRemarks('');
-
-            // Advance to next team
-            const nextIndex = currentTeamIndex + 1;
-            if (nextIndex < competitionTeams.length) {
-                setCurrentTeamIndex(nextIndex);
-                const nextTeam = competitionTeams[nextIndex];
-                const newTeams = [...teams];
-                newTeams[0].id = nextTeam.id;
-
-                // Auto update phase if line follower
-                if (isLineFollowerMode) {
-                    const existingScores = getOfflineScores();
-                    const hasEssay1 = existingScores.some(s =>
-                        s.teamId === nextTeam.id &&
-                        s.competitionType === competition.id &&
-                        s.phase === 'Essay 1'
-                    );
-                    newTeams[0].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
-                }
-                setTeams(newTeams);
-            } else {
-                setTeams(teams.map(t => ({ ...t, id: '', phase: isLineFollowerMode ? 'Essay 1' : undefined })));
-            }
-
-            setTimeout(() => setSuccess(false), 3000);
-        }
+        setTimeout(() => setSuccess(false), 3000);
         setSubmitting(false);
+
+        // BACKGROUND SYNC: Attempt to push to Supabase without blocking the UI
+        if (isOnline) {
+            payloads.forEach(payload => {
+                const dbPayload = {
+                    id: payload.id,
+                    match_id: payload.matchId,
+                    team_id: payload.teamId,
+                    competition_id: payload.competitionType,
+                    phase: payload.phase,
+                    time_ms: payload.timeMs,
+                    penalties: 0,
+                    bonus_points: payload.bonusPoints,
+                    knockouts: payload.knockouts,
+                    judge_points: payload.juryPoints,
+                    damage_score: payload.damageScore,
+                    judge_id: payload.juryId,
+                    judge_names: payload.juryNames,
+                    completed_road: payload.completedRoad,
+                    total_points: payload.totalPoints,
+                    detailed_scores: payload.detailedScores || null,
+                    is_sent_to_team: true,
+                    status: payload.status,
+                    remarks: (payload as any).remarks || null
+                };
+
+                (supabase.from('scores') as any)
+                    .insert(dbPayload)
+                    .then(({ error }: any) => {
+                        if (error) console.warn("Background sync failed (data buffered):", error.message);
+                    })
+                    .catch((err: any) => {
+                        console.warn("Critical background sync failure (data buffered):", err);
+                    });
+            });
+        }
     };
+
+    // Compute Team Order for Line Follower (Run Sequence)
+    const teamsOrder = useMemo(() => {
+        if (!isLineFollowerMode) return {};
+
+        // Merge offline + online (deduplicating by ID, remote takes precedence)
+        const scoreMap = new Map();
+        getOfflineScores().forEach(s => scoreMap.set(s.id, s));
+        allScores.forEach(s => scoreMap.set(s.id, s));
+        const combined = Array.from(scoreMap.values());
+
+        // Use canonical ID for filtering
+        const targetCategory = canonicalizeCompId(competition.id, competitionsFromSupabase);
+        const relevantScores = combined.filter(s =>
+        // Check both raw ID and canonical type
+        (s.competitionType === competition.id ||
+            canonicalizeCompId(s.competitionType, competitionsFromSupabase) === targetCategory)
+        );
+
+        if (relevantScores.length === 0) return {};
+
+        // Sort by timestamp (Creation order = Run order) with tie-breakers
+        const sorted = relevantScores.sort((a, b) => {
+            if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+            if (a.matchId && b.matchId) return a.matchId.localeCompare(b.matchId, undefined, { numeric: true });
+            return 0;
+        });
+
+        const order: Record<string, number> = {};
+        let rank = 1;
+        sorted.forEach(s => {
+            const tKey = String(s.teamId);
+            if (order[tKey] === undefined) order[tKey] = rank++;
+        });
+        return order;
+    }, [allScores, competition.id, isLineFollowerMode, competitionsFromSupabase]);
 
     return (
         <div className="min-h-screen py-8">
@@ -847,7 +902,7 @@ export default function ScoreCardPage() {
                     competition={competition}
                     isPhaseComplete={isPhaseComplete}
                     nextPhaseLabel={nextPhaseLabel}
-                    submitting={starting || submitting}
+                    submitting={starting || submitting || stopping}
                     scoringMode={scoringMode}
                 />
                 {/* Competition Selector */}
@@ -921,6 +976,7 @@ export default function ScoreCardPage() {
                                             setSelectedGroup={setSelectedGroup}
                                             groups={availableGroups}
                                             scoringMode={scoringMode}
+                                            teamsOrder={teamsOrder}
                                         />
 
                                         {/* Performance Section */}
@@ -1017,6 +1073,7 @@ export default function ScoreCardPage() {
                                         setSelectedGroup={setSelectedGroup}
                                         groups={availableGroups}
                                         scoringMode={scoringMode}
+                                        teamsOrder={teamsOrder}
                                     />
 
                                     {/* Performance Section */}

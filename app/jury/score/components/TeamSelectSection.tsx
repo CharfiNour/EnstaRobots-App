@@ -1,4 +1,5 @@
 import { Shield, Info } from 'lucide-react';
+import { useMemo } from 'react';
 import { Team } from '@/lib/teams';
 import { TeamScoreEntry } from '../../types';
 import CustomSelector from '@/components/common/CustomSelector';
@@ -19,6 +20,7 @@ interface TeamSelectSectionProps {
     setSelectedGroup?: (v: string) => void;
     groups?: string[];
     scoringMode?: 'performance' | 'homologation';
+    teamsOrder?: Record<string, number>;
 }
 
 export default function TeamSelectSection({
@@ -36,9 +38,20 @@ export default function TeamSelectSection({
     selectedGroup,
     setSelectedGroup,
     groups = [],
-    scoringMode = 'performance'
+    scoringMode = 'performance',
+    teamsOrder = {}
 }: TeamSelectSectionProps) {
     const isHomo = scoringMode === 'homologation';
+
+    // Sort teams based on the provided order
+    const sortedTeams = useMemo(() => {
+        if (Object.keys(teamsOrder).length === 0) return competitionTeams;
+        return [...competitionTeams].sort((a, b) => {
+            const orderA = teamsOrder[a.id] !== undefined ? teamsOrder[a.id] : 9999;
+            const orderB = teamsOrder[b.id] !== undefined ? teamsOrder[b.id] : 9999;
+            return orderA - orderB;
+        });
+    }, [competitionTeams, teamsOrder]);
 
     return (
         <div className="space-y-6">
@@ -107,7 +120,7 @@ export default function TeamSelectSection({
                                     value={team.id}
                                     onChange={(val) => handleTeamChange(index, 'id', val)}
                                     className={hasSubmitted ? 'ring-1 ring-emerald-500/50 rounded-2xl' : ''}
-                                    options={competitionTeams.map((t) => ({
+                                    options={sortedTeams.map((t) => ({
                                         value: t.id,
                                         label: t.name + (isPhaseSubmitted(t.id, phaseToCheck!) ? ' ✓' : ''),
                                         color: isPhaseSubmitted(t.id, phaseToCheck!) ? 'text-emerald-500' : ''

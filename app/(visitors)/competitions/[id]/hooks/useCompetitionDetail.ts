@@ -54,7 +54,9 @@ export function useCompetitionDetail(compId: string) {
             // 2. Live Data (Background)
             try {
                 const sessions = await fetchLiveSessionsFromSupabase();
-                updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+                if (sessions) {
+                    updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+                }
                 setCompState(getCompetitionState());
             } catch (e) {
                 console.warn("Live session fetch failed", e);
@@ -85,9 +87,11 @@ export function useCompetitionDetail(compId: string) {
     // Optimized Realtime Handler: Only listen to Live Sessions
     const handleLiveUpdate = useCallback(async () => {
         try {
-            const sessions = await fetchLiveSessionsFromSupabase();
+            const sessions = await fetchLiveSessionsFromSupabase(true);
             // Update local state without triggering global sync or heavy re-fetches
-            updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            if (sessions) {
+                updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+            }
             setCompState(getCompetitionState());
         } catch (e) {
             console.warn("Live update failed", e);

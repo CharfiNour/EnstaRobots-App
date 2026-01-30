@@ -59,9 +59,10 @@ export function useTeamDashboard() {
                 // Robust lookup: Resolve team.competition (which could be UUID or slug) to the actual DB UUID
                 const relevantComp = competitions.find((c: Competition) => c.id === team.competition || c.type === team.competition);
 
-                const sessionInfo = (relevantComp?.id && liveSessions[relevantComp.id])
-                    || (relevantComp?.type && liveSessions[relevantComp.type])
-                    || (team.competition && liveSessions[team.competition]);
+                const safeSessions = liveSessions || {};
+                const sessionInfo = (relevantComp?.id && safeSessions[relevantComp.id])
+                    || (relevantComp?.type && safeSessions[relevantComp.type])
+                    || (team.competition && safeSessions[team.competition]);
 
                 if (sessionInfo) {
                     isLive = true;

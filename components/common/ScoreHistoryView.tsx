@@ -6,7 +6,7 @@ import {
     ChevronRight, ChevronLeft, Search, Filter, Trophy, Timer, Swords,
     Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield, Trash2, Radar
 } from 'lucide-react';
-import { getOfflineScores, clearAllOfflineScores } from '@/lib/offlineScores';
+import { getOfflineScores, clearAllOfflineScores, clearOfflineScoresForCategory } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
 import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
@@ -106,7 +106,7 @@ export default function ScoreHistoryView({
     const [activePhase, setActivePhase] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCompetition, setSelectedCompetition] = useState(lockedCompetitionId || initialCompetition);
-    const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('');
+    const [rawSelectedPhaseFilter, setSelectedPhaseFilter] = useState('');
     const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
     const [drawTeamsCount, setDrawTeamsCount] = useState(2);
     const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
@@ -141,14 +141,35 @@ export default function ScoreHistoryView({
     const selectedCompType = (selectedCompData?.type || selectedCompData?.category || selectedCompetition || '').toLowerCase();
 
     const isMatchBasedComp = useMemo(() => {
-        const matchBasedTypes = ['fight', 'all_terrain', 'junior_all_terrain'];
+        const matchBasedTypes = ['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'];
         return matchBasedTypes.some(t => selectedCompType.includes(t));
+    }, [selectedCompType]);
+
+    // Smart default for draw count
+    useEffect(() => {
+        if (selectedCompType.includes('line_follower')) {
+            setDrawTeamsCount(1);
+        } else {
+            setDrawTeamsCount(2);
+        }
     }, [selectedCompType]);
 
     // Simplified phase calculation using centralized logic
     const allCompetitionPhases = useMemo(() => {
         return getPhasesForCategory(selectedCompType);
     }, [selectedCompType]);
+
+    // DERIVED STATE: Immediately resolve phase to avoid "Draw Interface" flicker
+    const selectedPhaseFilter = useMemo(() => {
+        if (!allCompetitionPhases || allCompetitionPhases.length === 0) return rawSelectedPhaseFilter;
+        if (rawSelectedPhaseFilter === 'all') return 'all';
+
+        // If current filter is invalid for this competition, fallback to first phase IMMEDIATELY
+        if (!rawSelectedPhaseFilter || !allCompetitionPhases.includes(rawSelectedPhaseFilter)) {
+            return allCompetitionPhases[0] || '';
+        }
+        return rawSelectedPhaseFilter;
+    }, [rawSelectedPhaseFilter, allCompetitionPhases]);
 
     // 1. Identify and deduplicate teams for the selected competition
     const trulyUniqueTeams = useMemo(() => {
@@ -300,8 +321,10 @@ export default function ScoreHistoryView({
     useSupabaseRealtime('competitions', handleScoresUpdate);
 
     const handleLiveUpdate = async () => {
-        const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions });
+        const sessions = await fetchLiveSessionsFromSupabase(true);
+        if (sessions) {
+            updateCompetitionState({ liveSessions: sessions }, false);
+        }
     };
 
     useSupabaseRealtime('live_sessions', handleLiveUpdate);
@@ -371,10 +394,11 @@ export default function ScoreHistoryView({
         // Helper to check if a comp is match based
         const checkIsMatchBased = (compId: string) => {
             const id = (compId || '').toLowerCase();
-            if (['fight', 'all_terrain', 'junior_all_terrain', '5', '4', '2'].includes(id)) return true;
+            // Include 1 & 3 (Line Follower legacy IDs) and their names
+            if (['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower', '5', '4', '2', '1', '3'].includes(id)) return true;
             const comp = compsList.find((c: any) => c.id === compId || c.type === compId || c.id === id || c.type === id);
             const category = (comp?.category || comp?.type || '').toLowerCase();
-            return ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
+            return ['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'].includes(category);
         };
 
         const groups: Record<string, any> = {};
@@ -401,9 +425,14 @@ export default function ScoreHistoryView({
                         matchId: key,
                         competitionType: canonicalComp,
                         participants: [],
-                        latestTimestamp: 0
+                        latestTimestamp: 0,
+                        firstTimestamp: score.timestamp || Date.now()
                     };
                     console.log(`ProcessScores: Created new match group for key '${key}' (Comp: '${canonicalComp}')`);
+                }
+
+                if (score.timestamp && score.timestamp < (groups[key].firstTimestamp || Infinity)) {
+                    groups[key].firstTimestamp = score.timestamp;
                 }
 
                 let participant = groups[key].participants.find((p: any) => p.teamId === score.teamId);
@@ -431,9 +460,13 @@ export default function ScoreHistoryView({
                         team,
                         competitionType: canonicalComp,
                         submissions: [],
-                        latestTimestamp: 0
+                        latestTimestamp: 0,
+                        firstTimestamp: score.timestamp || Date.now()
                     };
                     console.log(`ProcessScores: Created new single group for key '${groupKey}' (Comp: '${canonicalComp}')`);
+                }
+                if (score.timestamp && score.timestamp < (groups[groupKey].firstTimestamp || Infinity)) {
+                    groups[groupKey].firstTimestamp = score.timestamp;
                 }
                 groups[groupKey].submissions.push(score);
                 if (score.timestamp > groups[groupKey].latestTimestamp) {
@@ -466,7 +499,8 @@ export default function ScoreHistoryView({
                     team,
                     competitionType: canonicalComp,
                     submissions: [],
-                    latestTimestamp: 0
+                    latestTimestamp: 0,
+                    firstTimestamp: 0 // Injected teams with no activity go to top if sorting Asc
                 };
                 console.log(`ProcessScores: Injected team ${team.id} into new single group '${key}' (Comp: '${canonicalComp}')`);
             }
@@ -474,13 +508,15 @@ export default function ScoreHistoryView({
 
         // 3. Sort groups: Full groups first, then by activity (timestamp), then alphabetical
         const sortedGroups = Object.values(groups).sort((a: any, b: any) => {
-            // If they are match groups, prioritize the ones with MORE participants (the full ones)
-            if (a.type === 'match' && b.type === 'match') {
-                const sizeA = a.participants?.length || 0;
-                const sizeB = b.participants?.length || 0;
-                if (sizeA !== sizeB) return sizeB - sizeA; // Descending order: 4, 4, 3
+            // 1. Prioritize type (matches vs singles)
+            if (a.type !== b.type) return a.type === 'match' ? -1 : 1;
+
+            // 2. Stable chronological order based on first submission/creation
+            if (a.firstTimestamp !== b.firstTimestamp) {
+                return a.firstTimestamp - b.firstTimestamp;
             }
 
+            // 3. Fallback to latest activity if first timestamp is identical
             if (a.latestTimestamp !== b.latestTimestamp) {
                 return a.latestTimestamp - b.latestTimestamp;
             }
@@ -826,17 +862,13 @@ export default function ScoreHistoryView({
     }, [selectedPhaseFilter, allCompetitionPhases, phaseAccessibility]);
 
     // Auto-select first phase when competition type changes or if current filter is invalid
+    // Sync state with derived valid phase
     useEffect(() => {
-        if (allCompetitionPhases.length > 0) {
-            const isInvalid = selectedPhaseFilter !== 'all' && selectedPhaseFilter !== '' && !allCompetitionPhases.includes(selectedPhaseFilter);
-
-            if (selectedPhaseFilter === '' || isInvalid) {
-                const firstPhase = allCompetitionPhases[0];
-                setSelectedPhaseFilter(firstPhase);
-                setActivePhase(firstPhase);
-            }
+        if (selectedPhaseFilter !== rawSelectedPhaseFilter) {
+            setSelectedPhaseFilter(selectedPhaseFilter);
+            setActivePhase(selectedPhaseFilter);
         }
-    }, [allCompetitionPhases, selectedCompType, selectedPhaseFilter]);
+    }, [selectedPhaseFilter, rawSelectedPhaseFilter]);
 
 
     if (loading) {
@@ -993,8 +1025,12 @@ export default function ScoreHistoryView({
                             const newScores: any[] = [];
                             const pushPromises: Promise<any>[] = [];
 
-                            chunks.forEach(chunk => {
+                            const drawBaseTime = Date.now();
+                            chunks.forEach((chunk, chunkIdx) => {
                                 const matchId = generateId();
+                                // Guarantee sequential order via slight timestamp offsets
+                                const matchTime = drawBaseTime + chunkIdx;
+
                                 chunk.forEach(team => {
                                     const scoreObj = {
                                         id: generateId(),
@@ -1002,7 +1038,7 @@ export default function ScoreHistoryView({
                                         teamId: team.id,
                                         competitionType: competitionId,
                                         phase: currentPhase,
-                                        timestamp: Date.now(),
+                                        timestamp: matchTime,
                                         totalPoints: 0,
                                         synced: true,
                                         isSentToTeam: true,
@@ -1056,11 +1092,7 @@ export default function ScoreHistoryView({
         if (confirm(confirmMsg)) {
             setLoading(true);
             try {
-                // 1. Total Cache Purge
-                dataCache.clear();
-                clearAllOfflineScores();
-
-                // 2. Identify and Purge ALL identifiers
+                // 1. Identify Target Identifiers FIRST
                 const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
                 const compSlug = (selectedCompData?.type || selectedCompData?.category || selectedCompetition || "").toLowerCase();
 
@@ -1078,7 +1110,7 @@ export default function ScoreHistoryView({
                 });
                 if (LEGACY_ID_MAP[compSlug]) variants.add(LEGACY_ID_MAP[compSlug]);
 
-                // NEW: Dynamic discovery from currently visible scores
+                // Dynamic discovery from Supabase (forced refresh)
                 const rawScores = await fetchScoresFromSupabase(true);
                 rawScores.forEach(s => {
                     const sComp = s.competitionType;
@@ -1088,6 +1120,10 @@ export default function ScoreHistoryView({
                 });
 
                 console.log("Nuclear Reset: Purging discovered variants:", Array.from(variants));
+
+                // 2. Clear Local Data (Scoped)
+                clearOfflineScoresForCategory(Array.from(variants));
+                dataCache.clear(); // Clear cache to ensure we don't serve stale data
 
                 // 3. Clear Database (Scores and Live Sessions)
                 await Promise.all([
@@ -1326,11 +1362,62 @@ export default function ScoreHistoryView({
                                 </div>
                             ) : (
                                 filteredGroups.map((group) => {
-                                    // MATCH GROUP RENDERING
                                     if (group.type === 'match') {
                                         const groupSelected = isGroupSelected(group);
                                         const groupIndex = matchGroups.findIndex(mg => mg.matchId === group.matchId) + 1;
+                                        const isLineFollower = selectedCompType.includes('line_follower');
 
+                                        // SPECIAL RENDER FOR LINE FOLLOWER: Flat list with rank #X
+                                        if (isLineFollower) {
+                                            return group.participants.map((participant: any) => {
+                                                const isTeamSelected = isTeamInGroupSelected(group, participant.teamId);
+
+                                                return (
+                                                    <button
+                                                        key={`${group.matchId}-${participant.teamId}`}
+                                                        onClick={() => handleSelectTeam(group, participant.teamId)}
+                                                        className={`w-full p-4 rounded-2xl text-left transition-all border group relative overflow-hidden shadow-sm flex items-center justify-between gap-4 ${isTeamSelected
+                                                            ? 'bg-role-primary/10 border-role-primary/30 shadow-inner'
+                                                            : 'bg-white/60 border-card-border hover:bg-white/80 hover:border-accent/20'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0 relative z-10">
+                                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 border transition-colors ${isTeamSelected
+                                                                ? 'bg-role-primary text-white border-role-primary shadow-lg shadow-role-primary/20'
+                                                                : 'bg-muted text-muted-foreground border-card-border'
+                                                                }`}>
+                                                                {participant.team?.logo ? <img src={participant.team.logo} className="w-full h-full object-cover rounded-lg" alt="" /> : (participant.teamId || "?").charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className={`font-black text-[12px] truncate uppercase ${isTeamSelected ? 'text-role-primary' : 'text-foreground'}`}>
+                                                                    {participant.team?.name || participant.teamId}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <div className="text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-widest truncate">
+                                                                        {participant.team?.club || 'Club Unknown'}
+                                                                    </div>
+                                                                    <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30 shrink-0" />
+                                                                    <div className="text-[9px] font-bold text-muted-foreground uppercase opacity-40 truncate">
+                                                                        {participant.team?.university || 'University'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Rank Number */}
+                                                        <div className="text-xl font-black italic text-foreground tracking-tighter">
+                                                            #{groupIndex}
+                                                        </div>
+
+                                                        {isTeamSelected && (
+                                                            <div className="absolute right-0 top-0 bottom-0 w-1 bg-role-primary" />
+                                                        )}
+                                                    </button>
+                                                );
+                                            });
+                                        }
+
+                                        // STANDARD MATCH RENDERING (Groups)
                                         return (
                                             <div
                                                 key={group.matchId}
@@ -1383,8 +1470,6 @@ export default function ScoreHistoryView({
                                                                                 const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated'].includes(st);
                                                                                 const isWinner = st === 'winner';
                                                                                 const isEliminated = st === 'eliminated';
-
-                                                                                if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
                                                                                 if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
@@ -1519,6 +1604,7 @@ export default function ScoreHistoryView({
                                 handleAutoDraw={handleAutoDraw}
                                 drawPlan={drawPlan}
                                 selectedPhase={selectedPhaseFilter}
+                                isLineFollower={selectedCompType.includes('line_follower')}
                             />
                         </div>
                     ) : currentScoreGroup ? (

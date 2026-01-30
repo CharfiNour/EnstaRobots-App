@@ -80,7 +80,7 @@ export function useAdminMatches() {
 
     const toggleLive = () => {
         if (!compState) return;
-        updateCompetitionState({ isLive: !compState.isLive });
+        updateCompetitionState({ isLive: !compState.isLive }, false);
     };
 
     return {

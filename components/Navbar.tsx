@@ -13,7 +13,18 @@ export default function Navbar() {
     const pathname = usePathname();
 
     useEffect(() => {
-        setRole(getUserRole());
+        // Check if we're on a visitor route (public pages)
+        const isVisitorRoute =
+            pathname === '/' ||
+            pathname.startsWith('/competitions') ||
+            pathname.startsWith('/announcements');
+
+        // Force visitor mode on public routes, otherwise get the actual role
+        if (isVisitorRoute) {
+            setRole('visitor');
+        } else {
+            setRole(getUserRole());
+        }
     }, [pathname]);
 
     const navItems = desktopNavConfig[role];

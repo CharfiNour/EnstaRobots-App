@@ -105,7 +105,9 @@ export default function TeamsPage() {
 
         // Fetch live sessions in background
         const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+        if (sessions) {
+            updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+        }
         setCompState(getCompetitionState());
     }, []);
 
@@ -121,7 +123,9 @@ export default function TeamsPage() {
     // 3. Realtime Updates
     const handleLiveUpdate = useCallback(async () => {
         const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+        if (sessions) {
+            updateCompetitionState({ liveSessions: sessions }, { syncRemote: false, suppressEvent: true });
+        }
         setCompState(getCompetitionState());
     }, []);
 

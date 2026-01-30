@@ -72,6 +72,23 @@ export function clearAllOfflineScores(): void {
     localStorage.removeItem(OFFLINE_SCORES_KEY);
 }
 
+// Clear offline scores for a specific category (by ID variants)
+export function clearOfflineScoresForCategory(identifiers: string[]): void {
+    if (typeof window === 'undefined') return;
+
+    const scores = getOfflineScores();
+    const remaining = scores.filter(s => {
+        // If score's competitionType matches ANY of the identifiers, filter it out
+        const type = String(s.competitionType || '').toLowerCase();
+        return !identifiers.some(id => id.toLowerCase() === type);
+    });
+
+    // If we filtered anything out, update storage
+    if (remaining.length !== scores.length) {
+        localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(remaining));
+    }
+}
+
 // Get unsynced scores
 export function getUnsyncedScores(): OfflineScore[] {
     return getOfflineScores().filter((s) => !s.synced);

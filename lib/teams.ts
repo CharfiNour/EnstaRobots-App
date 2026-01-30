@@ -30,6 +30,7 @@ export interface Team {
     isPlaceholder?: boolean;
     visualsLocked?: boolean;
     group?: string;
+    displayOrder?: number;
 }
 
 const INITIAL_TEAMS: Team[] = [];

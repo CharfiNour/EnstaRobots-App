@@ -17,6 +17,7 @@ interface DrawInterfaceProps {
     handleAutoDraw: () => void;
     drawPlan: DrawPlan | null;
     selectedPhase?: string;
+    isLineFollower?: boolean;
 }
 
 export default function DrawInterface({
@@ -26,17 +27,18 @@ export default function DrawInterface({
     setDrawTeamsCount,
     handleAutoDraw,
     drawPlan,
-    selectedPhase
+    selectedPhase,
+    isLineFollower
 }: DrawInterfaceProps) {
     if (drawState === 'idle') {
         return (
             <div className="flex flex-col items-center justify-center space-y-8 w-full h-full min-h-[500px]">
                 <div className="text-center space-y-2">
                     <h2 className="text-3xl font-black uppercase tracking-tighter italic text-foreground">
-                        Start the Draw
+                        {isLineFollower ? 'Start the Order Generation' : 'Start the Draw'}
                     </h2>
                     <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">
-                        Initialize Match Groupings
+                        {isLineFollower ? 'Initialize Run Sequence' : 'Initialize Match Groupings'}
                     </p>
                 </div>
 
@@ -45,26 +47,30 @@ export default function DrawInterface({
 
                     <div className="space-y-4 relative z-10">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                                Teams per Card
-                            </label>
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={() => setDrawTeamsCount(Math.max(2, drawTeamsCount - 1))}
-                                    className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
-                                >
-                                    -
-                                </button>
-                                <div className="flex-1 h-12 flex items-center justify-center bg-muted/30 rounded-xl border border-card-border">
-                                    <span className="text-xl font-black font-mono">{drawTeamsCount}</span>
-                                </div>
-                                <button
-                                    onClick={() => setDrawTeamsCount(drawTeamsCount + 1)}
-                                    className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
-                                >
-                                    +
-                                </button>
-                            </div>
+                            {!isLineFollower && (
+                                <>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
+                                        Teams per Card
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => setDrawTeamsCount(Math.max(2, drawTeamsCount - 1))}
+                                            className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
+                                        >
+                                            -
+                                        </button>
+                                        <div className="flex-1 h-12 flex items-center justify-center bg-muted/30 rounded-xl border border-card-border">
+                                            <span className="text-xl font-black font-mono">{drawTeamsCount}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setDrawTeamsCount(drawTeamsCount + 1)}
+                                            className="w-12 h-12 rounded-xl flex items-center justify-center border border-card-border bg-muted/50 hover:bg-muted transition-colors text-xl font-bold"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <button
@@ -72,8 +78,17 @@ export default function DrawInterface({
                             disabled={!drawPlan || drawPlan.total < 2}
                             className="w-full py-4 bg-role-primary hover:bg-role-primary/90 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-role-primary/20 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
                         >
-                            <Layers size={18} />
-                            Confirm Draw
+                            {isLineFollower ? (
+                                <>
+                                    <Target size={18} />
+                                    <span>Generate Order</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Layers size={18} />
+                                    <span>Confirm Draw</span>
+                                </>
+                            )}
                         </button>
 
                         {drawPlan && (
@@ -112,7 +127,7 @@ export default function DrawInterface({
                     {countdown}
                 </div>
                 <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-xs mt-4">
-                    Generating Bracket
+                    {isLineFollower ? 'Randomizing Sequence' : 'Generating Bracket'}
                 </p>
             </motion.div>
         );
@@ -125,10 +140,10 @@ export default function DrawInterface({
                     <ClipboardCheck size={48} />
                 </div>
                 <h2 className="text-3xl font-black uppercase tracking-tighter italic text-foreground text-center">
-                    The Matches Are Set
+                    {isLineFollower ? 'Sequence Established' : 'The Matches Are Set'}
                 </h2>
                 <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs mt-2">
-                    Good Luck To All Units
+                    {isLineFollower ? 'Run Order Finalized' : 'Good Luck To All Units'}
                 </p>
             </div>
         );

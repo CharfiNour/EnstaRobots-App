@@ -28,7 +28,9 @@ export function useJuryDashboard() {
 
     const handleRealtimeUpdate = async () => {
         const sessions = await fetchLiveSessionsFromSupabase();
-        updateCompetitionState({ liveSessions: sessions });
+        if (sessions) {
+            updateCompetitionState({ liveSessions: sessions }, false);
+        }
     };
 
     useSupabaseRealtime('live_sessions', handleRealtimeUpdate);
