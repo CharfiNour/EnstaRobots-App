@@ -4,10 +4,10 @@ import { getAdminCompetitions } from '../../admin/competitions/services/competit
 import { getCompetitionState } from '@/lib/competitionState';
 import { getAdminStats } from '../../admin/services/dashboardService';
 
-export const getVisitorDashboardData = (): VisitorDashboardData => {
+export const getVisitorDashboardData = async (): Promise<VisitorDashboardData> => {
     const competitions = getAdminCompetitions();
     const competitionState = getCompetitionState();
-    const overrideStats = getAdminStats();
+    const overrideStats = await getAdminStats();
 
     // Calculate aggregated stats (fallbacks)
     const totalTeams = competitions.reduce((sum, comp) => sum + comp.totalTeams, 0);

@@ -12,8 +12,9 @@ export function useHomePage() {
     const [mounted, setMounted] = useState(false);
     const [data, setData] = useState<VisitorDashboardData | null>(null);
 
-    const refreshData = useCallback(() => {
-        setData(getVisitorDashboardData());
+    const refreshData = useCallback(async () => {
+        const newData = await getVisitorDashboardData();
+        setData(newData);
     }, []);
 
     useEffect(() => {
