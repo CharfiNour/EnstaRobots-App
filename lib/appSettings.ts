@@ -18,8 +18,8 @@ export interface AppSettings {
  */
 export async function fetchAppSettings(): Promise<AppSettings | null> {
     try {
-        const { data, error } = await supabase
-            .from('app_settings')
+        const { data, error } = await (supabase
+            .from('app_settings' as any) as any)
             .select('*')
             .eq('id', 'global')
             .single();

@@ -52,7 +52,7 @@ export function getCompetitionState(): CompetitionState {
     return memoryState;
 }
 
-import { fetchAppSettings, updateEventDayStatus as updateAppSettings } from './appSettings';
+import { fetchAppSettings, updateEventDayStatus as updateAppSettings, updateProfilesLock as updateAppSettingsLock } from './appSettings';
 
 /**
  * Sync Event Day status from Supabase to local state
@@ -63,31 +63,40 @@ export async function syncEventDayStatusFromSupabase(): Promise<boolean> {
         // PRIORITY 1: Check App Settings (Single Source of Truth)
         const settings = await fetchAppSettings();
         if (settings) {
-            console.log('[SYNC] App Settings loaded:', { event_day_started: settings.event_day_started, profiles_locked: settings.profiles_locked });
+            console.log('[SYNC] App Settings loaded:', {
+                event_day_started: settings.event_day_started,
+                profiles_locked: settings.profiles_locked
+            });
+
             await updateCompetitionState({
-                eventDayStarted: settings.event_day_started,
-                profilesLocked: settings.profiles_locked
+                eventDayStarted: settings.event_day_started ?? false,
+                profilesLocked: settings.profiles_locked ?? false
             }, { syncRemote: false, suppressEvent: false });
-            return settings.event_day_started;
+
+            return settings.event_day_started ?? false;
         }
 
         // PRIORITY 2: Fallback to Competitions Table (Legacy)
+        console.warn('[SYNC] App Settings table not found or empty. Falling back to Competitions table.');
         const { fetchCompetitionsFromSupabase } = await import('./supabaseData');
         const competitions = await fetchCompetitionsFromSupabase('minimal', true); // Force refresh
 
         if (competitions && competitions.length > 0) {
-            // Use the first user-created competition as reference (skipping slot-0 if exists)
-            // Wait, fetchCompetitionsFromSupabase returns array from DB. 
-            // We check for consensus or first valid.
             const eventDayStarted = competitions.some((c: any) => c.event_day_started === true);
-            console.log('[SYNC] Event Day status from Competitions (Legacy):', eventDayStarted);
+            const profilesLocked = competitions.every((c: any) => c.profiles_locked === true);
+
+            console.log('[SYNC] Restored from fallback:', { eventDayStarted, profilesLocked });
 
             // Update local state to match database
-            await updateCompetitionState({ eventDayStarted }, { syncRemote: false, suppressEvent: false });
+            await updateCompetitionState({
+                eventDayStarted,
+                profilesLocked
+            }, { syncRemote: false, suppressEvent: false });
 
             return eventDayStarted;
         }
 
+        console.error('[SYNC] All sync sources failed. Defaulting to CLOSED.');
         return false;
     } catch (error) {
         console.error('[SYNC ERROR] Failed to fetch event day status from Supabase:', error);
@@ -105,9 +114,11 @@ export async function updateCompetitionState(
     // Update in-memory state
     const current = getCompetitionState();
 
-    // Check if anything actually changed to avoid event loops
+    // Check if anything actually changed to avoid event loops (and unnecessary re-renders)
     const hasChanges = Object.keys(updates).some(key => {
         const k = key as keyof CompetitionState;
+        // Direct comparison for simple values, JSON for complex ones
+        if (typeof updates[k] !== 'object') return current[k] !== updates[k];
         return JSON.stringify(current[k]) !== JSON.stringify(updates[k]);
     });
 
@@ -153,10 +164,18 @@ export function toggleCompetitionOrdered(compId: string) {
     updateCompetitionState({ orderedCompetitions: newOrdered });
 }
 
-export function toggleProfilesLock() {
+export async function toggleProfilesLock() {
     const state = getCompetitionState();
     const newLocked = !state.profilesLocked;
+    console.log(`🔄 [TOGGLE PROFILES LOCK] ${state.profilesLocked ? 'LOCKED → UNLOCKED' : 'UNLOCKED → LOCKED'}`);
+
+    // Update Local State Immediately
     updateCompetitionState({ profilesLocked: newLocked });
+
+    // Sync to AppSettings
+    await updateAppSettingsLock(newLocked);
+
+    // Sync to Legacy Competitions Table (Backup)
     syncGlobalProfilesLockToSupabase(newLocked);
 }
 
