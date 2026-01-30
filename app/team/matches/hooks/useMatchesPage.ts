@@ -126,17 +126,18 @@ export function useMatchesPage() {
 
         fetchInitialData();
 
-        // Sync event day status from Supabase
-        syncEventDayStatusFromSupabase().then(status => {
-            if (isMounted) setCompState(prev => prev ? { ...prev, eventDayStarted: status } : null);
-        });
-
-        // 1. Listen for Local Events
-        const handleLocalUpdate = () => {
-            console.log('🔄 Local update event received, refreshing...');
+        const handleSync = () => {
+            console.log('🔄 Global state update received in useMatchesPage, refreshing...');
+            const state = getCompetitionState();
+            setCompState({ ...state });
             fetchInitialData();
         };
-        window.addEventListener('competition-state-updated', handleLocalUpdate);
+
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleSync);
+
+        // 1. Listen for Local Events
+        window.addEventListener('competition-state-updated', handleSync);
 
         // 2. Listen for Supabase Realtime Events
         console.log('🔌 Subscribing to live_sessions changes...');
@@ -156,7 +157,7 @@ export function useMatchesPage() {
 
         return () => {
             isMounted = false;
-            window.removeEventListener('competition-state-updated', handleLocalUpdate);
+            window.removeEventListener('competition-state-updated', handleSync);
             supabase.removeChannel(channel);
         };
     }, []);

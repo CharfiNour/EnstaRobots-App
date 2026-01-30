@@ -79,22 +79,16 @@ export async function updateEventDayStatus(started: boolean): Promise<boolean> {
     console.log(`[APP SETTINGS] Updating event_day_started to: ${started ? 'LIVE' : 'CLOSED'}`);
 
     try {
-        const { data, error } = await (supabase
+        const { error } = await (supabase
             .from('app_settings' as any) as any)
-            .upsert({
-                id: 'global',
+            .update({
                 event_day_started: started,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
-            .select();
+            })
+            .eq('id', 'global');
 
         if (error) {
-            console.error('❌ [APP SETTINGS ERROR]', {
-                code: error.code,
-                message: error.message,
-                details: error.details,
-                hint: error.hint
-            });
+            console.error('❌ [APP SETTINGS ERROR] Event Day Update Failed:', error);
             return false;
         }
 
@@ -115,14 +109,14 @@ export async function updateProfilesLock(locked: boolean): Promise<boolean> {
     try {
         const { error } = await (supabase
             .from('app_settings' as any) as any)
-            .upsert({
-                id: 'global',
+            .update({
                 profiles_locked: locked,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
+            })
+            .eq('id', 'global');
 
         if (error) {
-            console.error('[APP SETTINGS] Profiles lock error:', error);
+            console.error('❌ [APP SETTINGS ERROR] Profiles Lock Update Failed:', error);
             return false;
         }
 

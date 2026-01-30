@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NotificationBanner from "@/components/NotificationBanner";
+import RealtimeSyncProvider from "@/components/RealtimeSyncProvider";
 
 
 
@@ -32,9 +33,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <div className="relative min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
-          {children}
-          <NotificationBanner />
-
+          <RealtimeSyncProvider>
+            {children}
+            <NotificationBanner />
+          </RealtimeSyncProvider>
         </div>
       </body>
     </html>

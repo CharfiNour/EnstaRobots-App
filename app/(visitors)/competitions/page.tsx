@@ -169,19 +169,16 @@ export default function CompetitionsPage() {
     }, [handleLiveUpdate]);
 
     useEffect(() => {
-        // Sync event day status from Supabase on mount
-        syncEventDayStatusFromSupabase().then(status => {
-            setEventDayStarted(status);
-            setCheckingEventStatus(false);
-        });
-
-        refreshData(false);
-        refreshData(true);
-
         const handleUpdate = () => {
-            setCompState(getCompetitionState());
+            const state = getCompetitionState();
+            setCompState({ ...state });
+            setEventDayStarted(state.eventDayStarted);
+            setCheckingEventStatus(false);
             refreshData(false);
         };
+
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleUpdate);
 
         window.addEventListener('competition-state-updated', handleUpdate);
         window.addEventListener('competitions-updated', () => refreshData(true));

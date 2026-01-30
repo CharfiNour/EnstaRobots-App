@@ -69,15 +69,14 @@ export function useCompetitionDetail(compId: string) {
 
     useEffect(() => {
         // SWR Pattern: Instant load    useEffect(() => {
-        // Sync event day status from Supabase on mount
-        syncEventDayStatusFromSupabase().then(status => {
-            setCompState(prev => ({ ...prev, eventDayStarted: status }));
-        });
+        const handleUpdate = () => {
+            const state = getCompetitionState();
+            setCompState({ ...state });
+        };
 
-        loadContent(false);
-        loadContent(true);
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleUpdate);
 
-        const handleUpdate = () => setCompState(getCompetitionState());
         window.addEventListener('competition-state-updated', handleUpdate);
         window.addEventListener('competitions-updated', () => loadContent(true));
         window.addEventListener('teams-updated', () => loadContent(true));

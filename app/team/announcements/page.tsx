@@ -66,10 +66,16 @@ export default function TeamAnnouncementsPage() {
 
         loadData();
 
-        // Sync event day status from Supabase
-        syncEventDayStatusFromSupabase().then(status => {
-            if (isMounted) setEventDayStarted(status);
-        });
+        const handleSync = () => {
+            const state = getCompetitionState();
+            if (isMounted) setEventDayStarted(state.eventDayStarted);
+        };
+
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleSync);
+
+        // Listen for global updates
+        window.addEventListener('competition-state-updated', handleSync);
 
         // REAL-TIME SUBSCRIPTION
         const channel = supabase
@@ -86,6 +92,7 @@ export default function TeamAnnouncementsPage() {
 
         return () => {
             isMounted = false;
+            window.removeEventListener('competition-state-updated', handleSync);
             supabase.removeChannel(channel);
         };
     }, [router]);

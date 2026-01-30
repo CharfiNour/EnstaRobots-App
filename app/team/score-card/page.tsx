@@ -41,11 +41,18 @@ export default function TeamScoreHistoryPage() {
         };
         loadTeamInfo();
 
-        // Sync event day status from Supabase
-        syncEventDayStatusFromSupabase().then(status => {
-            setEventDayStarted(status);
+        const handleSync = () => {
+            const state = getCompetitionState();
+            setEventDayStarted(state.eventDayStarted);
             setLoading(false);
-        });
+        };
+
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleSync);
+
+        // Listen for global updates
+        window.addEventListener('competition-state-updated', handleSync);
+        return () => window.removeEventListener('competition-state-updated', handleSync);
     }, [router]);
 
     // Event Day Restriction

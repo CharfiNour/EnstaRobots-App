@@ -49,12 +49,17 @@ export default function AnnouncementsPage() {
     };
 
     useEffect(() => {
-        // Sync event day status from database first
-        syncEventDayStatusFromSupabase().then(status => {
-            setEventDayStarted(status);
-        });
+        const handleSync = () => {
+            const state = getCompetitionState();
+            setEventDayStarted(state.eventDayStarted);
+        };
+
+        // Initial sync
+        syncEventDayStatusFromSupabase().then(handleSync);
 
         fetchAnnouncements();
+
+        window.addEventListener('competition-state-updated', handleSync);
 
         const channel = supabase
             .channel('announcements_broadcast')
@@ -67,6 +72,7 @@ export default function AnnouncementsPage() {
             .subscribe();
 
         return () => {
+            window.removeEventListener('competition-state-updated', handleSync);
             supabase.removeChannel(channel);
         };
     }, []);
