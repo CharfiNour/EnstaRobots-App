@@ -68,14 +68,17 @@ export function useCompetitionDetail(compId: string) {
     }, [compId]);
 
     useEffect(() => {
-        // SWR Pattern: Instant load    useEffect(() => {
         const handleUpdate = () => {
             const state = getCompetitionState();
             setCompState({ ...state });
         };
 
-        // Initial sync
-        syncEventDayStatusFromSupabase().then(handleUpdate);
+        // Initial sync & Load data
+        syncEventDayStatusFromSupabase().then(() => {
+            handleUpdate();
+            loadContent(false);
+            loadContent(true);
+        });
 
         window.addEventListener('competition-state-updated', handleUpdate);
         window.addEventListener('competitions-updated', () => loadContent(true));

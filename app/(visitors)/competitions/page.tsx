@@ -174,7 +174,8 @@ export default function CompetitionsPage() {
             setCompState({ ...state });
             setEventDayStarted(state.eventDayStarted);
             setCheckingEventStatus(false);
-            refreshData(false);
+            refreshData(false); // Cache first
+            refreshData(true);  // Background Remote refresh
         };
 
         // Initial sync
