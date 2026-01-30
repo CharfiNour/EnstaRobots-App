@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Shield } from 'lucide-react'; // Added RefreshCcw, though primarily using auto-sync
+import { Bell, ChevronRight, Info, AlertTriangle, CheckCircle, Flame, RefreshCcw, Shield, Calendar } from 'lucide-react'; // Added RefreshCcw, though primarily using auto-sync
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
@@ -22,9 +22,10 @@ const FALLBACK_ANNOUNCEMENT: Announcement = {
 
 interface RecentAnnouncementsProps {
     profileComplete?: boolean;
+    eventDayStarted?: boolean;
 }
 
-export default function RecentAnnouncements({ profileComplete = true }: RecentAnnouncementsProps) {
+export default function RecentAnnouncements({ profileComplete = true, eventDayStarted = false }: RecentAnnouncementsProps) {
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -135,15 +136,15 @@ export default function RecentAnnouncements({ profileComplete = true }: RecentAn
                         </p>
                     </div>
                 </div>
-                {profileComplete && (
+                {profileComplete && eventDayStarted && (
                     <Link href="/team/announcements" className="text-[10px] font-black text-role-primary uppercase hover:underline bg-role-primary/5 px-3 py-1.5 rounded-lg border border-role-primary/10">
                         View All
                     </Link>
                 )}
             </div>
 
-            <div className={`space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2 ${!profileComplete ? 'blur-md pointer-events-none select-none opacity-40' : ''}`}>
-                {(profileComplete ? announcements : [FALLBACK_ANNOUNCEMENT, FALLBACK_ANNOUNCEMENT]).map((ann: Announcement, i) => (
+            <div className={`space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2 ${(!profileComplete || !eventDayStarted) ? 'blur-md pointer-events-none select-none opacity-40' : ''}`}>
+                {(profileComplete && eventDayStarted ? announcements : [FALLBACK_ANNOUNCEMENT, FALLBACK_ANNOUNCEMENT]).map((ann: Announcement, i) => (
                     <div key={ann.id + i} className="relative pl-5 border-l-2 border-role-primary/20 hover:border-role-primary transition-all py-1 group cursor-pointer hover:translate-x-1 duration-300">
                         <div className="flex justify-between items-start mb-2 gap-3">
                             <p className="font-black text-foreground uppercase text-xs tracking-tight group-hover:text-role-primary transition-colors leading-tight">
@@ -181,15 +182,19 @@ export default function RecentAnnouncements({ profileComplete = true }: RecentAn
                 )}
             </div>
 
-            {!profileComplete && (
+            {(!profileComplete || !eventDayStarted) && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-card/20 group-hover:bg-card/30 transition-colors">
                     <div className="text-center space-y-4">
-                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500">
-                            <Shield size={24} />
+                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${!profileComplete ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500'}`}>
+                            {!profileComplete ? <Shield size={24} /> : <Calendar size={24} />}
                         </div>
-                        <h3 className="font-black text-foreground uppercase tracking-widest text-sm">Intel Blocked</h3>
+                        <h3 className="font-black text-foreground uppercase tracking-widest text-sm">
+                            {!profileComplete ? 'Intel Blocked' : 'Event Standby'}
+                        </h3>
                         <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest max-w-[200px] mx-auto leading-relaxed">
-                            Authorized access only. Complete registry to sync with the official intel feed.
+                            {!profileComplete
+                                ? 'Authorized access only. Complete registry to sync with the official intel feed.'
+                                : 'The intel feed will be active and synchronized on the official event day.'}
                         </p>
                     </div>
                 </div>

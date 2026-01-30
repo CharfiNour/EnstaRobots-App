@@ -12,7 +12,7 @@ import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
 import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase, deleteLiveSessionFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP } from '@/lib/constants';
+import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP, canonicalizeCompId } from '@/lib/constants';
 import { dataCache, cacheKeys } from '@/lib/dataCache';
 import DrawInterface from './DrawInterface';
 
@@ -28,41 +28,7 @@ interface ScoreHistoryViewProps {
     isJury?: boolean;
 }
 
-/**
- * HELPER: Robustly resolve any competition identifier to a canonical slug
- */
-function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): string {
-    if (!id) return '';
-    const norm = String(id).toLowerCase().trim();
 
-    // 0. Pre-emptive check: Known Slugs
-    const knownSlugs = ['junior_line_follower', 'junior_all_terrain', 'line_follower', 'all_terrain', 'fight'];
-    if (knownSlugs.includes(norm)) return norm;
-
-    // 1. UUID Map (Production Database IDs)
-    if (UUID_MAP[norm]) return UUID_MAP[norm];
-
-    // 2. Check Database records if available
-    const db = (dbComps || []).find(c =>
-        (c.id && String(c.id).toLowerCase() === norm) ||
-        (c.type && String(c.type).toLowerCase() === norm)
-    );
-    if (db?.type) return db.type;
-
-    // 2. Check local categories (Slugs)
-    const local = GLOBAL_CATEGORIES.find(c =>
-        (c.id && String(c.id).toLowerCase() === norm) ||
-        (c.type && String(c.type).toLowerCase() === norm)
-    );
-    if (local) return local.type;
-
-    // 3. LEGACY Map fallback
-    for (const [slug, legacyId] of Object.entries(LEGACY_ID_MAP)) {
-        if (String(legacyId).toLowerCase() === norm || String(slug).toLowerCase() === norm) return slug.toLowerCase();
-    }
-
-    return norm.toLowerCase();
-}
 
 /**
  * HELPER: Clean up phase names for robust comparison
@@ -388,17 +354,24 @@ export default function ScoreHistoryView({
         // Strict filter: Ignore scores for teams that were filtered out as "dead data"
         let allProcessedScores = Array.from(scoreMap.values()).filter(score => {
             const team = allTeams.find((t: any) => String(t.id) === String(score.teamId) || String(t.code) === String(score.teamId));
-            return !!team;
+
+            // If viewing as team portal, only show scores flagged as sent
+            // Exception: For Line Follower homologation, always show? No, let's keep it strict.
+            const matchesSentStatus = !isSentToTeamOnly || score.isSentToTeam;
+
+            return !!team && matchesSentStatus;
         });
 
         // Helper to check if a comp is match based
         const checkIsMatchBased = (compId: string) => {
             const id = (compId || '').toLowerCase();
-            // Include 1 & 3 (Line Follower legacy IDs) and their names
-            if (['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower', '5', '4', '2', '1', '3'].includes(id)) return true;
+            // Line Follower categories are considered "Single Team" based, not "Match" based (which requires multi-participant groups)
+            if (['line_follower', 'junior_line_follower', '1', '3'].includes(id)) return false;
+
+            if (['fight', 'all_terrain', 'junior_all_terrain', '5', '4', '2'].includes(id)) return true;
             const comp = compsList.find((c: any) => c.id === compId || c.type === compId || c.id === id || c.type === id);
             const category = (comp?.category || comp?.type || '').toLowerCase();
-            return ['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'].includes(category);
+            return ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
         };
 
         const groups: Record<string, any> = {};
@@ -831,12 +804,20 @@ export default function ScoreHistoryView({
                 map[phase] = true;
             } else {
                 const prev = allCompetitionPhases[idx - 1];
-                const progress = getPhaseProgress(prev);
-                map[phase] = progress.finished;
+                const prevProgress = getPhaseProgress(prev);
+                const currentProgress = getPhaseProgress(phase);
+
+                // A phase is accessible if:
+                // 1. The previous phase is finalized
+                // 2. OR the current phase ALREADY has scores/recordings (it exists)
+                // 3. OR it's a Line Follower category (less strict sequencing for essays)
+                const isLineFollower = selectedCompType.includes('line_follower');
+
+                map[phase] = prevProgress.finished || currentProgress.exists || (isLineFollower && prevProgress.exists);
             }
         });
         return map;
-    }, [allCompetitionPhases, getPhaseProgress]);
+    }, [allCompetitionPhases, getPhaseProgress, selectedCompType]);
 
     const isPhaseDrawn = useMemo(() => {
         if (!selectedPhaseFilter || !isMatchBasedComp) return true;
@@ -851,7 +832,8 @@ export default function ScoreHistoryView({
                     (p.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter))
                 );
             }
-            return false;
+            // For single-team types (like Line Follower), checking for any submission (including pending ones) means the order is set
+            return (g.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
         });
     }, [selectedPhaseFilter, isMatchBasedComp, groupedScores, selectedCompetition, competitions]);
 
@@ -1361,7 +1343,7 @@ export default function ScoreHistoryView({
                                     <p className="text-[10px] font-black uppercase">No Units Found</p>
                                 </div>
                             ) : (
-                                filteredGroups.map((group) => {
+                                filteredGroups.map((group, globalIndex) => {
                                     if (group.type === 'match') {
                                         const groupSelected = isGroupSelected(group);
                                         const groupIndex = matchGroups.findIndex(mg => mg.matchId === group.matchId) + 1;
@@ -1404,10 +1386,12 @@ export default function ScoreHistoryView({
                                                             </div>
                                                         </div>
 
-                                                        {/* Rank Number */}
-                                                        <div className="text-xl font-black italic text-foreground tracking-tighter">
-                                                            #{groupIndex}
-                                                        </div>
+                                                        {/* Rank Number - Only if they have submissions */}
+                                                        {participant.submissions?.length > 0 && (
+                                                            <div className="text-xl font-black italic text-foreground tracking-tighter">
+                                                                #{globalIndex + 1}
+                                                            </div>
+                                                        )}
 
                                                         {isTeamSelected && (
                                                             <div className="absolute right-0 top-0 bottom-0 w-1 bg-role-primary" />
@@ -1508,15 +1492,16 @@ export default function ScoreHistoryView({
                                         );
                                     }
 
-                                    // SINGLE TEAM RENDERING (Line Follower style)
+                                    // SINGLE TEAM RENDERING (Line Follower style or generic single)
                                     const isSelected = isGroupSelected(group);
+                                    const isLineFollowerStyling = selectedCompType.includes('line_follower');
 
                                     return (
                                         <button
                                             key={`${group.teamId}-${group.competitionType}`}
                                             onClick={() => handleSelectTeam(group)}
-                                            className={`w-full p-4 rounded-2xl text-left transition-all border group relative overflow-hidden shadow-sm ${isSelected
-                                                ? 'bg-role-primary/5 border-role-primary/20'
+                                            className={`w-full p-4 rounded-2xl text-left transition-all border group relative overflow-hidden shadow-sm flex items-center justify-between gap-4 ${isSelected
+                                                ? 'bg-role-primary/10 border-role-primary/30 shadow-inner'
                                                 : 'bg-white/60 border-card-border hover:bg-white/80 hover:border-accent/20'}`}
                                         >
                                             <div className="flex items-center gap-3 min-w-0 relative z-10">
@@ -1524,7 +1509,7 @@ export default function ScoreHistoryView({
                                                     {group.team?.logo ? (
                                                         <img src={group.team.logo} className="w-full h-full object-cover rounded-lg" alt="" />
                                                     ) : (
-                                                        group.teamId.slice(-2).toUpperCase()
+                                                        (group.teamId || "?").charAt(0).toUpperCase()
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
@@ -1568,6 +1553,14 @@ export default function ScoreHistoryView({
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {/* Rank Number for Single Type (e.g. Line Follower) - Only if they have submissions */}
+                                            {isLineFollowerStyling && group.submissions?.length > 0 && (
+                                                <div className="text-xl font-black italic text-foreground tracking-tighter shrink-0 relative z-10">
+                                                    #{globalIndex + 1}
+                                                </div>
+                                            )}
+
                                             {isSelected && (
                                                 <div className="absolute right-0 top-0 bottom-0 w-1 bg-role-primary" />
                                             )}

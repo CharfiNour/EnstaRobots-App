@@ -5,9 +5,19 @@ import { Shield, Activity, ShieldCheck } from 'lucide-react';
 
 interface JuryDashboardHeaderProps {
     judgeName?: string;
+    competitionId?: string;
+    role?: string;
 }
 
-export default function JuryDashboardHeader({ judgeName }: JuryDashboardHeaderProps) {
+import { COMPETITION_CATEGORIES, canonicalizeCompId } from '@/lib/constants';
+
+export default function JuryDashboardHeader({ judgeName, competitionId, role }: JuryDashboardHeaderProps) {
+    const canonicalId = canonicalizeCompId(competitionId);
+    const category = COMPETITION_CATEGORIES.find(c => c.type === canonicalId);
+
+    const roleLabel = role === 'homologation_jury' ? 'Homologation Jury' : 'Official Observer';
+    const roleColor = role === 'homologation_jury' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : 'bg-role-primary/10 text-muted-foreground border-role-primary/20';
+
     return (
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
             <motion.div
@@ -25,11 +35,19 @@ export default function JuryDashboardHeader({ judgeName }: JuryDashboardHeaderPr
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 pl-0.5">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-role-primary/10 rounded-xl border border-role-primary/20 shadow-sm">
-                        <ShieldCheck size={14} className="text-role-primary" />
-                        <span className="text-[11px] font-black uppercase text-muted-foreground">{judgeName || 'Official Observer'}</span>
+                <div className="flex flex-wrap items-center gap-2 pl-0.5">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${roleColor}`}>
+                        <ShieldCheck size={14} className={role === 'homologation_jury' ? 'text-purple-500' : 'text-role-primary'} />
+                        <span className="text-[11px] font-black uppercase">{judgeName || roleLabel}</span>
                     </div>
+
+                    {category && (
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${category.badgeColor}`}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse opacity-50" />
+                            <span className="text-[11px] font-black uppercase">{category.name}</span>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-sm">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-[11px] font-black uppercase text-emerald-500">Link: Active</span>

@@ -8,6 +8,7 @@ import Link from 'next/link';
 // Shared Components
 import { StatsGrid } from '@/components/common/StatsGrid';
 import { LiveBadge } from '@/components/common/LiveBadge';
+import RestrictionScreen from '@/components/common/RestrictionScreen';
 
 // Utils & Libs
 import { getCompetitionState } from '@/lib/competitionState';
@@ -144,6 +145,8 @@ export default function CompetitionsPage() {
         }
     }, []);
 
+    const eventDayStarted = compState?.eventDayStarted;
+
     // Optimized Live Update for high-frequency events
     const handleLiveUpdate = useCallback(async () => {
         try {
@@ -187,6 +190,10 @@ export default function CompetitionsPage() {
     }, [refreshData]);
 
     useSupabaseRealtime('live_sessions', debouncedLiveHandler);
+
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     if (loading) {
         return (

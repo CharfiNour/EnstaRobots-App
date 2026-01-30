@@ -1,7 +1,7 @@
 // Navigation configuration per user role
 // This ensures each role sees appropriate navigation items
 
-export type UserRole = 'visitor' | 'team' | 'jury' | 'admin';
+export type UserRole = 'visitor' | 'team' | 'jury' | 'homologation_jury' | 'admin';
 
 export interface NavItem {
     name: string;
@@ -24,6 +24,10 @@ export const navConfig: Record<UserRole, NavItem[]> = {
         { name: 'Dashboard', href: '/jury', icon: 'LayoutDashboard' },
         { name: 'Competition', href: '/jury/score', icon: 'ClipboardCheck' },
         { name: 'Score History', href: '/jury/history', icon: 'History' },
+    ],
+    homologation_jury: [
+        { name: 'Dashboard', href: '/jury', icon: 'LayoutDashboard' },
+        { name: 'Competition', href: '/jury/score', icon: 'ClipboardCheck' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin', icon: 'LayoutDashboard' },
@@ -48,6 +52,10 @@ export const desktopNavConfig: Record<UserRole, { name: string; href: string }[]
         { name: 'Dashboard', href: '/jury' },
         { name: 'Competition', href: '/jury/score' },
         { name: 'Score History', href: '/jury/history' },
+    ],
+    homologation_jury: [
+        { name: 'Dashboard', href: '/jury' },
+        { name: 'Competition', href: '/jury/score' },
     ],
     admin: [
         { name: 'Dashboard', href: '/admin' },

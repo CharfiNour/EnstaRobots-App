@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS staff_codes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  role TEXT NOT NULL CHECK (role IN ('admin', 'jury')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'jury', 'homologation_jury')),
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
   competition_id UUID REFERENCES competitions(id) ON DELETE SET NULL,

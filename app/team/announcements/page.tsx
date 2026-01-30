@@ -7,7 +7,8 @@ import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
-import { RegistryAlert } from '../components';
+import { RegistryAlert, RestrictionScreen } from '../components';
+import { getCompetitionState } from '@/lib/competitionState';
 
 // Mock data as fallback
 const FALLBACK_ANNOUNCEMENTS = [
@@ -26,6 +27,7 @@ export default function TeamAnnouncementsPage() {
     const [session, setSession] = useState<any>(null);
     const [teamData, setTeamData] = useState<any>(null);
     const [announcements, setAnnouncements] = useState<any[]>([]);
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -39,7 +41,10 @@ export default function TeamAnnouncementsPage() {
         }
 
         const loadData = async () => {
-            if (isMounted) setSession(currentSession);
+            if (isMounted) {
+                setSession(currentSession);
+                setEventDayStarted(getCompetitionState().eventDayStarted);
+            }
 
             try {
                 // Fetch team data to check is_placeholder
@@ -127,6 +132,11 @@ export default function TeamAnnouncementsPage() {
         }
     };
 
+    // Event Day Restriction
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
+
     if (loading) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
@@ -157,6 +167,7 @@ export default function TeamAnnouncementsPage() {
             </div>
         );
     }
+
 
     return (
         <div className="min-h-screen py-8">

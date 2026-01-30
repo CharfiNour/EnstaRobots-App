@@ -3,7 +3,7 @@
 import { Trophy, Timer, Zap } from 'lucide-react';
 
 interface StatSummaryProps {
-    teamOrder: number;
+    teamOrder: number | null;
     isLive: boolean;
     isMyTurn: boolean;
     isNext: boolean;
@@ -14,7 +14,7 @@ export default function StatSummary({ teamOrder, isLive, isMyTurn, isNext, profi
     const stats = [
         {
             label: "Unit Order",
-            value: `#${teamOrder || '--'}`,
+            value: teamOrder ? `#${teamOrder}` : '--',
             sub: "Deployment Seq",
             icon: Trophy,
             color: "text-amber-500",

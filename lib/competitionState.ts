@@ -1,5 +1,5 @@
 
-import { syncLiveStateToSupabase, deleteLiveSessionFromSupabase, syncGlobalProfilesLockToSupabase } from './supabaseData';
+import { syncLiveStateToSupabase, deleteLiveSessionFromSupabase, syncGlobalProfilesLockToSupabase, syncGlobalEventDayStatusToSupabase } from './supabaseData';
 
 export interface LiveSession {
     teamId: string;
@@ -18,20 +18,24 @@ export interface CompetitionState {
     liveSessions: Record<string, LiveSession>; // Map competitionId -> LiveSession
     orderedCompetitions: string[]; // List of competition IDs that are finalized
     profilesLocked: boolean; // Global lock for team profile editing
+    eventDayStarted: boolean; // Global flag for event day access (Matches, Announcements, Score)
 
     // Legacy support (to avoid immediate crashes, but logic will move to liveSessions)
     isLive?: boolean;
     activeCompetitionId?: string | null;
+    terminationTimestamps: Record<string, number>; // competitionId -> timestamp
 }
 
 const STATE_STORAGE_KEY = 'enstarobots_competition_state_v1';
 
-export const INITIAL_STATE: CompetitionState = {
+const INITIAL_STATE: CompetitionState = {
     liveSessions: {},
     orderedCompetitions: [],
     profilesLocked: false,
+    eventDayStarted: false,
     isLive: false,
-    activeCompetitionId: null
+    activeCompetitionId: null,
+    terminationTimestamps: {}
 };
 
 export function getCompetitionState(): CompetitionState {
@@ -59,7 +63,8 @@ export function getCompetitionState(): CompetitionState {
         return {
             ...INITIAL_STATE,
             ...parsed,
-            orderedCompetitions: parsed.orderedCompetitions || []
+            orderedCompetitions: parsed.orderedCompetitions || [],
+            terminationTimestamps: parsed.terminationTimestamps || {}
         };
     } catch {
         return INITIAL_STATE;
@@ -121,6 +126,13 @@ export function toggleProfilesLock() {
     syncGlobalProfilesLockToSupabase(newLocked);
 }
 
+export function toggleEventDayStatus() {
+    const state = getCompetitionState();
+    const newStatus = !state.eventDayStarted;
+    updateCompetitionState({ eventDayStarted: newStatus });
+    syncGlobalEventDayStatusToSupabase(newStatus);
+}
+
 export async function startLiveSession(teamId: string, competitionId: string, phase: string) {
     const state = getCompetitionState();
     const newSessions = { ...state.liveSessions };
@@ -146,18 +158,27 @@ export async function stopLiveSession(competitionId?: string) {
         delete newSessions[competitionId];
         // Explicitly delete from Supabase
         promises.push(deleteLiveSessionFromSupabase(competitionId));
+
+        // Persist termination timestamp to prevent stale re-upserts in background
+        const currentTimestamps = { ...(state.terminationTimestamps || {}) };
+        currentTimestamps[competitionId] = Date.now();
+        await updateCompetitionState({
+            liveSessions: newSessions,
+            terminationTimestamps: currentTimestamps
+        }, { syncRemote: true });
     } else {
         // Stop ALL sessions (legacy behavior fallback)
+        const currentTimestamps = { ...(state.terminationTimestamps || {}) };
         for (const key in newSessions) {
             promises.push(deleteLiveSessionFromSupabase(key));
             delete newSessions[key];
+            currentTimestamps[key] = Date.now();
         }
+        await updateCompetitionState({
+            liveSessions: newSessions,
+            terminationTimestamps: currentTimestamps
+        }, { syncRemote: true });
     }
-
-    // Update local state IMMEDIATELY to reflect stop in UI/Storage, avoiding race conditions with network timeouts
-    await updateCompetitionState({
-        liveSessions: newSessions
-    }, { syncRemote: true });
 
     // Await all deletions (background network operations)
     try {

@@ -5,9 +5,12 @@ import { History, Activity } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
+import { RestrictionScreen } from '../components';
+import { getCompetitionState } from '@/lib/competitionState';
 
 export default function TeamScoreHistoryPage() {
     const [loading, setLoading] = useState(true);
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [session, setSession] = useState<any>(null);
     const router = useRouter();
 
@@ -18,8 +21,14 @@ export default function TeamScoreHistoryPage() {
             return;
         }
         setSession(currentSession);
+        setEventDayStarted(getCompetitionState().eventDayStarted);
         setLoading(false);
     }, [router]);
+
+    // Event Day Restriction
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     if (loading) {
         return (
@@ -28,6 +37,8 @@ export default function TeamScoreHistoryPage() {
             </div>
         );
     }
+
+
 
     return (
         <div className="min-h-screen relative bg-transparent">
@@ -58,6 +69,8 @@ export default function TeamScoreHistoryPage() {
 
                 <ScoreHistoryView
                     isSentToTeamOnly={true}
+                    lockedCompetitionId={session?.competition}
+                    teamId={session?.teamId}
                 />
             </div>
         </div>

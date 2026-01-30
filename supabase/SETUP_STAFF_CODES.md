@@ -110,7 +110,7 @@ This is GOOD! It means the table was created successfully.
 ```sql
 1. Creates the staff_codes table
    ├── id (UUID)
-   ├── role ('admin' | 'jury')
+   ├── role ('admin' | 'jury' | 'homologation_jury')
    ├── name (Text)
    ├── code (Text, Unique)
    ├── competition_id (UUID, nullable)

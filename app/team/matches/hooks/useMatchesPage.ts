@@ -3,11 +3,12 @@ import { getSession } from '@/lib/auth';
 import { getTeams, Team, Competition } from '@/lib/teams';
 import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
 import { supabase } from '@/lib/supabase';
-import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
+import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
+import { canonicalizeCompId } from '@/lib/constants';
 
 export function useMatchesPage() {
     const [teamData, setTeamData] = useState<any>(null);
-    const [compState, setCompState] = useState<CompetitionState | null>(null);
+    const [compState, setCompState] = useState<CompetitionState | null>(getCompetitionState());
     const [currentTeam, setCurrentTeam] = useState<any>(null);
     const [nextTeam, setNextTeam] = useState<any>(null);
     const [nextPhase, setNextPhase] = useState<string | null>(null);
@@ -31,12 +32,14 @@ export function useMatchesPage() {
                 teams,
                 sessions,
                 remoteComps,
-                compState
+                compState,
+                allScores
             ] = await Promise.all([
                 fetchTeamsFromSupabase('minimal'),
                 fetchLiveSessionsFromSupabase(),
                 fetchCompetitionsFromSupabase(),
-                getCompetitionState()
+                getCompetitionState(),
+                fetchScoresFromSupabase()
             ]);
 
             if (!isMounted) return;
@@ -44,33 +47,62 @@ export function useMatchesPage() {
             setCompetitions(remoteComps);
             setCompState(compState);
 
-            const myTeam = teams.find(t => t.id === currentSession.teamId);
+            const myTeam = teams.find((t: any) => t.id === currentSession.teamId);
 
             if (myTeam) {
-                // Determine team order
-                const compTeams = teams.filter(t => t.competition === myTeam.competition);
-                const myIdx = compTeams.findIndex(t => t.id === myTeam.id);
-                setTeamData({ ...myTeam, order: myIdx + 1 });
+                // Determine relevant competition
+                const relevantComp = remoteComps.find((c: Competition) => c.id === myTeam.competition || c.type === myTeam.competition);
+                const activePhase = relevantComp?.current_phase;
+                const canonicalMyComp = canonicalizeCompId(myTeam.competition, remoteComps);
 
                 // Check for live session in my competition
-                // Robust lookup: Resolve myTeam.competition (which could be UUID or slug) to the actual DB UUID
-                const relevantComp = remoteComps.find((c: Competition) => c.id === myTeam.competition || c.type === myTeam.competition);
-
-                // We check BOTH the UUID and the Type (slug) in the sessions map (handle null sessions)
                 const safeSessions = sessions || {};
                 const session = (relevantComp?.id && safeSessions[relevantComp.id])
                     || (relevantComp?.type && safeSessions[relevantComp.type])
                     || (myTeam.competition && safeSessions[myTeam.competition]);
+
+                // A phase is officially "Drawn" or "Started" if:
+                // 1. There is an active live session
+                // 2. OR there are scores recorded for the active phase
+                // 3. AND the active phase is not "upcoming" or "completed"
+                const isValidPhase = activePhase &&
+                    activePhase !== 'upcoming' &&
+                    activePhase !== 'Not Started' &&
+                    !activePhase.includes('Completed');
+
+                const hasScoresForPhase = isValidPhase && allScores.some((s: any) => {
+                    const sComp = canonicalizeCompId(s.competitionType || s.competitionId, remoteComps);
+                    const sPhase = String(s.phase).toLowerCase();
+                    const targetPhase = String(activePhase).toLowerCase();
+
+                    return sComp === canonicalMyComp &&
+                        (sPhase === targetPhase || (sPhase === 'essay 1' && targetPhase === 'essay 1') || (sPhase === 'essay 2' && targetPhase === 'essay 2'));
+                });
+
+                const isDrawn = !!session || hasScoresForPhase;
+
+                // Filter teams for this competition
+                const compTeams = teams.filter((t: any) => canonicalizeCompId(t.competition, remoteComps) === canonicalMyComp);
+
+                // Calculate order
+                let myOrder = null;
+                if (isDrawn) {
+                    // If drawn, we can use the registry index as the default turn number
+                    const myIdx = compTeams.findIndex((t: any) => t.id === myTeam.id);
+                    myOrder = myIdx !== -1 ? myIdx + 1 : null;
+                }
+
+                setTeamData({ ...myTeam, order: myOrder });
 
                 if (session) {
                     setCurrentPhase(session.phase);
                     setIsLiveForMyComp(true);
 
                     const activeTeamId = session.teamId;
-                    const activeTeam = teams.find(t => t.id === activeTeamId);
+                    const activeTeam = teams.find((t: any) => t.id === activeTeamId);
 
                     if (activeTeam) {
-                        const currentIdx = compTeams.findIndex(t => t.id === activeTeamId);
+                        const currentIdx = compTeams.findIndex((t: any) => t.id === activeTeamId);
                         if (currentIdx !== -1) {
                             setCurrentTeam({ ...activeTeam, order: currentIdx + 1 });
 
@@ -85,7 +117,6 @@ export function useMatchesPage() {
                         }
                     }
                 } else {
-                    // Not live logic
                     setIsLiveForMyComp(false);
                 }
             }

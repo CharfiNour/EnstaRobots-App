@@ -11,7 +11,7 @@ import {
 import { useJuryDashboard } from './hooks/useJuryDashboard';
 
 export default function JuryDashboard() {
-    const { loading, data } = useJuryDashboard();
+    const { loading, data, session } = useJuryDashboard();
 
     if (loading || !data) {
         return (
@@ -28,7 +28,11 @@ export default function JuryDashboard() {
         <div className="min-h-screen py-6 px-4 md:px-8">
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Tactical Header */}
-                <JuryDashboardHeader />
+                <JuryDashboardHeader
+                    judgeName={session?.teamName}
+                    competitionId={session?.competition}
+                    role={session?.role}
+                />
 
                 <div className="grid lg:grid-cols-12 gap-6">
                     {/* Primary Operations: Small Cards */}
@@ -42,24 +46,28 @@ export default function JuryDashboard() {
                                 <JuryActionCard
                                     href="/jury/score"
                                     icon={ClipboardCheck}
-                                    title="Score Management"
-                                    description="Record tactical performance data and verify official scores for active categories."
+                                    title={session?.role === 'homologation_jury' ? "Technical Homologation" : "Score Management"}
+                                    description={session?.role === 'homologation_jury'
+                                        ? "Register technical evaluation data and certify robotic units for competition readiness."
+                                        : "Record tactical performance data and verify official scores for active categories."}
                                     isPrimary
                                 />
                             </motion.div>
 
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.2 }}
-                            >
-                                <JuryActionCard
-                                    href="/jury/history"
-                                    icon={History}
-                                    title="Score List"
-                                    description="Review previous scorecards, verify registry sync, and dispatch reports to teams."
-                                />
-                            </motion.div>
+                            {session?.role !== 'homologation_jury' && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.2 }}
+                                >
+                                    <JuryActionCard
+                                        href="/jury/history"
+                                        icon={History}
+                                        title="Score List"
+                                        description="Review previous scorecards, verify registry sync, and dispatch reports to teams."
+                                    />
+                                </motion.div>
+                            )}
                         </div>
 
                         {/* Guidelines */}

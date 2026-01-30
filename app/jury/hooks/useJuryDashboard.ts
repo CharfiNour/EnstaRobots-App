@@ -17,7 +17,7 @@ export function useJuryDashboard() {
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'jury') {
+        if (!currentSession || (currentSession.role !== 'jury' && currentSession.role !== 'homologation_jury')) {
             router.push('/auth/jury');
             return;
         }

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, ChevronDown, ChevronRight, UserCircle, Lock, Unlock } from 'lucide-react';
+import { Search, Filter, ChevronDown, ChevronRight, UserCircle, Lock, Unlock, Calendar, Eye, EyeOff } from 'lucide-react';
 import { Team, saveTeams } from '@/lib/teams';
 import TeamProfileView from '@/app/team/components/TeamProfileView';
-import { getCompetitionState, toggleProfilesLock } from '@/lib/competitionState';
+import { getCompetitionState, toggleProfilesLock, toggleEventDayStatus } from '@/lib/competitionState';
 
 const COMPETITION_CATEGORIES = [
     { id: 'junior_line_follower', name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
@@ -25,11 +25,14 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
     const [profilesLocked, setProfilesLocked] = useState(false);
+    const [eventDayStarted, setEventDayStarted] = useState(false);
     const [competitions, setCompetitions] = useState<any[]>([]);
 
     useEffect(() => {
         const checkStatus = () => {
-            setProfilesLocked(getCompetitionState().profilesLocked);
+            const state = getCompetitionState();
+            setProfilesLocked(state.profilesLocked);
+            setEventDayStarted(state.eventDayStarted);
         };
         checkStatus();
         window.addEventListener('competition-state-updated', checkStatus);
@@ -92,6 +95,33 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
                         </button>
                         <p className="text-[9px] text-muted-foreground mt-2 px-2 font-bold opacity-60 uppercase italic">
                             {profilesLocked ? 'Teams cannot edit specs' : 'Teams have editing authority'}
+                        </p>
+                    </div>
+
+                    {/* Event Day Access Switch */}
+                    <div className="pb-4 border-b border-card-border/30">
+                        <button
+                            onClick={toggleEventDayStatus}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all active:scale-95 ${eventDayStarted
+                                ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500'
+                                : 'bg-slate-500/10 border-slate-500/30 text-slate-500'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                {eventDayStarted ? <Eye size={16} /> : <EyeOff size={16} />}
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                    {eventDayStarted ? 'Event Day Live' : 'Event Closed'}
+                                </span>
+                            </div>
+                            <div className={`w-8 h-4 rounded-full relative transition-colors ${eventDayStarted ? 'bg-cyan-500' : 'bg-slate-500'}`}>
+                                <motion.div
+                                    animate={{ x: eventDayStarted ? 18 : 2 }}
+                                    className="w-3 h-3 bg-white rounded-full absolute top-0.5 shadow-sm"
+                                />
+                            </div>
+                        </button>
+                        <p className="text-[9px] text-muted-foreground mt-2 px-2 font-bold opacity-60 uppercase italic">
+                            {eventDayStarted ? 'Matches & Scores are visible' : 'Portals restricted to Profile only'}
                         </p>
                     </div>
 

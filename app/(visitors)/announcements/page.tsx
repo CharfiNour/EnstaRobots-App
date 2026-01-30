@@ -6,6 +6,8 @@ import { Bell, Tag, Info, AlertTriangle, CheckCircle, AlertOctagon } from 'lucid
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
 import { COMPETITION_CATEGORIES, getCompetitionName } from '@/lib/constants';
+import { getCompetitionState } from '@/lib/competitionState';
+import RestrictionScreen from '@/components/common/RestrictionScreen';
 
 const TYPE_CONFIG: any = {
     info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500', border: 'border-blue-500/20' },
@@ -17,6 +19,7 @@ const TYPE_CONFIG: any = {
 export default function AnnouncementsPage() {
     const [selectedFilter, setSelectedFilter] = useState('all');
     const [announcements, setAnnouncements] = useState<any[]>([]);
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [loading, setLoading] = useState(true);
 
     const filters = [
@@ -34,6 +37,7 @@ export default function AnnouncementsPage() {
 
             if (error) throw error;
             setAnnouncements(data || []);
+            setEventDayStarted(getCompetitionState().eventDayStarted);
         } catch (err) {
             console.error('Error fetching announcements:', err);
         } finally {
@@ -64,6 +68,10 @@ export default function AnnouncementsPage() {
         // Handle both UUID and legacy/slug comparison
         return ann.competition_id === selectedFilter || ann.competition_type === selectedFilter;
     });
+
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     return (
         <div className="min-h-screen container mx-auto px-4 py-8">

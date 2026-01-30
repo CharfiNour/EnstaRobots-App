@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 import { canonicalizeCompId, getCategoryMetadata } from '@/lib/constants';
+import RestrictionScreen from '@/components/common/RestrictionScreen';
 import { useCompetitionDetail } from './hooks/useCompetitionDetail';
 import { CompetitionHeader } from './components/CompetitionHeader';
 import { fetchSingleTeamFromSupabase } from '@/lib/supabaseData';
@@ -64,6 +65,10 @@ export default function CompetitionDetailPage() {
     };
 
     const dbComp = competitions.find(c => c.type === resolvedCategory || c.id === compId);
+
+    if (!compState.eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     return (
         <div className="min-h-screen bg-white flex flex-col">

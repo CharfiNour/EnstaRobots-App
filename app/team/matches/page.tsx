@@ -8,7 +8,7 @@ import {
     PdfViewer,
     ScheduleCard
 } from './components';
-import { RegistryAlert } from '../components';
+import { RegistryAlert, RestrictionScreen } from '../components';
 import { useMatchesPage } from './hooks/useMatchesPage';
 import { PHASES_LINE_FOLLOWER, PHASES_DEFAULT } from '@/app/jury/score/services/scoreConstants';
 import { getCompetitionName } from '@/lib/constants';
@@ -16,6 +16,11 @@ import { Competition } from '@/lib/teams';
 
 export default function TeamMatchesPage() {
     const { teamData, compState, currentTeam, nextTeam, nextPhase, loading, currentPhase, isLive, competitions } = useMatchesPage();
+
+    // Event Day Restriction
+    if (!compState?.eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     if (loading) {
         return (
@@ -47,6 +52,8 @@ export default function TeamMatchesPage() {
             </div>
         );
     }
+
+
 
     // Get the actual competition category by looking up the UUID in the competitions array
     const foundCompetition = competitions.find((c: Competition) => c.id === teamData?.competition);
@@ -134,7 +141,7 @@ export default function TeamMatchesPage() {
                                 const allPhases = [...PHASES_LINE_FOLLOWER, ...PHASES_DEFAULT];
                                 return allPhases.find(p => p.value === currentPhase)?.label || currentPhase;
                             })()}
-                            teamOrder={teamData?.order || 1}
+                            teamOrder={teamData?.order}
                             teamName={teamData?.name || 'Unit'}
                             myTeamId={teamData?.id}
                             currentTeam={currentTeam}

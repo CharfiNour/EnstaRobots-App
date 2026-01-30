@@ -4,9 +4,9 @@ export interface Database {
     public: {
         Tables: {
             competitions: {
-                Row: { id: string; name: string; type: string; profiles_locked: boolean; current_phase: string | null; created_at: string }
-                Insert: { id?: string; name: string; type: string; profiles_locked?: boolean; current_phase?: string | null; created_at?: string }
-                Update: { id?: string; name?: string; type?: string; profiles_locked?: boolean; current_phase?: string | null; created_at?: string }
+                Row: { id: string; name: string; type: string; profiles_locked: boolean; event_day_started: boolean; current_phase: string | null; created_at: string }
+                Insert: { id?: string; name: string; type: string; profiles_locked?: boolean; event_day_started?: boolean; current_phase?: string | null; created_at?: string }
+                Update: { id?: string; name?: string; type?: string; profiles_locked?: boolean; event_day_started?: boolean; current_phase?: string | null; created_at?: string }
             }
             teams: {
                 Row: { id: string; name: string; robot_name: string | null; club: string | null; university: string | null; logo_url: string | null; photo_url: string | null; team_code: string; competition_id: string | null; is_placeholder: boolean; visuals_locked: boolean; created_at: string }

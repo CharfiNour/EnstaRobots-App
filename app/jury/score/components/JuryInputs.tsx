@@ -8,6 +8,8 @@ interface JuryInputsProps {
     jury2: string;
     setJury2: (v: string) => void;
     availableJuries?: string[];
+    role?: string;
+    isGlobalClearance?: boolean;
 }
 
 const InputField = ({
@@ -60,21 +62,78 @@ const InputField = ({
     </div>
 );
 
-export default function JuryInputs({ jury1, setJury1, jury2, setJury2, availableJuries }: JuryInputsProps) {
+export default function JuryInputs({ jury1, setJury1, jury2, setJury2, availableJuries, role, isGlobalClearance }: JuryInputsProps) {
+    const displayRole = (role || 'jury').replace(/_/g, ' ').toUpperCase();
+
     return (
-        <div className="grid md:grid-cols-2 gap-4">
-            <InputField
-                label="Jury 1 Full Name"
-                value={jury1}
-                setValue={setJury1}
-                availableJuries={availableJuries}
-            />
-            <InputField
-                label="Jury 2 Full Name"
-                value={jury2}
-                setValue={setJury2}
-                availableJuries={availableJuries}
-            />
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col lg:flex-row items-end gap-4 bg-white/40 backdrop-blur-md p-6 rounded-[2.5rem] border border-card-border shadow-sm">
+                {/* Designation Node (Jury 1) */}
+                <div className="flex-1 w-full space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pl-2 opacity-50">
+                        Designation Node
+                    </label>
+                    <div className="relative group">
+                        {availableJuries && availableJuries.length > 0 ? (
+                            <select
+                                value={jury1}
+                                onChange={(e) => setJury1(e.target.value)}
+                                className="w-full px-6 py-4 bg-muted/20 border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-sm text-foreground font-black uppercase tracking-widest appearance-none cursor-pointer hover:bg-muted/30 transition-all"
+                            >
+                                <option value="" disabled>Enter Operator Name</option>
+                                {availableJuries.map((name) => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                value={jury1}
+                                onChange={(e) => setJury1(e.target.value)}
+                                placeholder="ENTER OPERATOR NAME"
+                                className="w-full px-6 py-4 bg-muted/20 border border-card-border rounded-2xl focus:ring-2 focus:ring-accent outline-none text-sm text-foreground font-black uppercase tracking-widest placeholder:opacity-30"
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {/* Security Protocol & Sector */}
+                <div className="w-full lg:w-auto space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pl-2 opacity-50">
+                        Security Protocol & Sector
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <div className="px-6 py-4 bg-white border border-card-border rounded-2xl shadow-sm flex items-center justify-center min-w-[180px]">
+                            <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest whitespace-nowrap">
+                                {displayRole}
+                            </span>
+                        </div>
+                        <div className={`px-6 py-4 bg-transparent border-2 border-dashed border-card-border rounded-2xl flex items-center justify-center min-w-[180px] ${isGlobalClearance ? 'border-accent/40' : 'opacity-50'}`}>
+                            <span className={`text-[10px] font-black italic uppercase tracking-widest whitespace-nowrap ${isGlobalClearance ? 'text-accent' : 'text-muted-foreground'}`}>
+                                Clearance: {isGlobalClearance ? 'Global' : 'Sector'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* If it's a standard jury with 2 members, show the second input below or modify the layout */}
+            {role === 'jury' && (
+                <div className="flex flex-col lg:flex-row items-end gap-4 bg-white/20 backdrop-blur-sm p-4 rounded-[2rem] border border-card-border/50">
+                    <div className="flex-1 w-full space-y-1.5">
+                        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest pl-2 opacity-40">
+                            Secondary Operative
+                        </label>
+                        <input
+                            type="text"
+                            value={jury2}
+                            onChange={(e) => setJury2(e.target.value)}
+                            placeholder="OPERATOR 2 NAME (OPTIONAL)"
+                            className="w-full px-5 py-3 bg-muted/10 border border-card-border/40 rounded-xl focus:ring-1 focus:ring-accent/50 outline-none text-[11px] text-foreground font-black uppercase tracking-widest placeholder:opacity-20"
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

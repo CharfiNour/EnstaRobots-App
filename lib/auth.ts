@@ -13,7 +13,6 @@ export interface AuthSession {
 
 // Local storage keys
 const SESSION_KEY = 'enstarobots_session';
-const STAFF_CODES_KEY = 'enstarobots_staff_codes';
 
 // Team Auth: Login with team code
 import { getTeams } from './teams';
@@ -47,7 +46,7 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
         const session: AuthSession = {
             userId: staffData.id,
             role: staffData.role as UserRole,
-            competition: staffData.role === 'jury' && staffData.competition_id ? staffData.competition_id : undefined,
+            competition: (staffData.role === 'jury' || staffData.role === 'homologation_jury') && staffData.competition_id ? staffData.competition_id : undefined,
             expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
         };
 
@@ -144,6 +143,7 @@ export function hasAccess(requiredRole: UserRole): boolean {
         visitor: 0,
         team: 1,
         jury: 2,
+        homologation_jury: 2,
         admin: 3,
     };
 

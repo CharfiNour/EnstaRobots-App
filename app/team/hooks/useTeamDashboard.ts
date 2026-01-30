@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
+import { fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
+import { canonicalizeCompId } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
+import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
 import { Team, Competition } from '@/lib/teams';
 
 export function useTeamDashboard() {
@@ -12,6 +14,7 @@ export function useTeamDashboard() {
     const [loading, setLoading] = useState(true);
     const [profileComplete, setProfileComplete] = useState(false);
     const [teamData, setTeamData] = useState<any>(null);
+    const [compState, setCompState] = useState<CompetitionState | null>(null);
     const [competitionStatus, setCompetitionStatus] = useState({
         isLive: false,
         currentTeam: null as any,
@@ -32,20 +35,62 @@ export function useTeamDashboard() {
             }
             if (isMounted) setSession(currentSession);
 
-            const [teams, liveSessions, competitions] = await Promise.all([
+            const [teams, liveSessions, competitions, allScores] = await Promise.all([
                 fetchTeamsFromSupabase('minimal'),
                 fetchLiveSessionsFromSupabase(),
-                fetchCompetitionsFromSupabase()
+                fetchCompetitionsFromSupabase(),
+                fetchScoresFromSupabase(),
+                getCompetitionState()
             ]);
 
             if (!isMounted) return;
 
-            const team = teams.find(t => t.id === currentSession.teamId);
+            setCompState(compState);
+            const team = teams.find((t: any) => t.id === currentSession.teamId);
 
             if (team) {
-                const compTeams = teams.filter(t => t.competition === team.competition);
-                const teamIndex = compTeams.findIndex(t => t.id === team.id);
-                const teamWithOrder = { ...team, order: teamIndex + 1 };
+                // Determine relevant competition
+                const relevantComp = competitions.find((c: Competition) => c.id === team.competition || c.type === team.competition);
+                const activePhase = relevantComp?.current_phase;
+                const canonicalMyComp = canonicalizeCompId(team.competition, competitions);
+
+                // Check for live session in my competition
+                const safeSessions = liveSessions || {};
+                const sessionInfo = (relevantComp?.id && safeSessions[relevantComp.id])
+                    || (relevantComp?.type && safeSessions[relevantComp.type])
+                    || (team.competition && safeSessions[team.competition]);
+
+                // A phase is officially "Drawn" or "Started" if:
+                // 1. There is an active live session
+                // 2. OR there are scores recorded for the active phase
+                // 3. AND the active phase is not "upcoming" or "completed"
+                const isValidPhase = activePhase &&
+                    activePhase !== 'upcoming' &&
+                    activePhase !== 'Not Started' &&
+                    !activePhase.includes('Completed');
+
+                const hasScoresForPhase = isValidPhase && allScores.some((s: any) => {
+                    const sComp = canonicalizeCompId(s.competitionType || s.competitionId, competitions);
+                    const sPhase = String(s.phase).toLowerCase();
+                    const targetPhase = String(activePhase).toLowerCase();
+
+                    return sComp === canonicalMyComp &&
+                        (sPhase === targetPhase || (sPhase === 'essay 1' && targetPhase === 'essay 1') || (sPhase === 'essay 2' && targetPhase === 'essay 2'));
+                });
+
+                const isDrawn = !!sessionInfo || hasScoresForPhase;
+
+                // Filter teams for this competition
+                const compTeams = teams.filter((t: any) => canonicalizeCompId(t.competition, competitions) === canonicalMyComp);
+
+                // Calculate order
+                let teamOrder = null;
+                if (isDrawn) {
+                    const teamIndex = compTeams.findIndex((t: any) => t.id === team.id);
+                    teamOrder = teamIndex !== -1 ? teamIndex + 1 : null;
+                }
+
+                const teamWithOrder = { ...team, order: teamOrder };
 
                 setTeamData(teamWithOrder);
                 setProfileComplete(!team.isPlaceholder);
@@ -56,23 +101,15 @@ export function useTeamDashboard() {
                 let nextT = null;
                 let phase = null;
 
-                // Robust lookup: Resolve team.competition (which could be UUID or slug) to the actual DB UUID
-                const relevantComp = competitions.find((c: Competition) => c.id === team.competition || c.type === team.competition);
-
-                const safeSessions = liveSessions || {};
-                const sessionInfo = (relevantComp?.id && safeSessions[relevantComp.id])
-                    || (relevantComp?.type && safeSessions[relevantComp.type])
-                    || (team.competition && safeSessions[team.competition]);
-
                 if (sessionInfo) {
                     isLive = true;
                     phase = sessionInfo.phase;
 
                     const activeTeamId = sessionInfo.teamId;
-                    const activeTeam = teams.find(t => t.id === activeTeamId);
+                    const activeTeam = teams.find((t: any) => t.id === activeTeamId);
 
                     if (activeTeam) {
-                        const currentIdx = compTeams.findIndex(t => t.id === activeTeamId);
+                        const currentIdx = compTeams.findIndex((t: any) => t.id === activeTeamId);
                         if (currentIdx !== -1) {
                             currentT = { ...activeTeam, order: currentIdx + 1 };
                             const nextIdx = (currentIdx + 1) % compTeams.length;
@@ -127,6 +164,7 @@ export function useTeamDashboard() {
         profileComplete,
         teamData,
         ...competitionStatus,
+        compState,
         router
     };
 }

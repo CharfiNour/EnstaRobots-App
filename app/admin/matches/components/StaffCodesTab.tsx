@@ -8,7 +8,7 @@ import { fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
 
 interface StaffCode {
     id: string;
-    role: 'admin' | 'jury';
+    role: 'admin' | 'jury' | 'homologation_jury';
     name: string;
     code: string;
     competition?: string;
@@ -25,10 +25,7 @@ const COMPETITION_CATEGORIES = [
 
 const STORAGE_KEY = 'enstarobots_staff_codes';
 
-const DEFAULT_CODES: StaffCode[] = [
-    { id: '1', role: 'admin', name: 'Master Admin', code: 'ADMIN-2024' },
-    { id: '2', role: 'jury', name: 'Main Jury', code: 'JURY-2024', competition_name: 'Line Follower' },
-];
+const DEFAULT_CODES: StaffCode[] = [];
 
 
 export default function StaffCodesTab() {
@@ -36,7 +33,7 @@ export default function StaffCodesTab() {
     const [realCompetitions, setRealCompetitions] = useState<any[]>([]);
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
-    const [newRole, setNewRole] = useState<'admin' | 'jury'>('jury');
+    const [newRole, setNewRole] = useState<'admin' | 'jury' | 'homologation_jury'>('jury');
     const [selectedComp, setSelectedComp] = useState('');
     const [dbMissing, setDbMissing] = useState(false);
 
@@ -147,7 +144,7 @@ export default function StaffCodesTab() {
                 const staffCodeData = data as any;
                 const newCode: StaffCode = {
                     id: staffCodeData.id,
-                    role: staffCodeData.role as 'admin' | 'jury',
+                    role: staffCodeData.role as 'admin' | 'jury' | 'homologation_jury',
                     name: staffCodeData.name,
                     code: staffCodeData.code,
                     competition: staffCodeData.competition_id || undefined,
@@ -191,7 +188,7 @@ export default function StaffCodesTab() {
     };
 
     const adminCodes = codes.filter(c => c.role === 'admin');
-    const judgeCodes = codes.filter(c => c.role === 'jury');
+    const judgeCodes = codes.filter(c => c.role === 'jury' || c.role === 'homologation_jury');
 
     const StaffSection = ({ title, staffList, role }: { title: string; staffList: StaffCode[]; role: 'admin' | 'jury' }) => (
         <div className="space-y-4">
@@ -220,7 +217,9 @@ export default function StaffCodesTab() {
                             <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${staff.role === 'admin'
                                     ? 'bg-rose-500/10 border-rose-500/20 text-rose-500'
-                                    : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                                    : staff.role === 'homologation_jury'
+                                        ? 'bg-purple-500/10 border-purple-500/20 text-purple-500'
+                                        : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
                                     }`}>
                                     <Shield size={20} />
                                 </div>
@@ -350,6 +349,7 @@ export default function StaffCodesTab() {
                                         className="flex-1 px-5 py-3 bg-background/40 border border-card-border rounded-xl text-xs font-bold uppercase outline-none cursor-pointer hover:bg-background/60 transition-all appearance-none text-center"
                                     >
                                         <option value="jury">Jury</option>
+                                        <option value="homologation_jury">Homologation Jury</option>
                                         <option value="admin">System Admin</option>
                                     </select>
 

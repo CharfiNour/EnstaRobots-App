@@ -19,7 +19,8 @@ export default function TeamDashboard() {
         isLive,
         currentTeam,
         nextTeam,
-        currentPhase
+        currentPhase,
+        compState
     } = useTeamDashboard();
 
     if (loading) {
@@ -60,7 +61,10 @@ export default function TeamDashboard() {
 
                     {/* Sidebar: Useful Tools & News */}
                     <div className="lg:col-span-4 space-y-8">
-                        <RecentAnnouncements profileComplete={profileComplete} />
+                        <RecentAnnouncements
+                            profileComplete={profileComplete}
+                            eventDayStarted={compState?.eventDayStarted}
+                        />
                     </div>
                 </div>
             </div>

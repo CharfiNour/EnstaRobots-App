@@ -17,7 +17,7 @@ interface ScheduleCardProps {
     startTime: string;
     isLive: boolean;
     currentPhase: string | null;
-    teamOrder: number;
+    teamOrder: number | null;
     teamName: string;
     myTeamId?: string;
     currentTeam: TeamInfo | null;
@@ -151,7 +151,7 @@ export default function ScheduleCard({
                             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">My Turn</p>
                             <div className="flex items-baseline gap-2">
                                 <Hash className="w-5 h-5 text-role-primary" />
-                                <p className="text-4xl font-black text-foreground tracking-tighter italic">{teamOrder}</p>
+                                <p className="text-4xl font-black text-foreground tracking-tighter italic">{teamOrder || '--'}</p>
                             </div>
                         </div>
                     </div>

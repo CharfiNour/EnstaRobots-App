@@ -62,13 +62,14 @@ export default function TeamLoginPage() {
                     transition={{ delay: 0.1 }}
                     className="bg-card border border-card-border rounded-xl p-8 shadow-md shadow-black/[0.03]"
                 >
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-6" autoComplete="off">
                         <div>
-                            <label htmlFor="teamCode" className="block text-sm font-medium text-foreground/80 mb-2">
+                            <label htmlFor="team-auth-token" className="block text-sm font-medium text-foreground/80 mb-2">
                                 Team Code
                             </label>
                             <input
-                                id="teamCode"
+                                id="team-auth-token"
+                                name="team-auth-token"
                                 type="text"
                                 value={teamCode}
                                 onChange={(e) => setTeamCode(e.target.value.toUpperCase())}
@@ -76,7 +77,8 @@ export default function TeamLoginPage() {
                                 className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all font-mono text-center text-lg tracking-wider"
                                 required
                                 disabled={loading}
-                                autoComplete="off"
+                                autoComplete="new-password"
+                                spellCheck={false}
                                 autoFocus
                             />
                         </div>
@@ -110,23 +112,7 @@ export default function TeamLoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-card-border space-y-4">
-                        <button
-                            onClick={() => {
-                                const session = {
-                                    userId: 'demo-team',
-                                    role: 'team',
-                                    teamName: 'Demo Team Alpha',
-                                    teamCode: 'DEMO-1234',
-                                    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000
-                                };
-                                localStorage.setItem('enstarobots_session', JSON.stringify(session));
-                                router.push('/team');
-                            }}
-                            className="w-full px-4 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg text-sm font-bold hover:bg-blue-500/20 transition-all"
-                        >
-                            Demo Team Access
-                        </button>
+                    <div className="mt-6 pt-6 border-t border-card-border">
                         <p className="text-center text-sm text-muted-foreground">
                             Don't have a team code?{' '}
                             <Link href="/" className="text-accent hover:underline">

@@ -62,6 +62,7 @@ function canonicalizeCompId(id: string | undefined, dbComps: any[] = []): string
 export default function ScoreCardPage() {
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [switching, setSwitching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [stopping, setStopping] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
@@ -115,6 +116,11 @@ export default function ScoreCardPage() {
     const isUnlocked = isHomo ? localHomoActive : isLive;
 
     useEffect(() => {
+        // Reset states immediately when competition changes
+        setSwitching(true);
+        setIsLive(false);
+        setTeams([{ id: '', phase: checkIsLineFollower(competition.id) ? 'Essay 1' : (globalPhase || 'Qualifiers') }]);
+
         const loadInitialData = async () => {
             const [remoteTeams, remoteComps, remoteScores] = await Promise.all([
                 fetchTeamsFromSupabase(),
@@ -125,9 +131,13 @@ export default function ScoreCardPage() {
             setCompetitionsFromSupabase(remoteComps);
             setAllScores(remoteScores);
         };
+
         loadInitialData();
 
-        if (!competition) return;
+        if (!competition) {
+            setSwitching(false);
+            return;
+        }
 
         // Sync Live State
         const syncState = () => {
@@ -136,14 +146,16 @@ export default function ScoreCardPage() {
             const state = getCompetitionState();
             const stateLiveSessions = state.liveSessions || {};
             const liveSess = stateLiveSessions[competition.id];
-            const isCompLive = !!liveSess;
 
+            // Only update isLive if we are NOT currently fetching the new truth
+            const isCompLive = !!liveSess;
             setIsLive(prev => prev === isCompLive ? prev : isCompLive);
 
             if (isCompLive && liveSess.teamId) {
                 setTeams(prev => {
-                    if (prev[0] && prev[0].id === liveSess.teamId && (checkIsLineFollower(competition.id) ? prev[0].phase === liveSess.phase : true)) return prev;
-                    if (!prev[0]) return [{ id: liveSess.teamId, phase: liveSess.phase || 'Essay 1' }];
+                    const sameId = prev[0] && prev[0].id === liveSess.teamId;
+                    const samePhase = checkIsLineFollower(competition.id) ? prev[0].phase === liveSess.phase : true;
+                    if (sameId && samePhase) return prev;
 
                     const copy = [...prev];
                     copy[0] = { ...copy[0], id: liveSess.teamId };
@@ -157,13 +169,15 @@ export default function ScoreCardPage() {
         window.addEventListener('competition-state-updated', syncState);
         window.addEventListener('storage', syncState);
 
-        // Initial fetch from supabase
-        fetchLiveSessionsFromSupabase().then(sessions => {
-            if (sessions && Object.keys(sessions).length > 0) {
-                // Pass false to avoid syncing back what we just fetched
+        // Initial fetch from supabase - ALWAYS FORCE REFRESH when switching competition
+        fetchLiveSessionsFromSupabase(true).then(sessions => {
+            if (sessions) {
+                // Filter sessions to only the current one if we want to be strict,
+                // but usually we keep all in localStorage for badges.
                 updateCompetitionState({ liveSessions: sessions }, false);
             }
-        });
+            setSwitching(false);
+        }).catch(() => setSwitching(false));
 
         return () => {
             window.removeEventListener('competition-state-updated', syncState);
@@ -177,20 +191,20 @@ export default function ScoreCardPage() {
         if (liveActionLock.current) return;
 
         const sessions = await fetchLiveSessionsFromSupabase(true); // FORCE bypass cache
-        if (sessions) {
-            // MUTATION GUARD: filter out sessions that we just locally ended
-            // but might still be showing up as live in a stale server response
-            const filtered: Record<string, any> = { ...sessions };
-            for (const [compId, sess] of Object.entries(filtered)) {
-                const manualEnd = lastEndMatchTimestamp.current[compId];
-                if (manualEnd && sess.startTime && sess.startTime < manualEnd) {
-                    console.log(`🛡️ [GUARD] Blocking stale session for ${compId} (Server Start: ${sess.startTime} < Local End: ${manualEnd})`);
-                    delete filtered[compId];
-                }
-            }
+        const state = getCompetitionState();
+        const globalTerminationMap = state.terminationTimestamps || {};
 
-            updateCompetitionState({ liveSessions: filtered }, false);
+        const filtered: Record<string, any> = { ...sessions };
+        for (const [compId, sess] of Object.entries(filtered)) {
+            const manualEnd = lastEndMatchTimestamp.current[compId] || globalTerminationMap[compId] || 0;
+
+            if (manualEnd && sess.startTime && sess.startTime < manualEnd) {
+                console.log(`🛡️ [GUARD] Blocking stale session for ${compId} (Server Start: ${sess.startTime} < Local End: ${manualEnd})`);
+                delete filtered[compId];
+            }
         }
+
+        updateCompetitionState({ liveSessions: filtered }, false);
     };
 
     const handleTeamsUpdate = async () => {
@@ -343,11 +357,17 @@ export default function ScoreCardPage() {
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'jury') {
+        if (!currentSession || (currentSession.role !== 'jury' && currentSession.role !== 'homologation_jury')) {
             router.push('/auth/jury');
             return;
         }
         setSession(currentSession);
+
+        // Auto-set scoring mode for homologation jury
+        if (currentSession.role === 'homologation_jury') {
+            setScoringMode('homologation');
+        }
+
         setLoading(false);
 
         // Lock competition and load judges if assigned
@@ -366,7 +386,7 @@ export default function ScoreCardPage() {
                         if (storedCodes) {
                             const parsed: any[] = JSON.parse(storedCodes);
                             const juryNames = parsed
-                                .filter(c => c.role === 'jury' && (c.competition === currentSession.competition || c.competition === compFromDb.type))
+                                .filter(c => (c.role === 'jury' || c.role === 'homologation_jury') && (c.competition === currentSession.competition || c.competition === compFromDb.type))
                                 .map(c => c.name);
                             setAvailableJuries(juryNames);
                         }
@@ -760,7 +780,7 @@ export default function ScoreCardPage() {
         payloads.forEach(payload => saveScoreOffline(payload));
 
         setSuccess(true);
-        handleEndMatch(); // Terminates live session and syncs state
+        // handleEndMatch(); // Removed to keep live active between submits as requested
 
         // Reset scores but keep judges
         setTimeMinutes(''); setTimeSeconds(''); setTimeMillis('');
@@ -789,7 +809,17 @@ export default function ScoreCardPage() {
                 newTeams[0].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
             }
             setTeams(newTeams);
+
+            // AUTO-SYNC NEXT TEAM TO PUBLIC BOARD
+            if (isLive && !isHomo) {
+                const phase = isLineFollowerMode ? (newTeams[0].phase || 'Essay 1') : globalPhase;
+                startLiveSession(newTeams[0].id, competition.id, phase);
+            }
         } else {
+            // End of list reached - only then do we terminate the session
+            if (isLive || localHomoActive) {
+                handleEndMatch();
+            }
             setTeams(teams.map(t => ({ ...t, id: '', phase: isLineFollowerMode ? 'Essay 1' : undefined })));
         }
 
@@ -911,22 +941,20 @@ export default function ScoreCardPage() {
                     setCompetition={setCompetition}
                     showCompList={showCompList}
                     setShowCompList={setShowCompList}
-                    locked={!!session?.competition}
+                    locked={!!session?.competition && session?.role !== 'homologation_jury'}
                     scoringMode={scoringMode}
                     setScoringMode={setScoringMode}
+                    sessionRole={session?.role}
                 />
 
                 {/* Main Card */}
                 <div className="bg-card border border-card-border rounded-2xl p-4 md:p-6 shadow-2xl relative min-h-[400px]">
-                    {loading ? (
+                    {(loading || switching) ? (
                         <div className="space-y-6 animate-pulse">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="h-10 bg-muted rounded-xl w-full" />
-                                <div className="h-10 bg-muted rounded-xl w-full" />
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-12 h-12 border-4 border-role-primary border-t-transparent rounded-full animate-spin" />
+                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground animate-pulse">Synchronizing Tactical Data...</p>
                             </div>
-                            <div className="h-24 bg-muted rounded-xl w-full" />
-                            <div className="h-48 bg-muted rounded-xl w-full" />
-                            <div className="h-14 bg-muted rounded-xl w-full" />
                         </div>
                     ) : (
                         <>
@@ -956,6 +984,8 @@ export default function ScoreCardPage() {
                                             jury1={jury1} setJury1={setJury1}
                                             jury2={jury2} setJury2={setJury2}
                                             availableJuries={availableJuries}
+                                            role={session?.role}
+                                            isGlobalClearance={!session?.competition}
                                         />
 
                                         <div className="w-full h-px bg-card-border" />
@@ -1053,6 +1083,8 @@ export default function ScoreCardPage() {
                                         jury1={jury1} setJury1={setJury1}
                                         jury2={jury2} setJury2={setJury2}
                                         availableJuries={availableJuries}
+                                        role={session?.role}
+                                        isGlobalClearance={!session?.competition}
                                     />
 
                                     <div className="w-full h-px bg-card-border" />

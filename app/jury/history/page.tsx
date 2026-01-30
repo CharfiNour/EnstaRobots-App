@@ -13,8 +13,13 @@ export default function JuryHistoryPage() {
 
     useEffect(() => {
         const currentSession = getSession();
-        if (!currentSession || currentSession.role !== 'jury') {
+        if (!currentSession || (currentSession.role !== 'jury' && currentSession.role !== 'homologation_jury')) {
             router.push('/auth/jury');
+            return;
+        }
+
+        if (currentSession.role === 'homologation_jury') {
+            router.push('/jury');
             return;
         }
         setSession(currentSession);

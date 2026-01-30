@@ -41,7 +41,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
     const currentScore = phaseSubmissions[0];
 
     const homologationScore = group.submissions.find((s) =>
-        matchesPhase(s.phase, 'homologation')
+        matchesPhase(s.phase, 'homologation') || matchesPhase(s.phase, 'technical homologation')
     );
 
     // Resolve competition metadata
@@ -384,7 +384,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                                 const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR } = require('@/lib/constants');
                                                                 const sections = competitionType === 'junior_line_follower' ? LINE_FOLLOWER_SECTIONS_JUNIOR : LINE_FOLLOWER_SECTIONS_STANDARD;
 
-                                                                return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
+                                                                const segmentCards = Object.entries(currentScore.detailedScores || {}).map(([id, pts]) => {
                                                                     const section = sections.find((s: any) => s.id === id);
                                                                     if (!section) return null;
 
@@ -405,38 +405,36 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                                         </div>
                                                                     );
                                                                 });
+
+                                                                return (
+                                                                    <>
+                                                                        {segmentCards}
+
+                                                                        {/* Homologation Slot inside the list - Always show for Line Follower */}
+                                                                        {!isHomologation && isLineFollower && (
+                                                                            <div className="flex items-center justify-between p-3.5 bg-orange-50/50 rounded-2xl border border-orange-200/40 shadow-sm mt-1">
+                                                                                <div className="flex items-center gap-4">
+                                                                                    <div className="w-10 h-10 rounded-xl bg-orange-100/80 flex items-center justify-center text-orange-600">
+                                                                                        <Shield size={18} fill="currentColor" fillOpacity={0.1} />
+                                                                                    </div>
+                                                                                    <div className="text-[12px] font-black uppercase tracking-[0.15em] text-orange-600">
+                                                                                        Homologation Score
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex items-baseline gap-1 mr-1">
+                                                                                    <span className="text-2xl font-black italic text-slate-800 tracking-tighter">
+                                                                                        {homologationScore?.totalPoints || 0}
+                                                                                    </span>
+                                                                                    <span className="text-[10px] font-bold uppercase opacity-40 text-slate-800">
+                                                                                        / 40 PTS
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                );
                                                             })()}
                                                         </div>
-
-                                                        {/* Homologation Score inside Tactical Analysis for LF */}
-                                                        {!isHomologation && homologationScore && (
-                                                            <div className="mt-4 p-4 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
-                                                                <div className="flex flex-col gap-3 w-full">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <div className="p-2 bg-role-primary/20 rounded-lg text-role-primary">
-                                                                                <Shield size={16} />
-                                                                            </div>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-xs font-black uppercase tracking-widest text-role-primary leading-tight">Homologation Score</span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <span className="text-2xl font-black italic text-foreground tracking-tighter flex items-baseline gap-1">
-                                                                            {homologationScore.totalPoints} <span className="text-[11px] not-italic uppercase opacity-60">/ 40 PTS</span>
-                                                                        </span>
-                                                                    </div>
-
-                                                                    {homologationScore.remarks && (
-                                                                        <div className="pt-2 border-t border-role-primary/20">
-                                                                            <div className="text-[9px] font-black uppercase text-role-primary/80 mb-1 tracking-widest">Technician Notes</div>
-                                                                            <div className="text-[10px] font-bold text-foreground leading-relaxed">
-                                                                                "{homologationScore.remarks}"
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 )}
                                             </>)

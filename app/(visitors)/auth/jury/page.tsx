@@ -62,13 +62,14 @@ export default function JuryLoginPage() {
                     transition={{ delay: 0.1 }}
                     className="bg-card border border-card-border rounded-xl p-8 shadow-md shadow-black/[0.03]"
                 >
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-6" autoComplete="off">
                         <div>
-                            <label htmlFor="code" className="block text-sm font-medium text-foreground/80 mb-2">
+                            <label htmlFor="staff-auth-token" className="block text-sm font-medium text-foreground/80 mb-2">
                                 Access Code
                             </label>
                             <input
-                                id="code"
+                                id="staff-auth-token"
+                                name="staff-auth-token"
                                 type="text"
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
@@ -76,6 +77,8 @@ export default function JuryLoginPage() {
                                 className="w-full px-4 py-3 bg-muted/50 border border-card-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all uppercase tracking-widest font-mono"
                                 required
                                 disabled={loading}
+                                autoComplete="new-password"
+                                spellCheck={false}
                                 autoFocus
                             />
                         </div>
@@ -109,29 +112,7 @@ export default function JuryLoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-8 pt-6 border-t border-card-border space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <button
-                                onClick={() => {
-                                    const session = { userId: 'demo-admin', role: 'admin', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
-                                    localStorage.setItem('enstarobots_session', JSON.stringify(session));
-                                    router.push('/admin');
-                                }}
-                                className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg text-sm font-bold hover:bg-red-500/20 transition-all"
-                            >
-                                Demo Admin
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const session = { userId: 'demo-jury', role: 'jury', expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
-                                    localStorage.setItem('enstarobots_session', JSON.stringify(session));
-                                    router.push('/jury');
-                                }}
-                                className="px-4 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 rounded-lg text-sm font-bold hover:bg-yellow-500/20 transition-all"
-                            >
-                                Demo Jury
-                            </button>
-                        </div>
+                    <div className="mt-8 pt-6 border-t border-card-border">
                         <div className="flex items-center justify-between text-sm">
                             <Link href="/auth/team" className="text-accent hover:underline">
                                 Team Login
