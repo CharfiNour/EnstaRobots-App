@@ -63,8 +63,11 @@ export async function syncEventDayStatusFromSupabase(): Promise<boolean> {
         // PRIORITY 1: Check App Settings (Single Source of Truth)
         const settings = await fetchAppSettings();
         if (settings) {
-            console.log('[SYNC] Event Day status from App Settings:', settings.event_day_started);
-            await updateCompetitionState({ eventDayStarted: settings.event_day_started }, { syncRemote: false, suppressEvent: false });
+            console.log('[SYNC] App Settings loaded:', { event_day_started: settings.event_day_started, profiles_locked: settings.profiles_locked });
+            await updateCompetitionState({
+                eventDayStarted: settings.event_day_started,
+                profilesLocked: settings.profiles_locked
+            }, { syncRemote: false, suppressEvent: false });
             return settings.event_day_started;
         }
 
@@ -101,6 +104,17 @@ export async function updateCompetitionState(
 
     // Update in-memory state
     const current = getCompetitionState();
+
+    // Check if anything actually changed to avoid event loops
+    const hasChanges = Object.keys(updates).some(key => {
+        const k = key as keyof CompetitionState;
+        return JSON.stringify(current[k]) !== JSON.stringify(updates[k]);
+    });
+
+    if (!hasChanges) {
+        return current;
+    }
+
     const newState = { ...current, ...updates };
 
     // Synthesize legacy properties for backward compatibility during transition

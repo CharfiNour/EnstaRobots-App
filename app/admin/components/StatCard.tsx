@@ -26,28 +26,31 @@ export default function StatCard({
                 : 'bg-[var(--color-card)] border-[var(--color-card-border)]'
                 }`}
         >
-            <div className="flex justify-between items-start">
-                <Icon className={`w-6 h-6 mb-2 ${color}`} />
+            <div className="flex justify-between items-start mb-2">
+                <Icon className={`w-6 h-6 ${color}`} />
                 <button
                     onClick={() => setIsEditing(!isEditing)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-white text-black rounded-lg shadow-lg hover:scale-105 active:scale-95"
+                    className="md:opacity-0 md:group-hover:opacity-100 transition-all p-1.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-lg border border-white/10 shadow-lg hover:rotate-12"
                 >
-                    {isEditing ? <Check size={14} /> : <Pencil size={14} />}
+                    {isEditing ? <Check size={16} /> : <Pencil size={16} />}
                 </button>
             </div>
 
-            {isEditing ? (
-                <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => onChange?.(e.target.value)}
-                    className="w-full bg-black/10 border border-white/10 rounded px-2 py-1 text-xl font-bold text-foreground mb-1 focus:outline-none focus:border-accent"
-                    autoFocus
-                />
-            ) : (
-                <div className="text-2xl font-bold text-foreground mb-1">{value}</div>
-            )}
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
+            <div className="min-h-[48px] flex flex-col justify-end">
+
+                {isEditing ? (
+                    <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange?.(e.target.value)}
+                        className="w-full bg-black/10 border border-white/10 rounded px-2 py-1 text-xl font-bold text-foreground mb-1 focus:outline-none focus:border-accent"
+                        autoFocus
+                    />
+                ) : (
+                    <div className="text-2xl font-bold text-foreground mb-1">{value}</div>
+                )}
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
+            </div>
         </motion.div>
     );
 }

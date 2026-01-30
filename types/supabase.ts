@@ -38,6 +38,11 @@ export interface Database {
                 Insert: { id?: string; role: string; name: string; code: string; competition_id?: string | null; created_at?: string }
                 Update: { id?: string; role?: string; name?: string; code?: string; competition_id?: string | null; created_at?: string }
             }
+            app_settings: {
+                Row: { id: string; event_day_started: boolean; profiles_locked: boolean; updated_at: string; created_at: string }
+                Insert: { id: string; event_day_started?: boolean; profiles_locked?: boolean; updated_at?: string; created_at?: string }
+                Update: { id?: string; event_day_started?: boolean; profiles_locked?: boolean; updated_at?: string; created_at?: string }
+            }
         }
         Views: {}
         Functions: {}

@@ -35,7 +35,7 @@ export function useTeamDashboard() {
             }
             if (isMounted) setSession(currentSession);
 
-            const [teams, liveSessions, competitions, allScores] = await Promise.all([
+            const [teams, liveSessions, competitions, allScores, freshCompState] = await Promise.all([
                 fetchTeamsFromSupabase('minimal'),
                 fetchLiveSessionsFromSupabase(),
                 fetchCompetitionsFromSupabase(),
@@ -45,7 +45,7 @@ export function useTeamDashboard() {
 
             if (!isMounted) return;
 
-            setCompState(compState);
+            setCompState(freshCompState);
             const team = teams.find((t: any) => t.id === currentSession.teamId);
 
             if (team) {

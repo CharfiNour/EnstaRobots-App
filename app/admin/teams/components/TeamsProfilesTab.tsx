@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Search, Filter, ChevronDown, ChevronRight, UserCircle, Lock, Unlock, Calendar, Eye, EyeOff } from 'lucide-react';
 import { Team, saveTeams } from '@/lib/teams';
 import TeamProfileView from '@/app/team/components/TeamProfileView';
-import { getCompetitionState, toggleProfilesLock, toggleEventDayStatus } from '@/lib/competitionState';
+import { getCompetitionState, toggleProfilesLock, toggleEventDayStatus, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 
 const COMPETITION_CATEGORIES = [
     { id: 'junior_line_follower', name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
@@ -37,12 +37,15 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
         checkStatus();
         window.addEventListener('competition-state-updated', checkStatus);
 
-        const fetchComps = async () => {
+        const init = async () => {
+            // Sync status from Supabase to ensure the UI reflects the DB on refresh
+            await syncEventDayStatusFromSupabase();
+
             const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
             const data = await fetchCompetitionsFromSupabase();
             setCompetitions(data);
         };
-        fetchComps();
+        init();
 
         return () => window.removeEventListener('competition-state-updated', checkStatus);
     }, []);

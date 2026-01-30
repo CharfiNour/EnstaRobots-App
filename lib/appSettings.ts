@@ -52,9 +52,12 @@ export async function updateEventDayStatus(started: boolean): Promise<boolean> {
 
     try {
         const { data, error } = await (supabase
-            .from('app_settings') as any)
-            .update({ event_day_started: started })
-            .eq('id', 'global')
+            .from('app_settings' as any) as any)
+            .upsert({
+                id: 'global',
+                event_day_started: started,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
             .select();
 
         if (error) {
@@ -83,9 +86,12 @@ export async function updateProfilesLock(locked: boolean): Promise<boolean> {
 
     try {
         const { error } = await (supabase
-            .from('app_settings') as any)
-            .update({ profiles_locked: locked })
-            .eq('id', 'global');
+            .from('app_settings' as any) as any)
+            .upsert({
+                id: 'global',
+                profiles_locked: locked,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
 
         if (error) {
             console.error('[APP SETTINGS] Profiles lock error:', error);

@@ -14,15 +14,23 @@ const DEFAULT_STATS: AdminStats = {
 };
 
 export const getAdminStats = (): AdminStats => {
-    // Return defaults/empty (component should fetch fresh)
     if (typeof window !== 'undefined') {
-        localStorage.removeItem(STORAGE_KEY);
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try {
+                return JSON.parse(stored);
+            } catch (e) {
+                console.error('Error parsing admin stats:', e);
+            }
+        }
     }
     return DEFAULT_STATS;
 };
 
 export const saveAdminStats = (stats: AdminStats): void => {
-    // No-op
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+    }
 };
 
 export const getRecentActivity = (): ActivityItemData[] => {
