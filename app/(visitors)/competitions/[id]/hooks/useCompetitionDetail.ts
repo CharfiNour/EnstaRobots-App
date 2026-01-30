@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
-import { updateCompetitionState, getCompetitionState, CompetitionState } from '@/lib/competitionState';
+import { updateCompetitionState, getCompetitionState, CompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { dataCache, cacheKeys } from '@/lib/dataCache';
 import { COMPETITION_CATEGORIES, canonicalizeCompId } from '@/lib/constants';
@@ -68,7 +68,12 @@ export function useCompetitionDetail(compId: string) {
     }, [compId]);
 
     useEffect(() => {
-        // SWR Pattern: Instant load + Background Sync
+        // SWR Pattern: Instant load    useEffect(() => {
+        // Sync event day status from Supabase on mount
+        syncEventDayStatusFromSupabase().then(status => {
+            setCompState(prev => ({ ...prev, eventDayStarted: status }));
+        });
+
         loadContent(false);
         loadContent(true);
 

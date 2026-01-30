@@ -11,7 +11,7 @@ import { LiveBadge } from '@/components/common/LiveBadge';
 import RestrictionScreen from '@/components/common/RestrictionScreen';
 
 // Utils & Libs
-import { getCompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 import { COMPETITION_CATEGORIES } from '@/lib/constants';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
@@ -93,6 +93,7 @@ export default function CompetitionsPage() {
     const [compState, setCompState] = useState(getCompetitionState());
     const [allTeams, setAllTeams] = useState<Team[]>(initialTeams);
     const [dbComps, setDbComps] = useState<any[]>(initialComps);
+    const [eventDayStarted, setEventDayStarted] = useState(false);
 
     // UI rule: only show spinner if NO data exists at all
     const [loading, setLoading] = useState(initialComps.length === 0);
@@ -145,8 +146,6 @@ export default function CompetitionsPage() {
         }
     }, []);
 
-    const eventDayStarted = compState?.eventDayStarted;
-
     // Optimized Live Update for high-frequency events
     const handleLiveUpdate = useCallback(async () => {
         try {
@@ -168,6 +167,11 @@ export default function CompetitionsPage() {
     }, [handleLiveUpdate]);
 
     useEffect(() => {
+        // Sync event day status from Supabase on mount
+        syncEventDayStatusFromSupabase().then(status => {
+            setEventDayStarted(status);
+        });
+
         refreshData(false);
         refreshData(true);
 

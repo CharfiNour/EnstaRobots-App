@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSession } from '@/lib/auth';
 import { getTeams, Team, Competition } from '@/lib/teams';
-import { getCompetitionState, CompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, CompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 import { supabase } from '@/lib/supabase';
 import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
 import { canonicalizeCompId } from '@/lib/constants';
@@ -125,6 +125,11 @@ export function useMatchesPage() {
         };
 
         fetchInitialData();
+
+        // Sync event day status from Supabase
+        syncEventDayStatusFromSupabase().then(status => {
+            if (isMounted) setCompState(prev => prev ? { ...prev, eventDayStarted: status } : null);
+        });
 
         // 1. Listen for Local Events
         const handleLocalUpdate = () => {

@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
 import { RegistryAlert, RestrictionScreen } from '../components';
-import { getCompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 
 // Mock data as fallback
 const FALLBACK_ANNOUNCEMENTS = [
@@ -65,6 +65,11 @@ export default function TeamAnnouncementsPage() {
         };
 
         loadData();
+
+        // Sync event day status from Supabase
+        syncEventDayStatusFromSupabase().then(status => {
+            if (isMounted) setEventDayStarted(status);
+        });
 
         // REAL-TIME SUBSCRIPTION
         const channel = supabase

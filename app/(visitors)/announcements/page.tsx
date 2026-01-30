@@ -6,7 +6,7 @@ import { Bell, Tag, Info, AlertTriangle, CheckCircle, AlertOctagon } from 'lucid
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
 import { COMPETITION_CATEGORIES, getCompetitionName } from '@/lib/constants';
-import { getCompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 import RestrictionScreen from '@/components/common/RestrictionScreen';
 
 const TYPE_CONFIG: any = {
@@ -37,7 +37,10 @@ export default function AnnouncementsPage() {
 
             if (error) throw error;
             setAnnouncements(data || []);
-            setEventDayStarted(getCompetitionState().eventDayStarted);
+
+            // Sync event day status from Supabase on every fetch
+            const syncedStatus = await syncEventDayStatusFromSupabase();
+            setEventDayStarted(syncedStatus);
         } catch (err) {
             console.error('Error fetching announcements:', err);
         } finally {
@@ -46,6 +49,11 @@ export default function AnnouncementsPage() {
     };
 
     useEffect(() => {
+        // Sync event day status from database first
+        syncEventDayStatusFromSupabase().then(status => {
+            setEventDayStarted(status);
+        });
+
         fetchAnnouncements();
 
         const channel = supabase

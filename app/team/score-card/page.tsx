@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 import { RestrictionScreen } from '../components';
-import { getCompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 
 export default function TeamScoreHistoryPage() {
     const [loading, setLoading] = useState(true);
@@ -21,7 +21,12 @@ export default function TeamScoreHistoryPage() {
             return;
         }
         setSession(currentSession);
-        setEventDayStarted(getCompetitionState().eventDayStarted);
+
+        // Sync event day status from Supabase
+        syncEventDayStatusFromSupabase().then(status => {
+            setEventDayStarted(status);
+        });
+
         setLoading(false);
     }, [router]);
 

@@ -71,6 +71,33 @@ export function getCompetitionState(): CompetitionState {
     }
 }
 
+/**
+ * Sync Event Day status from Supabase to local state
+ * This should be called on page load to ensure cross-device consistency
+ */
+export async function syncEventDayStatusFromSupabase(): Promise<boolean> {
+    try {
+        const { fetchCompetitionsFromSupabase } = await import('./supabaseData');
+        const competitions = await fetchCompetitionsFromSupabase('minimal', true); // Force refresh
+
+        if (competitions && competitions.length > 0) {
+            // Use the first competition's event_day_started status as the global flag
+            const eventDayStarted = competitions[0].event_day_started || false;
+            console.log('[SYNC] Event Day status from Supabase:', eventDayStarted);
+
+            // Update local state to match database
+            await updateCompetitionState({ eventDayStarted }, { syncRemote: false, suppressEvent: false });
+
+            return eventDayStarted;
+        }
+
+        return false;
+    } catch (error) {
+        console.error('[SYNC ERROR] Failed to fetch event day status from Supabase:', error);
+        return getCompetitionState().eventDayStarted; // Fallback to cached state
+    }
+}
+
 export async function updateCompetitionState(
     updates: Partial<CompetitionState>,
     options: boolean | { syncRemote?: boolean, suppressEvent?: boolean } = false
