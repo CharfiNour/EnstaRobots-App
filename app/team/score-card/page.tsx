@@ -44,9 +44,8 @@ export default function TeamScoreHistoryPage() {
         // Sync event day status from Supabase
         syncEventDayStatusFromSupabase().then(status => {
             setEventDayStarted(status);
+            setLoading(false);
         });
-
-        setLoading(false);
     }, [router]);
 
     // Event Day Restriction

@@ -94,8 +94,9 @@ export default function CompetitionsPage() {
     const [allTeams, setAllTeams] = useState<Team[]>(initialTeams);
     const [dbComps, setDbComps] = useState<any[]>(initialComps);
     const [eventDayStarted, setEventDayStarted] = useState(false);
+    const [checkingEventStatus, setCheckingEventStatus] = useState(true);
 
-    // UI rule: only show spinner if NO data exists at all
+    // UI rule: only show spinner if NO data exists at all OR checking status
     const [loading, setLoading] = useState(initialComps.length === 0);
 
     const refreshData = useCallback(async (force: boolean = false) => {
@@ -170,6 +171,7 @@ export default function CompetitionsPage() {
         // Sync event day status from Supabase on mount
         syncEventDayStatusFromSupabase().then(status => {
             setEventDayStarted(status);
+            setCheckingEventStatus(false);
         });
 
         refreshData(false);
@@ -199,7 +201,7 @@ export default function CompetitionsPage() {
         return <RestrictionScreen />;
     }
 
-    if (loading) {
+    if (loading || checkingEventStatus) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin grayscale opacity-30"></div>
