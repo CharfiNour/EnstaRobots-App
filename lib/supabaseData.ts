@@ -243,10 +243,12 @@ export async function fetchTeamsFromSupabase(fields: 'minimal' | 'full' = 'full'
             // Pattern 2: "CLUB UNKNOWN" or "UNKNOWN CLUB"
             const isUnknownClub = clubName.includes('UNKNOWN') || teamName.includes('UNKNOWN');
 
-            // Pattern 3: Incomplete slots
-            const isDummySlot = t.isPlaceholder && (teamName === 'SLOT' || !t.competition);
+            // Pattern 3: Incomplete/Garbage slots
+            // We hide placeholders ONLY if they have no club assigned (truly empty)
+            // This allows Admin-created slots (which have a club) to be visible
+            const isGarbageSlot = t.isPlaceholder && !t.competition && (!t.club || t.club.trim() === '');
 
-            return !isTeam42 && !isUnknownClub && !isDummySlot;
+            return !isTeam42 && !isUnknownClub && !isGarbageSlot;
         });
 
         // Store in cache

@@ -92,6 +92,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
 
     const handleAddSlotToClub = async (clubName: string) => {
         if (isSubmitting) return;
+
         setIsSubmitting(true);
         try {
             const newTeams = generateClubSlots(clubName, 1);
