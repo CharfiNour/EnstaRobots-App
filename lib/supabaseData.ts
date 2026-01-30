@@ -24,7 +24,7 @@ export async function fetchCompetitionsFromSupabase(fields: 'minimal' | 'full' =
     }
 
     const selectQuery = fields === 'minimal'
-        ? 'id, name, type, current_phase, total_teams, total_matches, arena, schedule'
+        ? 'id, name, type, current_phase, total_teams, total_matches, arena, schedule, event_day_started'
         : '*';
 
     try {
