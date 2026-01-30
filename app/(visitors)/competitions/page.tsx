@@ -93,8 +93,9 @@ export default function CompetitionsPage() {
     const [compState, setCompState] = useState(getCompetitionState());
     const [allTeams, setAllTeams] = useState<Team[]>(initialTeams);
     const [dbComps, setDbComps] = useState<any[]>(initialComps);
-    const [eventDayStarted, setEventDayStarted] = useState(false);
-    const [checkingEventStatus, setCheckingEventStatus] = useState(true);
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
+    // If we already know it's started (from memory), we don't need to block UI, but we still verify
+    const [checkingEventStatus, setCheckingEventStatus] = useState(!getCompetitionState().eventDayStarted);
 
     // UI rule: only show spinner if NO data exists at all OR checking status
     const [loading, setLoading] = useState(initialComps.length === 0);
