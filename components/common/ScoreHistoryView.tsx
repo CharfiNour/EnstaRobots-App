@@ -1451,21 +1451,51 @@ export default function ScoreHistoryView({
                                                                                 const sub = (participant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
                                                                                 if (!sub) return null;
                                                                                 const st = (sub.status || '').toLowerCase();
-                                                                                const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated'].includes(st);
-                                                                                const isWinner = st === 'winner';
-                                                                                const isEliminated = st === 'eliminated';
+
+                                                                                // Calculate result client-side if status is generic "validated" or "finished"
+                                                                                let displayStatus = st;
+                                                                                let isWinner = st === 'winner';
+                                                                                let isEliminated = st === 'eliminated';
+                                                                                let isDraw = st === 'draw';
+
+                                                                                if (group.type === 'match' && (st === 'validated' || st === 'finished')) {
+                                                                                    const myScore = sub.totalPoints || 0;
+                                                                                    // Find opponent in the same match group
+                                                                                    const opponentParticipant = group.participants.find((p: any) => p.teamId !== participant.teamId);
+                                                                                    if (opponentParticipant) {
+                                                                                        const opponentSub = (opponentParticipant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
+                                                                                        if (opponentSub) {
+                                                                                            const opponentScore = opponentSub.totalPoints || 0;
+                                                                                            if (myScore > opponentScore) {
+                                                                                                isWinner = true;
+                                                                                                displayStatus = 'winner';
+                                                                                            } else if (myScore < opponentScore) {
+                                                                                                isEliminated = true;
+                                                                                                displayStatus = 'eliminated';
+                                                                                            } else {
+                                                                                                isDraw = true;
+                                                                                                displayStatus = 'draw';
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+
+                                                                                const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw'].includes(displayStatus);
 
                                                                                 if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
                                                                                 return (
                                                                                     <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
-                                                                                        isFinalized ? (isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600') :
-                                                                                            'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
+                                                                                        isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' :
+                                                                                            isDraw ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' :
+                                                                                                isFinalized ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                                                                                    'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
                                                                                         }`}>
                                                                                         {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
                                                                                             isWinner ? 'WIN' :
-                                                                                                isEliminated ? 'OUT' :
-                                                                                                    isFinalized ? '✓' : ''}
+                                                                                                isEliminated ? 'LOSE' :
+                                                                                                    isDraw ? 'DRAW' :
+                                                                                                        isFinalized ? 'DONE' : ''}
                                                                                     </div>
                                                                                 );
                                                                             })()}
@@ -1522,21 +1552,51 @@ export default function ScoreHistoryView({
                                                             const sub = (group.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
                                                             if (!sub) return null;
                                                             const st = (sub.status || '').toLowerCase();
-                                                            const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated'].includes(st);
-                                                            const isWinner = st === 'winner';
-                                                            const isEliminated = st === 'eliminated';
+
+                                                            // Calculate result client-side if status is generic "validated" or "finished"
+                                                            let displayStatus = st;
+                                                            let isWinner = st === 'winner';
+                                                            let isEliminated = st === 'eliminated';
+                                                            let isDraw = st === 'draw';
+
+                                                            if (group.type === 'match' && (st === 'validated' || st === 'finished')) {
+                                                                const myScore = sub.totalPoints || 0;
+                                                                // Find opponent in the same match group
+                                                                const opponentParticipant = group.participants?.find((p: any) => p.teamId !== group.teamId);
+                                                                if (opponentParticipant) {
+                                                                    const opponentSub = (opponentParticipant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
+                                                                    if (opponentSub) {
+                                                                        const opponentScore = opponentSub.totalPoints || 0;
+                                                                        if (myScore > opponentScore) {
+                                                                            isWinner = true;
+                                                                            displayStatus = 'winner';
+                                                                        } else if (myScore < opponentScore) {
+                                                                            isEliminated = true;
+                                                                            displayStatus = 'eliminated';
+                                                                        } else {
+                                                                            isDraw = true;
+                                                                            displayStatus = 'draw';
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw'].includes(displayStatus);
 
                                                             if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
                                                             return (
                                                                 <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
-                                                                    isFinalized ? (isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600') :
-                                                                        'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
+                                                                    isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' :
+                                                                        isDraw ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' :
+                                                                            isFinalized ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                                                                'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
                                                                     }`}>
                                                                     {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
                                                                         isWinner ? 'WIN' :
-                                                                            isEliminated ? 'OUT' :
-                                                                                isFinalized ? '✓' : ''}
+                                                                            isEliminated ? 'LOSE' :
+                                                                                isDraw ? 'DRAW' :
+                                                                                    isFinalized ? 'DONE' : ''}
                                                                 </div>
                                                             );
                                                         })()}
