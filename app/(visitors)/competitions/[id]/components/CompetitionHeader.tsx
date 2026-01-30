@@ -62,7 +62,7 @@ export function CompetitionHeader({ title, category, arena, isActuallyLive, acti
                             <motion.h1
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="text-4xl md:text-7xl font-black bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent tracking-[0.02em] uppercase italic leading-none truncate mb-4 md:mb-6"
+                                className="text-3xl md:text-7xl font-black bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent tracking-[0.02em] uppercase italic leading-[1.1] md:leading-none mb-4 md:mb-6"
                             >
                                 {title}
                             </motion.h1>

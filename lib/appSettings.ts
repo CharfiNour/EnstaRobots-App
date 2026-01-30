@@ -25,13 +25,21 @@ export async function fetchAppSettings(): Promise<AppSettings | null> {
             .single();
 
         if (error) {
-            console.error('[APP SETTINGS] Fetch error:', error);
+            // PGRST116 means "No rows found" - we treat this as null rather than an error
+            if (error.code === 'PGRST116') return null;
+
+            console.error('[APP SETTINGS] Fetch error details:', {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint
+            });
             return null;
         }
 
         return data as AppSettings;
-    } catch (e) {
-        console.error('[APP SETTINGS] Critical fetch error:', e);
+    } catch (e: any) {
+        console.error('[APP SETTINGS] Critical fetch error:', e?.message || e);
         return null;
     }
 }
