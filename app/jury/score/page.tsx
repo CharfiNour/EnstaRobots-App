@@ -75,6 +75,7 @@ export default function ScoreCardPage() {
     // Juries
     const [jury1, setJury1] = useState('');
     const [jury2, setJury2] = useState('');
+    const [jury3, setJury3] = useState('');
     const [availableJuries, setAvailableJuries] = useState<string[]>([]);
 
     // Competition Context
@@ -760,7 +761,7 @@ export default function ScoreCardPage() {
                 competitionType: competition.id,
                 phase: isHomo ? 'Homologation' : (isLineFollowerMode ? team.phase : globalPhase),
                 juryId: session.userId,
-                juryNames: [jury1, jury2],
+                juryNames: [jury1, jury2, jury3],
                 timeMs: isHomo ? undefined : totalTimeMs,
                 completedRoad: isLineFollowerMode ? completedRoad : undefined,
                 bonusPoints: isHomo ? totalHomo : bonuses,
@@ -984,9 +985,9 @@ export default function ScoreCardPage() {
                                         <JuryInputs
                                             jury1={jury1} setJury1={setJury1}
                                             jury2={jury2} setJury2={setJury2}
+                                            jury3={jury3} setJury3={setJury3}
                                             availableJuries={availableJuries}
                                             role={session?.role}
-                                            isGlobalClearance={!session?.competition}
                                         />
 
                                         <div className="w-full h-px bg-card-border" />
@@ -1083,9 +1084,9 @@ export default function ScoreCardPage() {
                                     <JuryInputs
                                         jury1={jury1} setJury1={setJury1}
                                         jury2={jury2} setJury2={setJury2}
+                                        jury3={jury3} setJury3={setJury3}
                                         availableJuries={availableJuries}
                                         role={session?.role}
-                                        isGlobalClearance={!session?.competition}
                                     />
 
                                     <div className="w-full h-px bg-card-border" />

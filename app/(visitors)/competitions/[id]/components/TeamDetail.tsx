@@ -74,10 +74,9 @@ export const TeamDetail = React.memo(({ team, currentCategory, onBack, isActuall
                     {/* Sector Badge - Restored Theme Color */}
                     <div className="absolute top-4 right-4 z-20">
                         <div className={`flex items-center gap-2 px-3.5 py-2 rounded-full border backdrop-blur-md shadow-lg ${themeBg}/30 border-${baseColor}/50 text-white min-w-fit shadow-${baseColor}/20`}>
-                            {currentCategory.toLowerCase().includes('fight') ? <Target size={14} className={themeColor} /> :
-                                currentCategory.toLowerCase().includes('line') ? <Zap size={14} className={themeColor} /> :
-                                    currentCategory.toLowerCase().includes('terrain') ? <Globe size={14} className={themeColor} /> :
-                                        <Activity size={14} className={themeColor} />}
+                            {currentCategory.toLowerCase().includes('line') ? <Zap size={14} className={themeColor} /> :
+                                currentCategory.toLowerCase().includes('terrain') ? <Globe size={14} className={themeColor} /> :
+                                    <Activity size={14} className={themeColor} />}
                             <span className="text-[10px] font-black uppercase tracking-widest leading-none drop-shadow-sm">
                                 {metadata?.name || currentCategory.replace(/_/g, ' ')}
                             </span>
@@ -120,12 +119,6 @@ export const TeamDetail = React.memo(({ team, currentCategory, onBack, isActuall
                                             {team?.university || 'Generic Univ'}
                                         </span>
                                     </div>
-                                    {mounted && isActuallyLive && (
-                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full backdrop-blur-md">
-                                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                            <span className="text-[9px] font-black text-red-500 uppercase leading-none">Live</span>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>

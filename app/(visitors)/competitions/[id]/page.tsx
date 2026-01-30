@@ -96,7 +96,6 @@ export default function CompetitionDetailPage() {
                                 }}
                                 loading={loading}
                                 category={resolvedCategory}
-                                liveTeamId={liveSession?.teamId}
                             />
                         </div>
 

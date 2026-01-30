@@ -52,7 +52,7 @@ export default function TeamsCodesTab({ teams, setTeams }: TeamsCodesTabProps) {
         if (lower.includes('junior') && lower.includes('terrain')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
         if (lower.includes('line')) return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
         if (lower.includes('terrain')) return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
-        if (lower.includes('fight')) return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+
         return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
     };
 

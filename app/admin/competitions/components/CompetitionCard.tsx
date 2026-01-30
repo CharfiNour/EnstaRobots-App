@@ -77,7 +77,7 @@ export default function CompetitionCard({ comp, index, onUpdate }: CompetitionCa
         const session = compState.liveSessions?.[comp.category];
         if (!session?.phase) return editedComp.status;
 
-        const allPhases = [...(CATEGORY_PHASES.line || []), ...(CATEGORY_PHASES.standard || []), ...(CATEGORY_PHASES.fight || [])];
+        const allPhases = [...(CATEGORY_PHASES.line || []), ...(CATEGORY_PHASES.standard || [])];
         const match = allPhases.find(p => p === session.phase);
         if (match) return match;
         // Fallback for custom/legacy phases

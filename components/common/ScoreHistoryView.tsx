@@ -12,6 +12,7 @@ import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
 import { fetchScoresFromSupabase, pushScoreToSupabase, fetchCompetitionsFromSupabase, clearAllScoresFromSupabase, fetchTeamsFromSupabase, fetchLiveSessionsFromSupabase, clearCategoryMatchesFromSupabase, clearCategoryScoresFromSupabase, deleteLiveSessionFromSupabase } from '@/lib/supabaseData';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { supabase } from '@/lib/supabase';
 import { COMPETITION_CATEGORIES as GLOBAL_CATEGORIES, getPhasesForCategory, getCategoryMetadata, LEGACY_ID_MAP, UUID_MAP, canonicalizeCompId } from '@/lib/constants';
 import { dataCache, cacheKeys } from '@/lib/dataCache';
 import DrawInterface from './DrawInterface';
@@ -245,6 +246,37 @@ export default function ScoreHistoryView({
             window.removeEventListener('storage', sync);
         };
     }, []);
+
+    // Realtime UI Sync: Draw Countdown
+    useEffect(() => {
+        if (!mounted || isAdmin || isJury) return;
+
+        const channel = supabase.channel('draw-sync')
+            .on('broadcast', { event: 'draw-started' }, ({ payload }) => {
+                console.log("📡 Received Draw Broadcast:", payload);
+                if (payload.compId === resolvedCompId && payload.phase === selectedPhaseFilter) {
+                    setDrawState('counting');
+                    let c = 3;
+                    setCountdown(c);
+
+                    const t = setInterval(() => {
+                        c--;
+                        if (c > 0) {
+                            setCountdown(c);
+                        } else {
+                            clearInterval(t);
+                            setDrawState('success');
+                            setTimeout(() => setDrawState('idle'), 2500);
+                        }
+                    }, 1000);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [mounted, isAdmin, isJury, resolvedCompId, selectedPhaseFilter]);
 
 
     // Realtime Updates
@@ -965,6 +997,18 @@ export default function ScoreHistoryView({
             let count = 3;
             setCountdown(count);
 
+            // Broadcast to visitors
+            const channel = supabase.channel('draw-sync');
+            channel.subscribe(status => {
+                if (status === 'SUBSCRIBED') {
+                    channel.send({
+                        type: 'broadcast',
+                        event: 'draw-started',
+                        payload: { compId: competitionId, phase: currentPhase }
+                    });
+                }
+            });
+
             const timer = setInterval(async () => {
                 count--;
                 if (count > 0) {
@@ -1054,6 +1098,7 @@ export default function ScoreHistoryView({
                             setDrawState('idle');
                         } finally {
                             setIsDrawLoading(false);
+                            setDrawState('idle');
                         }
                     }, 1500);
                 }
@@ -1647,7 +1692,7 @@ export default function ScoreHistoryView({
                 </div >
 
                 <AnimatePresence mode="wait">
-                    {(isAdmin || isJury) && isMatchBasedComp && (!isPhaseDrawn || drawState !== 'idle') ? (
+                    {isMatchBasedComp && (!isPhaseDrawn || drawState !== 'idle') ? (
                         <div className="flex-1 flex flex-col justify-center w-full min-h-full py-4 md:py-8">
                             <DrawInterface
                                 drawState={drawState}
@@ -1658,6 +1703,7 @@ export default function ScoreHistoryView({
                                 drawPlan={drawPlan}
                                 selectedPhase={selectedPhaseFilter}
                                 isLineFollower={selectedCompType.includes('line_follower')}
+                                isReadOnly={!(isAdmin || isJury)}
                             />
                         </div>
                     ) : currentScoreGroup ? (

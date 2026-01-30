@@ -35,20 +35,11 @@ export const COMPETITION_CATEGORIES = [
         borderColor: 'border-orange-500/50',
         badgeColor: 'bg-orange-500/10 text-orange-500 border-orange-500/20'
     },
-    {
-        id: 'fight',
-        name: 'Fight',
-        type: 'fight',
-        color: 'from-rose-500/20 to-card',
-        borderColor: 'border-rose-500/50',
-        badgeColor: 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-    },
 ];
 
 export const CATEGORY_PHASES: Record<string, string[]> = {
     line: ['Essay 1', 'Essay 2'],
     standard: ['Qualifications', '1/8 Finals', '1/4 Finals', '1/2 Finals', 'Final'],
-    fight: ['Qualifications', 'Quarter-Finals', 'Semi-Finals', 'Final']
 };
 
 export const ALL_STATUSES = [
@@ -68,7 +59,6 @@ export const LEGACY_ID_MAP: Record<string, string> = {
     'junior_all_terrain': '2',
     'line_follower': '3',
     'all_terrain': '4',
-    'fight': '5'
 };
 
 export const UUID_MAP: Record<string, string> = {
@@ -76,15 +66,11 @@ export const UUID_MAP: Record<string, string> = {
     'f161dc54-6c30-4405-b142-909f4187c486': 'junior_all_terrain',
     'ccf1d967-0071-4281-97d0-1ebc359972a4': 'line_follower',
     '0ea82341-6b73-4418-a4b9-b040492074f6': 'all_terrain',
-    'c303ea7d-59a2-43d7-9084-b5a3c1b83811': 'fight'
 };
 
 export function getPhasesForCategory(categoryType: string): string[] {
     if (categoryType === 'line_follower' || categoryType === 'junior_line_follower') {
         return CATEGORY_PHASES.line;
-    }
-    if (categoryType === 'fight') {
-        return CATEGORY_PHASES.fight;
     }
     return CATEGORY_PHASES.standard;
 }
@@ -156,7 +142,6 @@ export function canonicalizeCompId(id: string | any | undefined, dbComps: any[] 
         '2': 'junior_all_terrain',
         '3': 'line_follower',
         '4': 'all_terrain',
-        '5': 'fight'
     };
 
     const UUID_MAP: Record<string, string> = {
@@ -164,7 +149,6 @@ export function canonicalizeCompId(id: string | any | undefined, dbComps: any[] 
         'f161dc54-6c30-4405-b142-909f4187c486': 'junior_all_terrain',
         'ccf1d967-0071-4281-97d0-1ebc359972a4': 'line_follower',
         '0ea82341-6b73-4418-a4b9-b040492074f6': 'all_terrain',
-        'c303ea7d-59a2-43d7-9084-b5a3c1b83811': 'fight'
     };
 
     // 1. Direct match with standard category types (the "canonical" form)

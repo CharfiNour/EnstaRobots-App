@@ -12,10 +12,9 @@ interface TeamSidebarProps {
     onSelect: (team: Team) => void;
     loading: boolean;
     category: string;
-    liveTeamId?: string | null;
 }
 
-export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category, liveTeamId }: TeamSidebarProps) {
+export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category }: TeamSidebarProps) {
     const [mounted, setMounted] = useState(false);
     const metadata = getCategoryMetadata(category);
 
@@ -37,11 +36,7 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
         );
     }
 
-    const sortedTeams = [...teams].sort((a, b) => {
-        if (a.id === liveTeamId) return -1;
-        if (b.id === liveTeamId) return 1;
-        return 0;
-    });
+    const sortedTeams = teams;
 
     return (
         <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 no-scrollbar">
@@ -64,11 +59,7 @@ export function TeamSidebar({ teams, selectedTeamId, onSelect, loading, category
                         : `bg-white/60 border-card-border hover:${themeBorder}/20 hover:bg-white/80 shadow-sm`
                         }`}
                 >
-                    {mounted && liveTeamId === team.id && (
-                        <div className="absolute top-2 right-2 z-10 scale-75 origin-top-right">
-                            <LiveBadge />
-                        </div>
-                    )}
+
 
                     <div className="w-14 h-14 rounded-xl bg-white flex-shrink-0 overflow-hidden border border-card-border shadow-md group-hover:scale-105 transition-transform duration-500">
                         {team.logo ? (

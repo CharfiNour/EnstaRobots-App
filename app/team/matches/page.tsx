@@ -5,7 +5,7 @@ import { Shield } from 'lucide-react';
 import {
     MatchesHeader,
     RobotModelView,
-    PdfViewer,
+    RulesDriveLink,
     ScheduleCard
 } from './components';
 import { RegistryAlert, RestrictionScreen } from '../components';
@@ -73,18 +73,16 @@ export default function TeamMatchesPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Left Side: Robot & PDFs */}
-                    <div className="lg:col-span-8 space-y-8">
+                    <div className="lg:col-span-8 space-y-7">
                         <RobotModelView
                             imageUrl={
                                 competitionCategory === 'all_terrain'
                                     ? '/maquette-all-terrain.png'
                                     : competitionCategory === 'junior_all_terrain'
                                         ? '/maquette-all-terrain-junior.png'
-                                        : competitionCategory === 'fight'
-                                            ? '/maquette-fight.png'
-                                            : isJunior
-                                                ? '/maquette-junior.jpg'
-                                                : '/suiveur.jpg'
+                                        : isJunior
+                                            ? '/maquette-junior.jpg'
+                                            : '/suiveur.jpg'
                             }
                             competitionName={getCompetitionName(teamData?.competition, competitions)}
                             maquetteUrl={
@@ -92,43 +90,36 @@ export default function TeamMatchesPage() {
                                     ? '/maquette-all-terrain.png'
                                     : competitionCategory === 'junior_all_terrain'
                                         ? '/maquette-all-terrain-junior.png'
-                                        : competitionCategory === 'fight'
-                                            ? '/maquette-fight.png'
-                                            : isJunior
-                                                ? '/maquette-junior.jpg'
-                                                : undefined
+                                        : isJunior
+                                            ? '/maquette-junior.jpg'
+                                            : undefined
                             }
                         />
 
-                        {/* For Line Follower: 2-column grid with CDC and Dimensions Criteria */}
-                        {(competitionCategory === 'line_follower' || competitionCategory === 'junior_line_follower') ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <PdfViewer
-                                    title="Competition Rules (CDC)"
-                                    pdfUrl={isJunior ? '/cdc-suiveur-junior.pdf' : '/cdc-suiveur.pdf'}
+                        {/* Rules & Documentation Links */}
+                        <div className="space-y-4">
+                            {(competitionCategory === 'all_terrain' || competitionCategory === 'junior_all_terrain') ? (
+                                <RulesDriveLink
+                                    title="All Terrain Rulebook"
+                                    subtitle="GDrive • CDC & Technical Specs"
+                                    driveUrl={
+                                        competitionCategory === 'junior_all_terrain'
+                                            ? "https://drive.google.com/drive/folders/1lMq411aTLxZ7BJIF_ErMK5ygCmbCenVb"
+                                            : "https://drive.google.com/drive/folders/15KO68D6kaZCwDp2e1ywioh1kjMtxPGPq"
+                                    }
                                 />
-                                <PdfViewer
-                                    title="Dimensions Criteria (Cotations)"
-                                    pdfUrl={isJunior ? '/cotations-junior.pdf' : '/cotations-suiveur.pdf'}
+                            ) : (
+                                <RulesDriveLink
+                                    title={isJunior ? "Junior Line Follower Rules" : "Line Follower Rules"}
+                                    subtitle="GDrive • CDC & Dimensions"
+                                    driveUrl={
+                                        isJunior
+                                            ? "https://drive.google.com/drive/folders/1buS6wBt85HhBNgbnICoIHoXcRBhu6Jwk"
+                                            : "https://drive.google.com/drive/folders/1yl9sEc_g3QfWf3xIFD2FQFs7tu2elRjr"
+                                    }
                                 />
-                            </div>
-                        ) : (
-                            /* For All Terrain, Fight and other competitions: Full width CDC only */
-                            <PdfViewer
-                                title="Competition Rules (CDC)"
-                                pdfUrl={
-                                    competitionCategory === 'all_terrain'
-                                        ? '/cdc-all-terrain.pdf'
-                                        : competitionCategory === 'junior_all_terrain'
-                                            ? '/cdc-all-terrain-junior.pdf'
-                                            : competitionCategory === 'fight'
-                                                ? '/cdc-fight.pdf'
-                                                : isJunior
-                                                    ? '/cdc-suiveur-junior.pdf'
-                                                    : '/cdc-suiveur.pdf'
-                                }
-                            />
-                        )}
+                            )}
+                        </div>
                     </div>
 
                     {/* Right Side: Schedule & Status */}

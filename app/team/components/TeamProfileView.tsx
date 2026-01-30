@@ -18,7 +18,6 @@ const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: an
     junior_all_terrain: { name: 'Junior All Terrain', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20', icon: Globe },
     line_follower: { name: 'Line Follower', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Box },
     all_terrain: { name: 'All Terrain', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20', icon: Globe },
-    fight: { name: 'Fight', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20', icon: Target },
 };
 
 interface TeamProfileViewProps {
@@ -109,7 +108,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
             if (lower.includes('junior') && lower.includes('terrain')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
             if (lower.includes('line')) return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
             if (lower.includes('terrain')) return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
-            if (lower.includes('fight')) return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+
         }
 
         return 'bg-role-primary/10 text-role-primary border-role-primary/20';

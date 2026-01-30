@@ -100,7 +100,7 @@ export default function TeamScoreHistoryPage() {
                 <ScoreHistoryView
                     isSentToTeamOnly={true}
                     lockedCompetitionId={teamCompetition || session?.competition}
-                    teamId={session?.teamId}
+
                 />
             </div>
         </div>

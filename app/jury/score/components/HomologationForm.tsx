@@ -18,8 +18,6 @@ export default function HomologationForm({
     remarks,
     setRemarks
 }: HomologationFormProps) {
-    const isFighter = competitionType === 'fight';
-
     const handleScoreChange = (field: string, value: string) => {
         const val = parseInt(value) || 0;
         setHomologationScores({
@@ -28,30 +26,12 @@ export default function HomologationForm({
         });
     };
 
-    const getFieldMax = (field: string) => {
-        if (isFighter) {
-            if (['conception_mecanique', 'conception_electrique'].includes(field)) return 15;
-            if (['carte_puissance', 'carte_commande'].includes(field)) return 10;
-            if (field === 'arme') return 20;
-            if (field === 'telecommande') return 15;
-        }
-        return 10; // Default for Line Follower and All Terrain
-    };
-
-    const fields = isFighter ? [
-        { id: 'conception_mecanique', label: 'Mechanical Design', icon: <Settings size={16} />, max: 15 },
-        { id: 'conception_electrique', label: 'Electrical Design', icon: <Zap size={16} />, max: 15 },
-        { id: 'carte_puissance', label: 'Power Board', icon: <Cpu size={16} />, max: 10 },
-        { id: 'carte_commande', label: 'Control Board', icon: <Cpu size={16} />, max: 10 },
-        { id: 'arme', label: 'Weapon', icon: <Shield size={16} />, max: 20 },
-        { id: 'telecommande', label: 'Remote Control', icon: <Gamepad2 size={16} />, max: 15 },
-    ] : [
+    const fields = [
         { id: 'conception_mecanique', label: 'Mechanical Design', icon: <Settings size={16} />, max: 10 },
         { id: 'conception_electrique', label: 'Electrical Design', icon: <Zap size={16} />, max: 10 },
         { id: 'carte_puissance', label: 'Power Board', icon: <Cpu size={16} />, max: 10 },
         { id: 'carte_commande', label: 'Control Board', icon: <Cpu size={16} />, max: 10 },
     ];
-
     const totalScore = Object.values(homologationScores).reduce((a, b) => a + b, 0);
 
     return (
@@ -63,7 +43,7 @@ export default function HomologationForm({
                 </h3>
                 <div className="px-3 py-1 bg-accent/20 rounded-lg border border-accent/30">
                     <span className="text-xs font-black text-accent uppercase">
-                        Total {totalScore} / {isFighter ? 85 : 40}
+                        Total {totalScore} / 40
                     </span>
                 </div>
             </div>

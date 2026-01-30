@@ -101,7 +101,6 @@ export default function CompetitionSelector({
                                                 case 'junior_all_terrain': return 'bg-emerald-500';
                                                 case 'line_follower': return 'bg-indigo-500';
                                                 case 'all_terrain': return 'bg-orange-500';
-                                                case 'fight': return 'bg-rose-500';
                                                 default: return 'bg-green-500';
                                             }
                                         })()}`} />

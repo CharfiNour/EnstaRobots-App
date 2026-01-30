@@ -270,10 +270,10 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
 
                                     return (
                                         <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${isWinner ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
-                                                isEliminated ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                                    isDraw ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                                        isFinalized ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
-                                                            'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
+                                            isEliminated ? 'bg-red-500/10 border-red-500/30 text-red-600' :
+                                                isDraw ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                                                    isFinalized ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
+                                                        'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
                                             }`}>
                                             {isWinner && '🏆 '}
                                             {isHomologation ? `${currentScore.totalPoints} PTS` :
@@ -310,13 +310,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                             <div className="grid gap-2">
                                                 {Object.entries(currentScore.detailedScores || {}).map(([id, pts]) => {
                                                     const label = id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                                                    const isFighter = competitionType === 'fight';
-                                                    const max = isFighter ? (
-                                                        ['conception_mecanique', 'conception_electrique'].includes(id) ? 15 :
-                                                            ['carte_puissance', 'carte_commande'].includes(id) ? 10 :
-                                                                id === 'arme' ? 20 :
-                                                                    id === 'telecommande' ? 15 : 10
-                                                    ) : 10;
+                                                    const max = 10;
 
                                                     return (
                                                         <div key={id} className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-card-border/50 group hover:bg-muted/30 transition-all">
