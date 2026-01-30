@@ -12,6 +12,7 @@ export default function TeamScoreHistoryPage() {
     const [loading, setLoading] = useState(true);
     const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [session, setSession] = useState<any>(null);
+    const [teamCompetition, setTeamCompetition] = useState<string | undefined>(undefined);
     const router = useRouter();
 
     useEffect(() => {
@@ -21,6 +22,24 @@ export default function TeamScoreHistoryPage() {
             return;
         }
         setSession(currentSession);
+
+        // Fetch user's competition directly to ensure accuracy (session might be stale)
+        const loadTeamInfo = async () => {
+            if (currentSession.teamId) {
+                // Try to find the team's assigned competition from the full list or direct query
+                try {
+                    const { fetchTeamsFromSupabase } = await import('@/lib/supabaseData');
+                    const teams = await fetchTeamsFromSupabase();
+                    const myTeam = teams.find(t => t.id === currentSession.teamId);
+                    if (myTeam && myTeam.competition) {
+                        setTeamCompetition(myTeam.competition);
+                    }
+                } catch (e) {
+                    console.error("Failed to load team context", e);
+                }
+            }
+        };
+        loadTeamInfo();
 
         // Sync event day status from Supabase
         syncEventDayStatusFromSupabase().then(status => {
@@ -74,7 +93,7 @@ export default function TeamScoreHistoryPage() {
 
                 <ScoreHistoryView
                     isSentToTeamOnly={true}
-                    lockedCompetitionId={session?.competition}
+                    lockedCompetitionId={teamCompetition || session?.competition}
                     teamId={session?.teamId}
                 />
             </div>
