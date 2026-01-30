@@ -140,11 +140,10 @@ export async function syncGlobalProfilesLockToSupabase(locked: boolean) {
 import { getSession, getUserRole } from './auth';
 
 export async function syncGlobalEventDayStatusToSupabase(started: boolean) {
-    // SECURITY: Only Admin can orchestrate global event visibility
-    if (getUserRole() !== 'admin') {
-        console.warn('MISSION REJECTED: Unauthorized unit attempted to broadcast global event status.');
-        return;
-    }
+    // NOTE: Authorization should be handled by Supabase RLS policies on the competitions table
+    // Client-side checks are informational only
+    const currentRole = getUserRole();
+    console.log('[EVENT DAY SYNC] Updating event status. Role:', currentRole, 'New state:', started ? 'LIVE' : 'CLOSED');
 
     try {
         const { error } = await (supabase.from('competitions') as any)
