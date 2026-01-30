@@ -16,43 +16,39 @@ class DataCache {
 
     // keys that should be persisted to disk for "Instant Load" next time
     // We do NOT persist scores because they change too fast and are heavy.
-    // keys that should be persisted to disk for "Instant Load" next time
-    private persistenceWhitelist = ['competitions:full', 'competitions:minimal', 'teams:full', 'teams:minimal', 'competitions:all', 'teams:all'];
+    // We disable disk persistence to prevent stale data issues across devices/modes.
+    // The whitelist is now empty, but we keep the list locally to clean up old data.
+    private legacyPersistenceKeys = ['competitions:full', 'competitions:minimal', 'teams:full', 'teams:minimal', 'competitions:all', 'teams:all'];
+    private persistenceWhitelist: string[] = [];
 
     // Different TTLs for different data types
     private ttlConfig = {
-        competitions: 60000 * 60, // 1 hour (cached on disk)
-        teams: 60000 * 5,        // 5 minutes (cached on disk)
+        competitions: 60000 * 60, // 1 hour (memory only)
+        teams: 60000 * 5,        // 5 minutes (memory only)
         scores: 10000,           // 10 seconds (memory only)
         liveSessions: 5000,      // 5 seconds (memory only)
     };
 
     constructor() {
         if (typeof window !== 'undefined') {
-            this.hydrateFromStorage();
+            this.clearLegacyStorage();
         }
     }
 
     /**
-     * Load persisted data into memory on startup
+     * Clean up any old localized data to ensure fresh state
      */
-    private hydrateFromStorage() {
+    private clearLegacyStorage() {
         if (typeof window === 'undefined') return;
 
-        this.persistenceWhitelist.forEach(key => {
+        this.legacyPersistenceKeys.forEach(key => {
             try {
-                const raw = localStorage.getItem(`datacache_${key}`);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    // We don't check expiry strictly for hydration, 
-                    // we want to show *something* instantly, then revalidate.
-                    this.cache.set(key, parsed);
-                    console.log(`💿 [DISK CACHE] Hydrated ${key}`);
-                }
+                localStorage.removeItem(`datacache_${key}`);
             } catch (e) {
-                console.warn("Failed to hydrate cache:", key);
+                // Ignore
             }
         });
+        console.log('🧹 [CACHE] Legacy disk cache cleared');
     }
 
     /**
@@ -65,12 +61,7 @@ class DataCache {
             return null;
         }
 
-        // For persisted keys, we might return stale data while fetching triggers elsewhere
-        // But for strict cache logic, we check expiry
         if (Date.now() > entry.expiresAt) {
-            // Optional: If it's a persisted key, we could return it anyway 
-            // but typical SWR pattern is handled by the hook/caller. 
-            // Here we strictly follow TTL to ensure freshness.
             this.cache.delete(key);
             return null;
         }
@@ -92,15 +83,7 @@ class DataCache {
         };
 
         this.cache.set(key, entry);
-
-        // Persist to disk if whitelisted
-        if (this.persistenceWhitelist.includes(key) && typeof window !== 'undefined') {
-            try {
-                localStorage.setItem(`datacache_${key}`, JSON.stringify(entry));
-            } catch (e) {
-                // Storage full? Ignore.
-            }
-        }
+        // Memory only - no disk write
     }
 
     /**

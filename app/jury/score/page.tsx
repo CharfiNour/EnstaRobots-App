@@ -381,18 +381,9 @@ export default function ScoreCardPage() {
                     setCompetition(assignedComp);
 
                     // Fetch available juries for this competition
-                    try {
-                        const storedCodes = localStorage.getItem('enstarobots_staff_codes');
-                        if (storedCodes) {
-                            const parsed: any[] = JSON.parse(storedCodes);
-                            const juryNames = parsed
-                                .filter(c => (c.role === 'jury' || c.role === 'homologation_jury') && (c.competition === currentSession.competition || c.competition === compFromDb.type))
-                                .map(c => c.name);
-                            setAvailableJuries(juryNames);
-                        }
-                    } catch (e) {
-                        console.error("Failed to load jury names", e);
-                    }
+                    // (Local storage loading removed for security/sync compliance)
+                    // Future enhancement: Fetch from Supabase directly if needed.
+                    setAvailableJuries([]);
                 }
             }
         }

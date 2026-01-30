@@ -19,24 +19,16 @@ const INITIAL_COMPS: CompetitionListItem[] = COMPETITION_CATEGORIES.map(c => ({
 }));
 
 export const getAdminCompetitions = (): CompetitionListItem[] => {
-    if (typeof window === 'undefined') return INITIAL_COMPS;
-    const stored = localStorage.getItem(COMPS_STORAGE_KEY);
-    if (!stored) return INITIAL_COMPS;
-    try {
-        const parsed = JSON.parse(stored);
-        // Blend saved state with system definitions to ensure all categories exist
-        return INITIAL_COMPS.map(systemComp => {
-            const savedComp = parsed.find((p: any) => p.category === systemComp.category || p.id === systemComp.id);
-            return savedComp ? { ...systemComp, ...savedComp } : systemComp;
-        });
-    } catch {
-        return INITIAL_COMPS;
+    // Return initial state to force fresh fetch/sync
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem(COMPS_STORAGE_KEY);
     }
+    return INITIAL_COMPS;
 };
 
 export const saveAdminCompetitions = (comps: CompetitionListItem[]) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(COMPS_STORAGE_KEY, JSON.stringify(comps));
+    // No-op persistence
     window.dispatchEvent(new Event('competitions-updated'));
 };
 

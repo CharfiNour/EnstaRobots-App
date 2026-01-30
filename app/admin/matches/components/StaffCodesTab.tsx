@@ -42,6 +42,9 @@ export default function StaffCodesTab() {
     }, []);
 
     const loadInitialData = async () => {
+        // Cleanup legacy storage
+        if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+
         // Load real competitions first
         const comps = await fetchCompetitionsFromSupabase();
         setRealCompetitions(comps);
@@ -73,14 +76,7 @@ export default function StaffCodesTab() {
                     setDbMissing(true);
                 }
 
-                // Fallback to localStorage
-                const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    setCodes(JSON.parse(stored));
-                } else {
-                    setCodes(DEFAULT_CODES);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CODES));
-                }
+                setCodes(DEFAULT_CODES);
                 return;
             }
 
@@ -94,10 +90,8 @@ export default function StaffCodesTab() {
                     competition_name: item.competition_name || undefined
                 }));
                 setCodes(formattedCodes);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(formattedCodes));
             } else {
                 setCodes(DEFAULT_CODES);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CODES));
             }
         } catch (err) {
             console.error('Exception loading staff codes:', err);
@@ -107,7 +101,6 @@ export default function StaffCodesTab() {
 
     const saveCodes = (newCodes: StaffCode[]) => {
         setCodes(newCodes);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newCodes));
     };
 
     const handleAdd = async () => {

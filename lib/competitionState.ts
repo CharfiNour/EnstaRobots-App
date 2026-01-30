@@ -38,37 +38,18 @@ const INITIAL_STATE: CompetitionState = {
     terminationTimestamps: {}
 };
 
-export function getCompetitionState(): CompetitionState {
-    if (typeof window === 'undefined') return INITIAL_STATE;
+// In-memory state storage (resets on page reload)
+let memoryState: CompetitionState = { ...INITIAL_STATE };
 
-    const stored = localStorage.getItem(STATE_STORAGE_KEY);
-    if (!stored) return INITIAL_STATE;
-
+// Clean up legacy localStorage on module load
+if (typeof window !== 'undefined') {
     try {
-        const parsed = JSON.parse(stored);
+        localStorage.removeItem(STATE_STORAGE_KEY);
+    } catch { }
+}
 
-        // Ensure liveSessions exists (migration from old state)
-        if (!parsed.liveSessions) {
-            parsed.liveSessions = {};
-            // Attempt to migrate old single session if exists
-            if (parsed.isLive && parsed.activeCompetitionId && parsed.activeTeamId) {
-                parsed.liveSessions[parsed.activeCompetitionId] = {
-                    teamId: parsed.activeTeamId,
-                    phase: parsed.currentPhase || '',
-                    startTime: parsed.startTime || Date.now()
-                };
-            }
-        }
-
-        return {
-            ...INITIAL_STATE,
-            ...parsed,
-            orderedCompetitions: parsed.orderedCompetitions || [],
-            terminationTimestamps: parsed.terminationTimestamps || {}
-        };
-    } catch {
-        return INITIAL_STATE;
-    }
+export function getCompetitionState(): CompetitionState {
+    return memoryState;
 }
 
 /**
@@ -102,11 +83,10 @@ export async function updateCompetitionState(
     updates: Partial<CompetitionState>,
     options: boolean | { syncRemote?: boolean, suppressEvent?: boolean } = false
 ): Promise<CompetitionState> {
-    if (typeof window === 'undefined') return INITIAL_STATE;
-
     const syncRemote = typeof options === 'boolean' ? options : (options.syncRemote ?? false);
     const suppressEvent = typeof options === 'object' ? (options.suppressEvent ?? false) : false;
 
+    // Update in-memory state
     const current = getCompetitionState();
     const newState = { ...current, ...updates };
 
@@ -114,7 +94,7 @@ export async function updateCompetitionState(
     const liveKeys = Object.keys(newState.liveSessions);
     newState.isLive = liveKeys.length > 0;
 
-    localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(newState));
+    memoryState = newState;
 
     // Sync to Supabase if liveSessions changed AND syncRemote is true
     if (updates.liveSessions && syncRemote) {

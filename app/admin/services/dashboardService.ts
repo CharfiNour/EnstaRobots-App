@@ -14,19 +14,15 @@ const DEFAULT_STATS: AdminStats = {
 };
 
 export const getAdminStats = (): AdminStats => {
-    if (typeof window === 'undefined') return DEFAULT_STATS;
-
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        return JSON.parse(saved);
+    // Return defaults/empty (component should fetch fresh)
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY);
     }
     return DEFAULT_STATS;
 };
 
 export const saveAdminStats = (stats: AdminStats): void => {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
-    }
+    // No-op
 };
 
 export const getRecentActivity = (): ActivityItemData[] => {

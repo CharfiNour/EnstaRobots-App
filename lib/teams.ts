@@ -37,43 +37,26 @@ const INITIAL_TEAMS: Team[] = [];
 
 const TEAMS_STORAGE_KEY = 'enstarobots_teams_v1';
 
-export function getTeams(): Team[] {
-    if (typeof window === 'undefined') return INITIAL_TEAMS;
-
-    const stored = localStorage.getItem(TEAMS_STORAGE_KEY);
-    if (!stored) return INITIAL_TEAMS;
-
+// Clean up legacy storage on module load
+if (typeof window !== 'undefined') {
     try {
-        const teams = JSON.parse(stored);
+        if (localStorage.getItem(TEAMS_STORAGE_KEY)) {
+            localStorage.removeItem(TEAMS_STORAGE_KEY);
+            console.log('🧹 [TEAMS] Legacy local teams cleared');
+        }
+    } catch { }
+}
 
-        // Simple deduplication and sanity check + strict "dead data" filtering
-        const seen = new Set();
-        return teams.filter((team: Team) => {
-            if (!team || !team.id || seen.has(team.id)) return false;
-
-            // Silently ignore dead placeholder data (Aggressive check)
-            const teamName = String(team.name || '').toUpperCase();
-            const robotName = String(team.robotName || '').toUpperCase();
-            const clubName = String(team.club || '').toUpperCase();
-
-            const isTeam42 = /TEAM\s*[-–—]?\s*42/.test(teamName) || /TEAM\s*[-–—]?\s*42/.test(robotName);
-            const isUnknownClub = clubName.includes('UNKNOWN') || teamName.includes('UNKNOWN');
-            const isDummySlot = team.isPlaceholder && (teamName === 'SLOT' || !team.competition);
-
-            if (isTeam42 || isUnknownClub || isDummySlot) return false;
-
-            seen.add(team.id);
-            return true;
-        });
-    } catch {
-        return INITIAL_TEAMS;
-    }
+export function getTeams(): Team[] {
+    // Always return empty/initial (forcing components to fetch from remote/cache)
+    return INITIAL_TEAMS;
 }
 
 
 export function saveTeams(teams: Team[]): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(teams));
+    // No-op for persistence (memory only)
+    // localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(teams));
     window.dispatchEvent(new Event('teams-updated'));
 }
 

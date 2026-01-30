@@ -33,10 +33,21 @@ export interface OfflineScore {
 
 const OFFLINE_SCORES_KEY = 'enstarobots_offline_scores_v2';
 
-// Save score offline
-export function saveScoreOffline(score: Omit<OfflineScore, 'id' | 'timestamp' | 'synced'>): void {
-    if (typeof window === 'undefined') return;
+// In-memory score buffer (RAM only)
+let memoryScores: OfflineScore[] = [];
 
+// Clean up legacy localStorage on module load
+if (typeof window !== 'undefined') {
+    try {
+        if (localStorage.getItem(OFFLINE_SCORES_KEY)) {
+            localStorage.removeItem(OFFLINE_SCORES_KEY);
+            console.log('🧹 [SCORES] Legacy offline scores cleared');
+        }
+    } catch { }
+}
+
+// Save score offline (to memory)
+export function saveScoreOffline(score: Omit<OfflineScore, 'id' | 'timestamp' | 'synced'>): void {
     const offlineScore: OfflineScore = {
         ...score,
         id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -44,49 +55,30 @@ export function saveScoreOffline(score: Omit<OfflineScore, 'id' | 'timestamp' | 
         synced: false,
     };
 
-    const existingScores = getOfflineScores();
-    existingScores.push(offlineScore);
-
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(existingScores));
+    memoryScores.push(offlineScore);
+    console.log('📝 [SCORE] Saved to memory buffer', offlineScore.id);
 }
 
-// Get all offline scores
+// Get all offline scores (from memory)
 export function getOfflineScores(): OfflineScore[] {
-    if (typeof window === 'undefined') return [];
-
-    const scoresStr = localStorage.getItem(OFFLINE_SCORES_KEY);
-    if (!scoresStr) {
-        return [];
-    }
-
-    try {
-        return JSON.parse(scoresStr);
-    } catch {
-        return [];
-    }
+    return memoryScores;
 }
 
 // Clear ALL offline scores (for reset purposes)
 export function clearAllOfflineScores(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(OFFLINE_SCORES_KEY);
+    memoryScores = [];
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem(OFFLINE_SCORES_KEY);
+    }
 }
 
 // Clear offline scores for a specific category (by ID variants)
 export function clearOfflineScoresForCategory(identifiers: string[]): void {
-    if (typeof window === 'undefined') return;
-
-    const scores = getOfflineScores();
-    const remaining = scores.filter(s => {
+    memoryScores = memoryScores.filter(s => {
         // If score's competitionType matches ANY of the identifiers, filter it out
         const type = String(s.competitionType || '').toLowerCase();
         return !identifiers.some(id => id.toLowerCase() === type);
     });
-
-    // If we filtered anything out, update storage
-    if (remaining.length !== scores.length) {
-        localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(remaining));
-    }
 }
 
 // Get unsynced scores
@@ -96,44 +88,26 @@ export function getUnsyncedScores(): OfflineScore[] {
 
 // Mark score as synced
 export function markScoreAsSynced(scoreId: string): void {
-    if (typeof window === 'undefined') return;
-
-    const scores = getOfflineScores();
-    const updatedScores = scores.map((s) =>
+    memoryScores = memoryScores.map((s) =>
         s.id === scoreId ? { ...s, synced: true } : s
     );
-
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
 }
 
 // Mark score as sent to team
 export function sendScoreToTeam(scoreId: string): void {
-    if (typeof window === 'undefined') return;
-
-    const scores = getOfflineScores();
-    const updatedScores = scores.map((s) =>
+    memoryScores = memoryScores.map((s) =>
         s.id === scoreId ? { ...s, isSentToTeam: true } : s
     );
-
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
 }
 
 // Delete score
 export function deleteScore(scoreId: string): void {
-    if (typeof window === 'undefined') return;
-
-    const scores = getOfflineScores();
-    const updatedScores = scores.filter((s) => s.id !== scoreId);
-
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
+    memoryScores = memoryScores.filter((s) => s.id !== scoreId);
 }
 
 // Update score
 export function updateScore(scoreId: string, updates: Partial<OfflineScore>): void {
-    if (typeof window === 'undefined') return;
-
-    const scores = getOfflineScores();
-    const updatedScores = scores.map((s) => {
+    memoryScores = memoryScores.map((s) => {
         if (s.id === scoreId) {
             const updated = { ...s, ...updates };
             // Recalculate total points if critical fields changed
@@ -142,16 +116,11 @@ export function updateScore(scoreId: string, updates: Partial<OfflineScore>): vo
         }
         return s;
     });
-
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(updatedScores));
 }
 
 // Clear synced scores (optional cleanup)
 export function clearSyncedScores(): void {
-    if (typeof window === 'undefined') return;
-
-    const unsyncedScores = getUnsyncedScores();
-    localStorage.setItem(OFFLINE_SCORES_KEY, JSON.stringify(unsyncedScores));
+    memoryScores = getUnsyncedScores();
 }
 
 // Calculate total points based on competition type
