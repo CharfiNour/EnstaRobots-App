@@ -146,13 +146,22 @@ export async function syncGlobalEventDayStatusToSupabase(started: boolean) {
     console.log('[EVENT DAY SYNC] Updating event status. Role:', currentRole, 'New state:', started ? 'LIVE' : 'CLOSED');
 
     try {
-        const { error } = await (supabase.from('competitions') as any)
+        const { data, error, count } = await (supabase.from('competitions') as any)
             .update({ event_day_started: started })
-            .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
+            .neq('id', '00000000-0000-0000-0000-000000000000') // Update all
+            .select();
 
         if (error) {
-            console.error('Error syncing global event day status:', error);
+            console.error('❌ [EVENT DAY SYNC ERROR]', {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint
+            });
+            return;
         }
+
+        console.log(`✅ [EVENT DAY SYNC SUCCESS] Updated ${data?.length || 0} competition(s) to: ${started ? 'LIVE' : 'CLOSED'}`);
     } catch (e) {
         console.error('Critical error in syncGlobalEventDayStatusToSupabase:', e);
     } finally {
