@@ -31,97 +31,51 @@ export interface OfflineScore {
     remarks?: string;
 }
 
-const OFFLINE_SCORES_KEY = 'enstarobots_offline_scores_v2';
+// IMPORTANT: Offline score storage and local persistence have been DISABLED as per request.
+// This module now acts as a pass-through and utility provider only.
 
-// In-memory score buffer (RAM only)
 let memoryScores: OfflineScore[] = [];
 
-// Clean up legacy localStorage on module load
-if (typeof window !== 'undefined') {
-    try {
-        if (localStorage.getItem(OFFLINE_SCORES_KEY)) {
-            localStorage.removeItem(OFFLINE_SCORES_KEY);
-            console.log('🧹 [SCORES] Legacy offline scores cleared');
-        }
-    } catch { }
+// Save score offline - DISABLED (Does nothing)
+export function saveScoreOffline(score: any): void {
+    console.warn('⚠️ [OFFLINE] saveScoreOffline called but persistence is DISABLED.');
 }
 
-// Save score offline (to memory)
-export function saveScoreOffline(score: Omit<OfflineScore, 'id' | 'timestamp' | 'synced'>): void {
-    const offlineScore: OfflineScore = {
-        ...score,
-        id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: Date.now(),
-        synced: false,
-    };
-
-    memoryScores.push(offlineScore);
-    console.log('📝 [SCORE] Saved to memory buffer', offlineScore.id);
-}
-
-// Get all offline scores (from memory)
+// Get all offline scores - ALWAYS EMPTY
 export function getOfflineScores(): OfflineScore[] {
-    return memoryScores;
+    return [];
 }
 
-// Clear ALL offline scores (for reset purposes)
+// Clear ALL offline scores - NO-OP
 export function clearAllOfflineScores(): void {
-    memoryScores = [];
     if (typeof window !== 'undefined') {
-        localStorage.removeItem(OFFLINE_SCORES_KEY);
+        localStorage.removeItem('enstarobots_offline_scores_v3');
+        localStorage.removeItem('enstarobots_offline_scores_v2');
     }
 }
 
-// Clear offline scores for a specific category (by ID variants)
-export function clearOfflineScoresForCategory(identifiers: string[]): void {
-    memoryScores = memoryScores.filter(s => {
-        // If score's competitionType matches ANY of the identifiers, filter it out
-        const type = String(s.competitionType || '').toLowerCase();
-        return !identifiers.some(id => id.toLowerCase() === type);
-    });
-}
+// Clear offline scores for a specific category - NO-OP
+export function clearOfflineScoresForCategory(identifiers: string[]): void { }
 
-// Get unsynced scores
+// Get unsynced scores - ALWAYS EMPTY
 export function getUnsyncedScores(): OfflineScore[] {
-    return getOfflineScores().filter((s) => !s.synced);
+    return [];
 }
 
-// Mark score as synced
-export function markScoreAsSynced(scoreId: string): void {
-    memoryScores = memoryScores.map((s) =>
-        s.id === scoreId ? { ...s, synced: true } : s
-    );
-}
+// Mark score as synced - NO-OP
+export function markScoreAsSynced(scoreId: string): void { }
 
-// Mark score as sent to team
-export function sendScoreToTeam(scoreId: string): void {
-    memoryScores = memoryScores.map((s) =>
-        s.id === scoreId ? { ...s, isSentToTeam: true } : s
-    );
-}
+// Mark score as sent to team - NO-OP
+export function sendScoreToTeam(scoreId: string): void { }
 
-// Delete score
-export function deleteScore(scoreId: string): void {
-    memoryScores = memoryScores.filter((s) => s.id !== scoreId);
-}
+// Delete score - NO-OP
+export function deleteScore(scoreId: string): void { }
 
-// Update score
-export function updateScore(scoreId: string, updates: Partial<OfflineScore>): void {
-    memoryScores = memoryScores.map((s) => {
-        if (s.id === scoreId) {
-            const updated = { ...s, ...updates };
-            // Recalculate total points if critical fields changed
-            updated.totalPoints = calculateTotalPoints(updated.competitionType, updated);
-            return updated;
-        }
-        return s;
-    });
-}
+// Update score - NO-OP
+export function updateScore(scoreId: string, updates: Partial<OfflineScore>): void { }
 
-// Clear synced scores (optional cleanup)
-export function clearSyncedScores(): void {
-    memoryScores = getUnsyncedScores();
-}
+// Clear synced scores - NO-OP
+export function clearSyncedScores(): void { }
 
 // Calculate total points based on competition type
 export function calculateTotalPoints(

@@ -105,7 +105,7 @@ export default function HeaderActions({
                             : (nextPhaseLabel ? `Start ${nextPhaseLabel}` : 'Re-Start Match'))
                         : (scoringMode === 'homologation'
                             ? 'Start Homologation'
-                            : `Start ${isLineFollower ? (teams[0]?.phase || 'Essay 1') : globalPhase}`)}
+                            : (isLineFollower ? `Start ${teams[0]?.phase || 'Essay 1'}` : 'START MATCH'))}
                 </button>
             )}
         </div>

@@ -6,7 +6,6 @@ import {
     ChevronRight, ChevronLeft, Search, Filter, Trophy, Timer, Swords,
     Target, Layers, AlertCircle, ClipboardCheck, ArrowUpRight, Shield, Trash2, Radar
 } from 'lucide-react';
-import { getOfflineScores, clearAllOfflineScores, clearOfflineScoresForCategory } from '@/lib/offlineScores';
 import { getTeams } from '@/lib/teams';
 import ScoreCard from '@/components/jury/ScoreCard';
 import { updateCompetitionState, getCompetitionState } from '@/lib/competitionState';
@@ -254,7 +253,10 @@ export default function ScoreHistoryView({
         const channel = supabase.channel('draw-sync')
             .on('broadcast', { event: 'draw-started' }, ({ payload }) => {
                 console.log("📡 Received Draw Broadcast:", payload);
-                if (payload.compId === resolvedCompId && payload.phase === selectedPhaseFilter) {
+                const payloadComp = canonicalizeCompId(payload.compId, competitions);
+                const currentComp = canonicalizeCompId(resolvedCompId, competitions);
+
+                if (payloadComp === currentComp && phasesMatch(payload.phase, selectedPhaseFilter)) {
                     setDrawState('counting');
                     let c = 3;
                     setCountdown(c);
@@ -284,7 +286,7 @@ export default function ScoreHistoryView({
         try {
             // Use allSettled to be resilient to partial connection failures on mobile
             const results = await Promise.allSettled([
-                fetchScoresFromSupabase(),
+                fetchScoresFromSupabase(true), // Force refresh to see new scores immediately
                 fetchTeamsFromSupabase(),
                 fetchCompetitionsFromSupabase()
             ]);
@@ -334,7 +336,7 @@ export default function ScoreHistoryView({
             try {
                 // Fetch remote data with individual error handling
                 const results = await Promise.allSettled([
-                    fetchScoresFromSupabase(),
+                    fetchScoresFromSupabase(true), // Force refresh to ensure data presence
                     fetchTeamsFromSupabase(),
                     fetchCompetitionsFromSupabase()
                 ]);
@@ -362,8 +364,7 @@ export default function ScoreHistoryView({
                 processScores(scores, teams, sortedComps);
             } catch (e) {
                 console.error("Failed to fetch initial data", e);
-                // Fallback to local
-                processScores(getOfflineScores(), getTeams(), []);
+                processScores([], [], []);
             } finally {
                 setLoading(false);
             }
@@ -373,12 +374,8 @@ export default function ScoreHistoryView({
 
     // Replaces loadScores but keeps the processing logic
     const processScores = (scoresList: any[], teamsList: any[], compsList: any[], forceSelectId?: string) => {
-        // Merge offline scores with local ones to ensure immediate visibility
-        const localScores = getOfflineScores();
-
-        // Use a map to deduplicate by ID, prioritizing remote scores
+        // Deduplicate by ID, prioritizing remote scores
         const scoreMap = new Map();
-        localScores.forEach(s => scoreMap.set(s.id, { ...s, synced: false }));
         scoresList.forEach(s => scoreMap.set(s.id, { ...s, synced: true }));
 
         const allTeams = teamsList;
@@ -559,7 +556,7 @@ export default function ScoreHistoryView({
     };
 
     const loadScores = (forceSelectId?: string) => {
-        processScores(getOfflineScores(), getTeams(), competitions, forceSelectId);
+        processScores([], getTeams(), competitions, forceSelectId);
     };
 
     const filteredGroups = useMemo(() => {
@@ -770,11 +767,14 @@ export default function ScoreHistoryView({
             );
             if (singleScores.length === 0) return { exists: false, finished: false };
 
+            // Ensure all registered teams in this competition have at least one record in this phase
+            const allTeamsAccountedFor = singleScores.length >= trulyUniqueTeams.length;
+
             const allSingleFinished = singleScores.every(g =>
                 g.submissions.filter((s: any) => phasesMatch(s.phase, phaseName))
                     .every((s: any) => s.status && s.status.toLowerCase() !== 'pending')
             );
-            return { exists: true, finished: allSingleFinished };
+            return { exists: true, finished: allTeamsAccountedFor && allSingleFinished };
         }
 
         // 2. CHECK ALL RELEVANT MATCH GROUPS
@@ -827,7 +827,7 @@ export default function ScoreHistoryView({
 
         console.log(`[Phase Progress] "${phaseName}" Summary: ${totalFinishedMatches}/${allMatchGroups.length} groups finished. Complete: ${isComplete}`);
         return { exists: hasStarted, finished: isComplete };
-    }, [groupedScores, selectedCompetition, competitions]);
+    }, [groupedScores, selectedCompetition, competitions, trulyUniqueTeams]);
 
     const phaseAccessibility = useMemo(() => {
         const map: Record<string, boolean> = {};
@@ -842,10 +842,7 @@ export default function ScoreHistoryView({
                 // A phase is accessible if:
                 // 1. The previous phase is finalized
                 // 2. OR the current phase ALREADY has scores/recordings (it exists)
-                // 3. OR it's a Line Follower category (less strict sequencing for essays)
-                const isLineFollower = selectedCompType.includes('line_follower');
-
-                map[phase] = prevProgress.finished || currentProgress.exists || (isLineFollower && prevProgress.exists);
+                map[phase] = prevProgress.finished || currentProgress.exists;
             }
         });
         return map;
@@ -855,6 +852,9 @@ export default function ScoreHistoryView({
         if (!selectedPhaseFilter || !isMatchBasedComp) return true;
 
         const canonicalTarget = canonicalizeCompId(selectedCompetition, competitions);
+        const isLineFollower = selectedCompType.includes('line_follower');
+        const firstPhase = allCompetitionPhases[0];
+
         return groupedScores.some(g => {
             const canonicalGComp = canonicalizeCompId(g.competitionType, competitions);
             if (canonicalGComp !== canonicalTarget) return false;
@@ -864,10 +864,15 @@ export default function ScoreHistoryView({
                     (p.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter))
                 );
             }
-            // For single-team types (like Line Follower), checking for any submission (including pending ones) means the order is set
-            return (g.submissions || []).some((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
+
+            // For single-team types (like Line Follower), checking for any submission means the order is set.
+            // If it's Line Follower, we also check if the FIRST phase was drawn.
+            return (g.submissions || []).some((s: any) =>
+                phasesMatch(s.phase, selectedPhaseFilter) ||
+                (isLineFollower && phasesMatch(s.phase, firstPhase))
+            );
         });
-    }, [selectedPhaseFilter, isMatchBasedComp, groupedScores, selectedCompetition, competitions]);
+    }, [selectedPhaseFilter, isMatchBasedComp, groupedScores, selectedCompetition, competitions, allCompetitionPhases, selectedCompType]);
 
     const isPrevPhaseFinished = useMemo(() => {
         const idx = allCompetitionPhases.indexOf(selectedPhaseFilter);
@@ -1149,7 +1154,6 @@ export default function ScoreHistoryView({
                 console.log("Nuclear Reset: Purging discovered variants:", Array.from(variants));
 
                 // 2. Clear Local Data (Scoped)
-                clearOfflineScoresForCategory(Array.from(variants));
                 dataCache.clear(); // Clear cache to ensure we don't serve stale data
 
                 // 3. Clear Database (Scores and Live Sessions)
@@ -1433,7 +1437,7 @@ export default function ScoreHistoryView({
 
                                                         {/* Rank Number - Only if they have submissions */}
                                                         {participant.submissions?.length > 0 && (
-                                                            <div className="text-xl font-black italic text-foreground tracking-tighter">
+                                                            <div className="text-xl font-black italic text-muted-foreground/30 tracking-tighter">
                                                                 #{globalIndex + 1}
                                                             </div>
                                                         )}
@@ -1502,47 +1506,36 @@ export default function ScoreHistoryView({
                                                                                 let isWinner = st === 'winner';
                                                                                 let isEliminated = st === 'eliminated';
                                                                                 let isDraw = st === 'draw';
+                                                                                const isQualified = st === 'qualified';
+
+                                                                                const partOpponent = group.participants.find((p: any) => p.teamId !== participant.teamId);
+                                                                                const partOpponentSub = partOpponent ? (partOpponent.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter)) : null;
 
                                                                                 if (group.type === 'match' && (st === 'validated' || st === 'finished')) {
                                                                                     const myScore = sub.totalPoints || 0;
-                                                                                    // Find opponent in the same match group
-                                                                                    const opponentParticipant = group.participants.find((p: any) => p.teamId !== participant.teamId);
-                                                                                    if (opponentParticipant) {
-                                                                                        const opponentSub = (opponentParticipant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
-                                                                                        if (opponentSub) {
-                                                                                            const opponentScore = opponentSub.totalPoints || 0;
-                                                                                            if (myScore > opponentScore) {
-                                                                                                isWinner = true;
-                                                                                                displayStatus = 'winner';
-                                                                                            } else if (myScore < opponentScore) {
-                                                                                                isEliminated = true;
-                                                                                                displayStatus = 'eliminated';
-                                                                                            } else {
-                                                                                                isDraw = true;
-                                                                                                displayStatus = 'draw';
-                                                                                            }
+                                                                                    if (partOpponentSub) {
+                                                                                        const opponentScore = partOpponentSub.totalPoints || 0;
+                                                                                        if (myScore > opponentScore) {
+                                                                                            isWinner = true;
+                                                                                            displayStatus = 'winner';
+                                                                                        } else if (myScore < opponentScore) {
+                                                                                            isEliminated = true;
+                                                                                            displayStatus = 'eliminated';
+                                                                                        } else if (myScore > 0 || opponentScore > 0) {
+                                                                                            isDraw = true;
+                                                                                            displayStatus = 'draw';
+                                                                                        } else {
+                                                                                            displayStatus = 'unplayed';
                                                                                         }
                                                                                     }
                                                                                 }
 
-                                                                                const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw'].includes(displayStatus);
-
+                                                                                const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw', 'success'].includes(displayStatus);
                                                                                 if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
-                                                                                return (
-                                                                                    <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
-                                                                                        isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' :
-                                                                                            isDraw ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' :
-                                                                                                isFinalized ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                                                                                                    'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
-                                                                                        }`}>
-                                                                                        {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
-                                                                                            isWinner ? 'WIN' :
-                                                                                                isEliminated ? 'LOSE' :
-                                                                                                    isDraw ? 'DRAW' :
-                                                                                                        isFinalized ? 'DONE' : ''}
-                                                                                    </div>
-                                                                                );
+                                                                                const isRealTie = isDraw && ((sub.totalPoints || 0) > 0 || (partOpponentSub?.totalPoints || 0) > 0);
+
+
                                                                             })()}
                                                                         </div>
                                                                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -1603,47 +1596,36 @@ export default function ScoreHistoryView({
                                                             let isWinner = st === 'winner';
                                                             let isEliminated = st === 'eliminated';
                                                             let isDraw = st === 'draw';
+                                                            let isQualified = st === 'qualified';
+
+                                                            const partOpponent = group.participants?.find((p: any) => p.teamId !== group.teamId);
+                                                            const partOpponentSub = partOpponent ? (partOpponent.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter)) : null;
 
                                                             if (group.type === 'match' && (st === 'validated' || st === 'finished')) {
                                                                 const myScore = sub.totalPoints || 0;
-                                                                // Find opponent in the same match group
-                                                                const opponentParticipant = group.participants?.find((p: any) => p.teamId !== group.teamId);
-                                                                if (opponentParticipant) {
-                                                                    const opponentSub = (opponentParticipant.submissions || []).find((s: any) => phasesMatch(s.phase, selectedPhaseFilter));
-                                                                    if (opponentSub) {
-                                                                        const opponentScore = opponentSub.totalPoints || 0;
-                                                                        if (myScore > opponentScore) {
-                                                                            isWinner = true;
-                                                                            displayStatus = 'winner';
-                                                                        } else if (myScore < opponentScore) {
-                                                                            isEliminated = true;
-                                                                            displayStatus = 'eliminated';
-                                                                        } else {
-                                                                            isDraw = true;
-                                                                            displayStatus = 'draw';
-                                                                        }
+                                                                if (partOpponentSub) {
+                                                                    const opponentScore = partOpponentSub.totalPoints || 0;
+                                                                    if (myScore > opponentScore) {
+                                                                        isWinner = true;
+                                                                        displayStatus = 'winner';
+                                                                    } else if (myScore < opponentScore) {
+                                                                        isEliminated = true;
+                                                                        displayStatus = 'eliminated';
+                                                                    } else if (myScore > 0 || opponentScore > 0) {
+                                                                        isDraw = true;
+                                                                        displayStatus = 'draw';
+                                                                    } else {
+                                                                        displayStatus = 'unplayed';
                                                                     }
                                                                 }
                                                             }
 
                                                             const isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw'].includes(displayStatus);
-
                                                             if (!isFinalized && selectedPhaseFilter?.toLowerCase() !== 'homologation') return null;
 
-                                                            return (
-                                                                <div className={`shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase ${isWinner ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600' :
-                                                                    isEliminated ? 'bg-red-500/10 border-red-500/20 text-red-600' :
-                                                                        isDraw ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' :
-                                                                            isFinalized ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                                                                                'bg-orange-500/10 border-orange-500/20 text-orange-600/80'
-                                                                    }`}>
-                                                                    {selectedPhaseFilter?.toLowerCase() === 'homologation' ? `${sub.totalPoints} PTS` :
-                                                                        isWinner ? 'WIN' :
-                                                                            isEliminated ? 'LOSE' :
-                                                                                isDraw ? 'DRAW' :
-                                                                                    isFinalized ? 'DONE' : ''}
-                                                                </div>
-                                                            );
+                                                            const isRealTie = isDraw && ((sub.totalPoints || 0) > 0 || (partOpponentSub?.totalPoints || 0) > 0);
+
+                                                            return null;
                                                         })()}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-0.5">
@@ -1661,7 +1643,7 @@ export default function ScoreHistoryView({
 
                                             {/* Rank Number for Single Type (e.g. Line Follower) - Only if they have submissions */}
                                             {isLineFollowerStyling && group.submissions?.length > 0 && (
-                                                <div className="text-xl font-black italic text-foreground tracking-tighter shrink-0 relative z-10">
+                                                <div className="text-xl font-black italic text-muted-foreground/30 tracking-tighter shrink-0 relative z-10">
                                                     #{globalIndex + 1}
                                                 </div>
                                             )}

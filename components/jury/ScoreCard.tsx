@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 import {
     Shield, Timer, Trophy, CheckCircle, Trash2, Edit2, X, Save, Users
 } from 'lucide-react';
-import { OfflineScore, deleteScore, updateScore } from '@/lib/offlineScores';
+import { type OfflineScore } from '@/lib/offlineScores';
 import { useState } from 'react';
-import { deleteScoreFromSupabase } from '@/lib/supabaseData';
+import { deleteScoreFromSupabase, pushScoreToSupabase } from '@/lib/supabaseData';
 import { getCategoryMetadata } from '@/lib/constants';
 
 interface ScoreCardProps {
@@ -69,11 +69,15 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
         setIsEditing(true);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!currentScore) return;
-        updateScore(currentScore.id, editData);
-        setIsEditing(false);
-        onDelete?.(); // Re-trigger load in parent
+        try {
+            await pushScoreToSupabase(editData as any);
+            setIsEditing(false);
+            onDelete?.(); // Re-trigger load in parent
+        } catch (err) {
+            alert("Failed to save changes to cloud.");
+        }
     };
 
     // Get other participants (exclude current team)
@@ -85,37 +89,24 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
         if (!sub) return null;
 
         let st = (sub.status || '').toLowerCase();
-        let isWinner = st === 'winner' || st === 'qualified';
+        let isWinner = st === 'winner';
         let isEliminated = st === 'eliminated';
         let isDraw = st === 'draw';
 
-        // Calculate result if generic/finished
-        if (group.type === 'match' && (st === 'validated' || st === 'finished' || st === 'pending')) {
-            const myScore = sub.totalPoints || 0;
-            // Compare with the main team in the card
-            const mainTeamSub = group.submissions.find(s => matchesPhase(s.phase, activePhase));
-            if (mainTeamSub) {
-                const mainTeamScore = mainTeamSub.totalPoints || 0;
-                if (myScore > mainTeamScore) {
-                    isWinner = true;
-                } else if (myScore < mainTeamScore) {
-                    isEliminated = true;
-                } else if (sub.totalPoints !== undefined && mainTeamSub.totalPoints !== undefined) {
-                    isDraw = true;
-                }
-            }
-        }
+        const isQualified = st === 'qualified';
 
         if (isWinner) {
-            return { label: 'Winner', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' };
+            return { label: 'WINNER', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' };
+        } else if (isQualified) {
+            return { label: 'QUALIFIED', color: 'bg-blue-500/10 border-blue-500/30 text-blue-600' };
         } else if (isEliminated) {
-            return { label: 'Lose', color: 'bg-red-500/10 border-red-500/30 text-red-600' };
+            return { label: 'ELIMINATED', color: 'bg-red-500/10 border-red-500/30 text-red-600' };
         } else if (isDraw) {
-            return { label: 'Draw', color: 'bg-orange-500/10 border-orange-500/30 text-orange-600' };
+            return { label: 'DRAW', color: 'bg-orange-500/10 border-orange-500/30 text-orange-600' };
         } else if (st === 'validated' || st === 'finished' || st === 'success') {
-            return { label: 'Done', color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' };
+            return { label: 'DONE', color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' };
         } else if (st === 'pending') {
-            return { label: 'Pending', color: 'bg-orange-500/5 border-orange-500/20 text-orange-500/80' };
+            return { label: 'PENDING', color: 'bg-orange-500/5 border-orange-500/20 text-orange-500/80' };
         }
 
         return null;
@@ -183,8 +174,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                     try {
                                                         // 1. Delete from Supabase first
                                                         await deleteScoreFromSupabase(currentScore.id);
-                                                        // 2. Clear from local just in case
-                                                        deleteScore(currentScore.id);
+                                                        // 2. Offline buffer is no longer used, so nothing to clear there.
                                                         // 3. Notify parent to refresh
                                                         onDelete?.();
                                                     } catch (err) {
@@ -243,44 +233,33 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             {hasScore && (
                                 (() => {
                                     const st = (currentScore.status || '').toLowerCase();
-                                    let isWinner = st === 'winner' || st === 'qualified';
+                                    let isWinner = st === 'winner';
                                     let isEliminated = st === 'eliminated';
                                     let isDraw = st === 'draw';
                                     let isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw', 'success'].includes(st);
 
-                                    // Calculate if generic
-                                    if (group.type === 'match' && (st === 'validated' || st === 'finished' || st === 'pending')) {
-                                        const myScore = currentScore.totalPoints || 0;
-                                        // Compare with opponents
-                                        const opponents = otherParticipants.flatMap(p => p.submissions.filter(s => matchesPhase(s.phase, activePhase)));
-                                        if (opponents.length > 0) {
-                                            const maxOpponentScore = Math.max(...opponents.map(o => o.totalPoints || 0));
-                                            if (myScore > maxOpponentScore) {
-                                                isWinner = true;
-                                                isFinalized = true;
-                                            } else if (myScore < maxOpponentScore) {
-                                                isEliminated = true;
-                                                isFinalized = true;
-                                            } else if (currentScore.totalPoints !== undefined) {
-                                                isDraw = true;
-                                                isFinalized = true;
-                                            }
-                                        }
-                                    }
+                                    // Calculate if generic logic REMOVED to respect explicit status submission
+
+
+                                    const isQualified = st === 'qualified';
+                                    const label = isHomologation ? `${currentScore.totalPoints} PTS` :
+                                        isWinner ? 'WINNER' :
+                                            isQualified ? 'QUALIFIED' :
+                                                isEliminated ? 'ELIMINATED' :
+                                                    isDraw ? 'DRAW' : (isFinalized ? 'DONE' : 'PENDING');
+
+                                    if (!label) return null;
 
                                     return (
                                         <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${isWinner ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
                                             isEliminated ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                                isDraw ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                                    isFinalized ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
-                                                        'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
+                                                isQualified ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
+                                                    isDraw ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                                                        isFinalized ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
+                                                            'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
                                             }`}>
                                             {isWinner && '🏆 '}
-                                            {isHomologation ? `${currentScore.totalPoints} PTS` :
-                                                isWinner ? 'WIN' :
-                                                    isEliminated ? 'LOSE' :
-                                                        isDraw ? 'DRAW' :
-                                                            isFinalized ? 'DONE' : 'PENDING'}
+                                            {label}
                                         </div>
                                     );
                                 })()

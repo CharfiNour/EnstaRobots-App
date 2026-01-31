@@ -14,10 +14,10 @@ import CustomSelector from '@/components/common/CustomSelector';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 
 const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: any }> = {
-    junior_line_follower: { name: 'Junior Line Follower', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: Zap },
-    junior_all_terrain: { name: 'Junior All Terrain', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20', icon: Globe },
-    line_follower: { name: 'Line Follower', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Box },
-    all_terrain: { name: 'All Terrain', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20', icon: Globe },
+    junior_line_follower: { name: 'Junior Line Follower', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20', icon: Zap },
+    junior_all_terrain: { name: 'Junior All Terrain', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: Globe },
+    line_follower: { name: 'Line Follower', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20', icon: Box },
+    all_terrain: { name: 'All Terrain', color: 'bg-orange-500/10 text-orange-500 border-orange-500/20', icon: Globe },
 };
 
 interface TeamProfileViewProps {

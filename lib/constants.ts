@@ -34,7 +34,7 @@ export const COMPETITION_CATEGORIES = [
         color: 'from-orange-500/20 to-card',
         borderColor: 'border-orange-500/50',
         badgeColor: 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-    },
+    }
 ];
 
 export const CATEGORY_PHASES: Record<string, string[]> = {
@@ -102,9 +102,9 @@ export function getCompetitionName(idOrSlug: string | undefined, dbComps: any[] 
 }
 
 export const STATUS_OPTIONS = [
-    { value: 'winner', label: 'Winner', color: 'text-yellow-600 dark:text-yellow-400' },
-    { value: 'qualified', label: 'Qualified', color: 'text-blue-600 dark:text-blue-400' },
-    { value: 'eliminated', label: 'Eliminated', color: 'text-red-600 dark:text-red-400' },
+    { value: 'winner', label: 'WINNER', color: 'text-yellow-600 dark:text-yellow-400' },
+    { value: 'qualified', label: 'QUALIFIED', color: 'text-blue-600 dark:text-blue-400' },
+    { value: 'eliminated', label: 'ELIMINATED', color: 'text-red-600 dark:text-red-400' },
 ];
 
 export const generateId = () => {

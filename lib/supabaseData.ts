@@ -493,10 +493,18 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
 }
 
 export async function pushScoreToSupabase(score: OfflineScore) {
+    // 1. Resolve Competition UUID from slug if needed
+    let resolvedCompId = score.competitionType;
+    if (score.competitionType && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(score.competitionType)) {
+        const comps = dataCache.get<any[]>(cacheKeys.competitions('minimal')) || [];
+        const match = comps.find(c => c.type === score.competitionType);
+        if (match?.id) resolvedCompId = match.id;
+    }
+
     const scoreData: any = {
         id: score.id && !score.id.startsWith('offline-') ? score.id : undefined,
         team_id: String(score.teamId),
-        competition_id: score.competitionType ? String(score.competitionType) : null,
+        competition_id: resolvedCompId ? String(resolvedCompId) : null,
         phase: score.phase || 'qualifications',
         match_id: score.matchId ? String(score.matchId) : null,
         time_ms: score.timeMs ?? null,
@@ -509,9 +517,13 @@ export async function pushScoreToSupabase(score: OfflineScore) {
         detailed_scores: score.detailedScores || null,
         judge_id: score.juryId && score.juryId !== '' ? String(score.juryId) : null,
         status: score.status || 'pending',
-        is_sent_to_team: !!score.isSentToTeam,
-        created_at: new Date(score.timestamp || Date.now()).toISOString()
+        is_sent_to_team: !!score.isSentToTeam
     };
+
+    // Only set created_at if we have a valid timestamp and it's likely a new record or we want to preserve it
+    if (score.timestamp) {
+        scoreData.created_at = new Date(score.timestamp).toISOString();
+    }
 
     const { error } = await (supabase.from('scores') as any).upsert(scoreData);
 

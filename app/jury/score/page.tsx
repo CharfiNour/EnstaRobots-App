@@ -8,11 +8,11 @@ import {
 import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { saveScoreOffline, calculateTotalPoints, getOfflineScores } from '@/lib/offlineScores';
+import { calculateTotalPoints } from '@/lib/offlineScores';
 import { getTeams, Team } from '@/lib/teams';
 import { startLiveSession, stopLiveSession, getCompetitionState, updateCompetitionState } from '@/lib/competitionState';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { updateCompetitionToSupabase, fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
+import { updateCompetitionToSupabase, fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase, pushScoreToSupabase } from '@/lib/supabaseData';
 
 // Local project structure imports
 import {
@@ -126,7 +126,7 @@ export default function ScoreCardPage() {
             const [remoteTeams, remoteComps, remoteScores] = await Promise.all([
                 fetchTeamsFromSupabase(),
                 fetchCompetitionsFromSupabase(),
-                fetchScoresFromSupabase()
+                fetchScoresFromSupabase(true)
             ]);
             setAllTeams(remoteTeams);
             setCompetitionsFromSupabase(remoteComps);
@@ -214,7 +214,7 @@ export default function ScoreCardPage() {
     };
 
     const handleScoresUpdate = useCallback(async () => {
-        const scores = await fetchScoresFromSupabase();
+        const scores = await fetchScoresFromSupabase(true); // Force refresh to see new scores immediately
         setAllScores(scores);
     }, []);
 
@@ -244,7 +244,10 @@ export default function ScoreCardPage() {
                 matchDataMap.set(s.matchId, { teamIds: [], latestTimestamp: 0 });
             }
             const data = matchDataMap.get(s.matchId)!;
-            data.teamIds.push(s.teamId);
+            // DEDUPLICATION: Prevent same team from appearing twice in the group
+            if (!data.teamIds.includes(s.teamId)) {
+                data.teamIds.push(s.teamId);
+            }
             if (s.timestamp > data.latestTimestamp) data.latestTimestamp = s.timestamp;
         });
 
@@ -312,7 +315,14 @@ export default function ScoreCardPage() {
             }
             return true;
         });
-        setCompetitionTeams(filtered);
+
+        // SORTING: Ensure teams are ordered consistently (alphabetical/numerical)
+        const sortedFiltered = [...filtered].sort((a, b) => {
+            const nameA = (a.robotName || a.name || '').toLowerCase();
+            const nameB = (b.robotName || b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB, undefined, { numeric: true });
+        });
+        setCompetitionTeams(sortedFiltered);
 
         // For non-line-follower: Auto-add all teams from the group (but ignore during homologation)
         if (!isLineFollowerMode && !isHomo && groupData && groupData.teamIds.length > 0) {
@@ -334,27 +344,41 @@ export default function ScoreCardPage() {
             }
         }
 
-        // For line-follower: Pre-fill first team if empty
-        if (isLineFollowerMode && filtered.length > 0 && teams[0] && !teams[0].id && !isLive) {
-            const nextTeam = filtered[0];
-            let targetPhase = teams[0].phase;
+        // For line-follower: Smart pre-fill with the "Next" team that hasn't completed their turn
+        if (isLineFollowerMode && sortedFiltered.length > 0 && !isLive) {
+            // Only auto-fill if the current selection is empty OR already submitted
+            const currentTeamId = teams[0]?.id;
+            const currentPhase = teams[0]?.phase;
+            const isCurrentSubmitted = currentTeamId && isPhaseSubmitted(currentTeamId, currentPhase || 'Essay 1');
 
-            const existingScores = getOfflineScores();
-            const hasEssay1 = existingScores.some(s =>
-                s.teamId === nextTeam.id &&
-                s.competitionType === competition.id &&
-                s.phase === 'Essay 1'
-            );
-            targetPhase = hasEssay1 ? 'Essay 2' : 'Essay 1';
+            if (!currentTeamId || isCurrentSubmitted) {
+                let nextAvailable = sortedFiltered[0];
+                let targetPhase = 'Essay 1';
 
-            if (teams[0].id !== nextTeam.id || teams[0].phase !== targetPhase) {
-                setCurrentTeamIndex(0);
-                const newTeams = [...teams];
-                newTeams[0] = { ...newTeams[0], id: nextTeam.id, phase: targetPhase };
-                setTeams(newTeams);
+                // 1. Try to find first team missing Essay 1
+                const teamMissing1 = sortedFiltered.find(t => !isPhaseSubmitted(t.id, 'Essay 1'));
+                if (teamMissing1) {
+                    nextAvailable = teamMissing1;
+                    targetPhase = 'Essay 1';
+                } else {
+                    // 2. Find first team missing Essay 2
+                    const teamMissing2 = sortedFiltered.find(t => !isPhaseSubmitted(t.id, 'Essay 2'));
+                    if (teamMissing2) {
+                        nextAvailable = teamMissing2;
+                        targetPhase = 'Essay 2';
+                    }
+                }
+
+                const newIndex = sortedFiltered.findIndex(t => t.id === nextAvailable.id);
+                if (teams[0].id !== nextAvailable.id || teams[0].phase !== targetPhase) {
+                    setCurrentTeamIndex(newIndex >= 0 ? newIndex : 0);
+                    const newTeams = [...teams];
+                    newTeams[0] = { ...newTeams[0], id: nextAvailable.id, phase: targetPhase };
+                    setTeams(newTeams);
+                }
             }
         }
-    }, [competition, allTeams, isLive, isLineFollowerMode, isHomo, competitionsFromSupabase, selectedGroup, availableGroupsMap, teams[0]?.id, teams[0]?.phase]);
+    }, [competition, allTeams, allScores, isLive, isLineFollowerMode, isHomo, competitionsFromSupabase, selectedGroup, availableGroupsMap, teams[0]?.id, teams[0]?.phase]);
 
     useEffect(() => {
         const currentSession = getSession();
@@ -431,6 +455,10 @@ export default function ScoreCardPage() {
     // Update number of teams for non-LF
     useEffect(() => {
         if (!isLineFollowerMode) {
+            // SAFEGUARD: If groups are active, strictly disable 'Count' based auto-expansion.
+            // This prevents "slot multiplication" when groups reorder or change size.
+            if (availableGroups.length > 0 && !isHomo) return;
+
             if (numberOfTeams !== teams.length) {
                 const newTeams = [...teams];
                 if (numberOfTeams > newTeams.length) {
@@ -463,10 +491,9 @@ export default function ScoreCardPage() {
 
         // Auto update phase if line follower
         if (isLineFollowerMode) {
-            const existingScores = getOfflineScores();
-            const hasEssay1 = existingScores.some(s =>
+            const hasEssay1 = allScores.some(s =>
                 s.teamId === nextTeam.id &&
-                s.competitionType === competition.id &&
+                canonicalizeCompId(s.competitionType, competitionsFromSupabase) === canonicalizeCompId(competition.id, competitionsFromSupabase) &&
                 s.phase === 'Essay 1'
             );
             newTeams[0].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
@@ -589,12 +616,17 @@ export default function ScoreCardPage() {
         const newTeams = [...teams] as TeamScoreEntry[];
         newTeams[index] = { ...newTeams[index], [field]: value };
 
+        // Maintain global index for next/prev logic
+        if (field === 'id' && index === 0) {
+            const newIndex = competitionTeams.findIndex(t => t.id === value);
+            if (newIndex >= 0) setCurrentTeamIndex(newIndex);
+        }
+
         // If it's a Line Follower and the ID changed, check for existing Essay 1
         if (isLineFollowerMode && field === 'id' && value.trim() !== '') {
-            const existingScores = getOfflineScores();
-            const hasEssay1 = existingScores.some(s =>
+            const hasEssay1 = allScores.some(s =>
                 s.teamId === value &&
-                s.competitionType === competition.id &&
+                canonicalizeCompId(s.competitionType, competitionsFromSupabase) === canonicalizeCompId(competition.id, competitionsFromSupabase) &&
                 s.phase === 'Essay 1'
             );
             newTeams[index].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
@@ -626,14 +658,7 @@ export default function ScoreCardPage() {
 
         if (!normComp || !normPhase) return false;
 
-        // 1. Check Offline Storage
-        const offlineScores = getOfflineScores();
-        const hasOffline = offlineScores.some(s =>
-            s.teamId === teamId &&
-            (s.competitionType || '').toLowerCase() === normComp &&
-            (s.phase || '').toLowerCase() === normPhase
-        );
-        if (hasOffline) return true;
+        // Offline check removed as per request. Only rely on remote scores.
 
         const hasRemote = allScores.some(s =>
             s.teamId === teamId &&
@@ -645,12 +670,31 @@ export default function ScoreCardPage() {
         return hasRemote;
     }, [competition?.id, allScores]);
 
-    // Check if ALL teams in the current group have submitted for the phase
+    // Check if the current phase is completed (Globally for the competition)
     const isPhaseComplete = useMemo(() => {
-        if (teams.length === 0) return false;
-        const targetPhase = isHomo ? 'Homologation' : (isLineFollowerMode ? (teams[0].phase || 'Essay 1') : globalPhase);
-        return teams.every(t => isPhaseSubmitted(t.id, targetPhase!));
-    }, [teams, globalPhase, isLineFollowerMode, isPhaseSubmitted, isHomo]);
+        if (isHomo) {
+            if (teams.length === 0 || !teams[0].id) return false;
+            return isPhaseSubmitted(teams[0].id, 'Homologation');
+        }
+
+        const targetCategory = canonicalizeCompId(competition.id, competitionsFromSupabase);
+
+        if (isLineFollowerMode) {
+            const targetPhase = teams[0]?.phase || 'Essay 1';
+            const compTeams = allTeams.filter(t => canonicalizeCompId(t.competition, competitionsFromSupabase) === targetCategory);
+            if (compTeams.length === 0) return false;
+            return compTeams.every(t => isPhaseSubmitted(t.id, targetPhase));
+        } else {
+            // For matches: Check all scores generated for this phase. 
+            // If any match is still 'pending', the phase is not complete.
+            const currentPhaseScores = allScores.filter(s =>
+                canonicalizeCompId(s.competitionType, competitionsFromSupabase) === targetCategory &&
+                s.phase === globalPhase
+            );
+            if (currentPhaseScores.length === 0) return false;
+            return currentPhaseScores.every(s => s.status !== 'pending');
+        }
+    }, [allTeams, allScores, competition.id, globalPhase, isLineFollowerMode, isHomo, isPhaseSubmitted, teams, competitionsFromSupabase]);
 
     const nextPhaseLabel = useMemo(() => {
         if (isHomo) return null;
@@ -774,15 +818,21 @@ export default function ScoreCardPage() {
                 detailedScores: isHomo ? homologationScores : (isLineFollowerMode ? detailedScores : undefined),
                 remarks: isHomo ? homologationRemarks : undefined,
                 isSentToTeam: true,
-                status: team.status
+                status: isHomo ? 'validated' : (team.status || 'validated')
             };
         });
 
-        // OPTIMISTIC UPDATE: Save to offline buffer immediately and advance UI
-        payloads.forEach(payload => saveScoreOffline(payload));
-
-        setSuccess(true);
-        // handleEndMatch(); // Removed to keep live active between submits as requested
+        // DIRECT PUSH: Send to Supabase immediately
+        try {
+            await Promise.all(payloads.map(payload => pushScoreToSupabase(payload as any)));
+            setSuccess(true);
+            handleScoresUpdate(); // Immediate local refresh
+        } catch (err) {
+            console.error("Push failed:", err);
+            alert("Failed to save score. Please check your connection.");
+            setSubmitting(false);
+            return;
+        }
 
         // Reset scores but keep judges
         setTimeMinutes(''); setTimeSeconds(''); setTimeMillis('');
@@ -792,88 +842,56 @@ export default function ScoreCardPage() {
         setHomologationScores({});
         setHomologationRemarks('');
 
-        // Advance to next team
-        const nextIndex = currentTeamIndex + 1;
-        if (nextIndex < competitionTeams.length) {
-            setCurrentTeamIndex(nextIndex);
-            const nextTeam = competitionTeams[nextIndex];
-            const newTeams = [...teams];
-            newTeams[0].id = nextTeam.id;
+        // Advance to next team ONLY for Line Follower (One-by-One flow)
+        if (isLineFollowerMode) {
+            const nextIndex = currentTeamIndex + 1;
+            if (nextIndex < competitionTeams.length) {
+                setCurrentTeamIndex(nextIndex);
+                const nextTeam = competitionTeams[nextIndex];
+                const newTeams = [...teams];
+                newTeams[0].id = nextTeam.id;
 
-            // Auto update phase if line follower
-            if (isLineFollowerMode) {
-                const existingScores = getOfflineScores();
-                const hasEssay1 = existingScores.some(s =>
+                // Auto update phase if line follower
+                const hasEssay1 = allScores.some(s =>
                     s.teamId === nextTeam.id &&
-                    s.competitionType === competition.id &&
+                    canonicalizeCompId(s.competitionType, competitionsFromSupabase) === canonicalizeCompId(competition.id, competitionsFromSupabase) &&
                     s.phase === 'Essay 1'
                 );
                 newTeams[0].phase = hasEssay1 ? 'Essay 2' : 'Essay 1';
-            }
-            setTeams(newTeams);
 
-            // AUTO-SYNC NEXT TEAM TO PUBLIC BOARD
-            if (isLive && !isHomo) {
-                const phase = isLineFollowerMode ? (newTeams[0].phase || 'Essay 1') : globalPhase;
-                startLiveSession(newTeams[0].id, competition.id, phase);
+                setTeams(newTeams);
+
+                // AUTO-SYNC NEXT TEAM TO PUBLIC BOARD
+                if (isLive && !isHomo) {
+                    const phase = newTeams[0].phase || 'Essay 1';
+                    startLiveSession(newTeams[0].id, competition.id, phase);
+                }
+            } else {
+                // End of list reached - only then do we terminate the session
+                if (isLive || localHomoActive) {
+                    handleEndMatch();
+                }
+                setTeams(teams.map(t => ({ ...t, id: '', phase: 'Essay 1' })));
             }
         } else {
-            // End of list reached - only then do we terminate the session
-            if (isLive || localHomoActive) {
-                handleEndMatch();
-            }
-            setTeams(teams.map(t => ({ ...t, id: '', phase: isLineFollowerMode ? 'Essay 1' : undefined })));
+            // Non-Line Follower (Group Matches): 
+            // We consciously DO NOT reset the form here.
+            // Keeping the submitted state visible allows the Jury to verify their submission.
+            // The form will naturally reset when they select a different Group.
         }
 
         setTimeout(() => setSuccess(false), 3000);
         setSubmitting(false);
 
-        // BACKGROUND SYNC: Attempt to push to Supabase without blocking the UI
-        if (isOnline) {
-            payloads.forEach(payload => {
-                const dbPayload = {
-                    id: payload.id,
-                    match_id: payload.matchId,
-                    team_id: payload.teamId,
-                    competition_id: payload.competitionType,
-                    phase: payload.phase,
-                    time_ms: payload.timeMs,
-                    penalties: 0,
-                    bonus_points: payload.bonusPoints,
-                    knockouts: payload.knockouts,
-                    judge_points: payload.juryPoints,
-                    damage_score: payload.damageScore,
-                    judge_id: payload.juryId,
-                    judge_names: payload.juryNames,
-                    completed_road: payload.completedRoad,
-                    total_points: payload.totalPoints,
-                    detailed_scores: payload.detailedScores || null,
-                    is_sent_to_team: true,
-                    status: payload.status,
-                    remarks: (payload as any).remarks || null
-                };
-
-                (supabase.from('scores') as any)
-                    .insert(dbPayload)
-                    .then(({ error }: any) => {
-                        if (error) console.warn("Background sync failed (data buffered):", error.message);
-                    })
-                    .catch((err: any) => {
-                        console.warn("Critical background sync failure (data buffered):", err);
-                    });
-            });
-        }
+        // Background sync removed - data is pushed directly in handleSubmit
     };
 
     // Compute Team Order for Line Follower (Run Sequence)
     const teamsOrder = useMemo(() => {
         if (!isLineFollowerMode) return {};
 
-        // Merge offline + online (deduplicating by ID, remote takes precedence)
-        const scoreMap = new Map();
-        getOfflineScores().forEach(s => scoreMap.set(s.id, s));
-        allScores.forEach(s => scoreMap.set(s.id, s));
-        const combined = Array.from(scoreMap.values());
+        // Use remote scores only as requested
+        const combined = allScores;
 
         // Use canonical ID for filtering
         const targetCategory = canonicalizeCompId(competition.id, competitionsFromSupabase);
