@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Search, Filter, Trophy, Building2, LayoutGrid, X, ChevronRight } from 'lucide-react';
 import { TeamDetail } from '../competitions/[id]/components/TeamDetail';
 import { fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchSingleTeamFromSupabase, fetchLiveSessionsFromSupabase } from '@/lib/supabaseData';
-import { getCompetitionState, updateCompetitionState } from '@/lib/competitionState';
+import { getCompetitionState, updateCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
+import RestrictionScreen from '@/components/common/RestrictionScreen';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { dataCache, cacheKeys } from '@/lib/dataCache';
 import { Team } from '@/lib/teams';
@@ -83,6 +84,7 @@ export default function TeamsPage() {
     const [teams, setTeams] = useState<Team[]>(initialTeams);
     const [competitions, setCompetitions] = useState<any[]>(initialComps);
     const [compState, setCompState] = useState(getCompetitionState());
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [loading, setLoading] = useState(initialTeams.length === 0);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
@@ -94,13 +96,15 @@ export default function TeamsPage() {
 
     // 2. Fetching Logic (SWR Pattern)
     const loadData = useCallback(async (force = false) => {
-        const [dbTeams, dbComps] = await Promise.all([
+        const [dbTeams, dbComps, eventStatus] = await Promise.all([
             fetchTeamsFromSupabase('minimal', force),
-            fetchCompetitionsFromSupabase('minimal', force)
+            fetchCompetitionsFromSupabase('minimal', force),
+            syncEventDayStatusFromSupabase()
         ]);
 
         setTeams(dbTeams);
         setCompetitions(dbComps);
+        setEventDayStarted(eventStatus);
         setLoading(false);
 
         // Fetch live sessions in background
@@ -115,7 +119,11 @@ export default function TeamsPage() {
         loadData(false); // Cache first
         loadData(true);  // Refresh in background
 
-        const handleUpdate = () => setCompState(getCompetitionState());
+        const handleUpdate = () => {
+            const state = getCompetitionState();
+            setCompState(state);
+            setEventDayStarted(state.eventDayStarted);
+        };
         window.addEventListener('competition-state-updated', handleUpdate);
         return () => window.removeEventListener('competition-state-updated', handleUpdate);
     }, [loadData]);
@@ -171,6 +179,10 @@ export default function TeamsPage() {
     }, [fullTeamDetails]);
 
     const effectiveSelectedTeam = selectedTeam ? (fullTeamDetails[selectedTeam.id] || selectedTeam) : null;
+
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
 
     if (loading && teams.length === 0) {
         return (

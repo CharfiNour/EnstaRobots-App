@@ -6,7 +6,7 @@ import { StatCard, ActionCard, ActivityItem } from './components';
 import { useAdminDashboard } from './hooks/useAdminDashboard';
 
 export default function AdminDashboard() {
-    const { loading, stats, activities, updateStat } = useAdminDashboard();
+    const { loading, stats, activities, updateStat, persistStats } = useAdminDashboard();
 
     if (loading || !stats) {
         return (
@@ -41,6 +41,7 @@ export default function AdminDashboard() {
                         color="text-yellow-400"
                         delay={0}
                         onChange={(val) => updateStat('totalCompetitions', Number(val) || 0)}
+                        onSave={() => persistStats()}
                     />
                     <StatCard
                         icon={Users}
@@ -49,6 +50,7 @@ export default function AdminDashboard() {
                         color="text-blue-400"
                         delay={0.05}
                         onChange={(val) => updateStat('totalTeams', Number(val) || 0)}
+                        onSave={() => persistStats()}
                     />
                     <StatCard
                         icon={Calendar}
@@ -57,6 +59,7 @@ export default function AdminDashboard() {
                         color="text-purple-400"
                         delay={0.1}
                         onChange={(val) => updateStat('totalMatches', Number(val) || 0)}
+                        onSave={() => persistStats()}
                     />
                     <StatCard
                         icon={Calendar}
@@ -65,6 +68,7 @@ export default function AdminDashboard() {
                         color="text-green-400"
                         delay={0.15}
                         onChange={(val) => updateStat('eventDuration', val)}
+                        onSave={() => persistStats()}
                     />
                 </div>
 

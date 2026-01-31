@@ -22,6 +22,13 @@ export interface TeamScoreEntry {
     id: string;
     phase?: string;
     status?: string;
+    timeMs?: number;
+    timeMinutes?: string;
+    timeSeconds?: string;
+    timeMillis?: string;
+    rank?: number;
+    detailedScores?: Record<string, number>;
+    totalTaskPoints?: number;
 }
 
 export interface ScoreState {

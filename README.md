@@ -20,7 +20,7 @@ A modern, real-time event management platform for robotics competitions. Built w
 
 ### For Judges
 - **Offline-First Scoring**: Submit scores even without internet
-- **Competition-Specific Forms**: Different scoring for Line Follower, All Terrain, and Fight
+- **Competition-Specific Forms**: Different scoring for Line Follower and All Terrain
 - **Auto-Sync**: Scores sync automatically when connectivity is restored
 - **Scoring History**: Review all submitted scores
 

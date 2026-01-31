@@ -1,176 +1,189 @@
 import { useEffect, useState } from 'react';
 import { getSession } from '@/lib/auth';
-import { getTeams, Team, Competition } from '@/lib/teams';
+import { Team, Competition } from '@/lib/teams';
 import { getCompetitionState, CompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
 import { supabase } from '@/lib/supabase';
 import { fetchLiveSessionsFromSupabase, fetchTeamsFromSupabase, fetchCompetitionsFromSupabase, fetchScoresFromSupabase } from '@/lib/supabaseData';
 import { canonicalizeCompId } from '@/lib/constants';
 
 export function useMatchesPage() {
-    const [teamData, setTeamData] = useState<any>(null);
+    const [clubTeams, setClubTeams] = useState<Team[]>([]);
     const [compState, setCompState] = useState<CompetitionState | null>(getCompetitionState());
-    const [currentTeam, setCurrentTeam] = useState<any>(null);
-    const [nextTeam, setNextTeam] = useState<any>(null);
-    const [nextPhase, setNextPhase] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-    const [currentPhase, setCurrentPhase] = useState<string | null>(null);
-    const [isLiveForMyComp, setIsLiveForMyComp] = useState(false);
     const [competitions, setCompetitions] = useState<Competition[]>([]);
+    const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
+    const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
+    const [allTeams, setAllTeams] = useState<Team[]>([]);
+    const [allScores, setAllScores] = useState<any[]>([]);
+
+    const fetchInitialData = async () => {
+        const currentSession = getSession();
+        const clubName = currentSession?.clubName;
+
+        if (!clubName) {
+            setLoading(false);
+            return;
+        }
+
+        const [
+            teams,
+            sessions,
+            remoteComps,
+            state,
+            scores
+        ] = await Promise.all([
+            fetchTeamsFromSupabase('minimal'),
+            fetchLiveSessionsFromSupabase(),
+            fetchCompetitionsFromSupabase(),
+            getCompetitionState(),
+            fetchScoresFromSupabase()
+        ]);
+
+        const myClubTeams = teams.filter((t: any) =>
+            t.club && clubName && t.club.trim().toLowerCase() === clubName.trim().toLowerCase()
+        );
+
+        setAllTeams(teams);
+        setCompetitions(remoteComps);
+        setCompState(state);
+        setLiveSessions(sessions || {});
+        setClubTeams(myClubTeams);
+        setAllScores(scores);
+
+        // Auto-select first competition if none selected
+        if (!selectedCompId && myClubTeams.length > 0) {
+            const firstValidComp = myClubTeams.find(t => t.competition)?.competition;
+            if (firstValidComp) setSelectedCompId(firstValidComp);
+        }
+
+        setLoading(false);
+    };
 
     useEffect(() => {
-        let isMounted = true;
-
-        const fetchInitialData = async () => {
-            const currentSession = getSession();
-            if (!currentSession?.teamId) {
-                if (isMounted) setLoading(false);
-                return;
-            }
-
-            // Fetch Data Concurrently
-            const [
-                teams,
-                sessions,
-                remoteComps,
-                compState,
-                allScores
-            ] = await Promise.all([
-                fetchTeamsFromSupabase('minimal'),
-                fetchLiveSessionsFromSupabase(),
-                fetchCompetitionsFromSupabase(),
-                getCompetitionState(),
-                fetchScoresFromSupabase()
-            ]);
-
-            if (!isMounted) return;
-
-            setCompetitions(remoteComps);
-            setCompState(compState);
-
-            const myTeam = teams.find((t: any) => t.id === currentSession.teamId);
-
-            if (myTeam) {
-                // Determine relevant competition
-                const relevantComp = remoteComps.find((c: Competition) => c.id === myTeam.competition || c.type === myTeam.competition);
-                const activePhase = relevantComp?.current_phase;
-                const canonicalMyComp = canonicalizeCompId(myTeam.competition, remoteComps);
-
-                // Check for live session in my competition
-                const safeSessions = sessions || {};
-                const session = (relevantComp?.id && safeSessions[relevantComp.id])
-                    || (relevantComp?.type && safeSessions[relevantComp.type])
-                    || (myTeam.competition && safeSessions[myTeam.competition]);
-
-                // A phase is officially "Drawn" or "Started" if:
-                // 1. There is an active live session
-                // 2. OR there are scores recorded for the active phase
-                // 3. AND the active phase is not "upcoming" or "completed"
-                const isValidPhase = activePhase &&
-                    activePhase !== 'upcoming' &&
-                    activePhase !== 'Not Started' &&
-                    !activePhase.includes('Completed');
-
-                const hasScoresForPhase = isValidPhase && allScores.some((s: any) => {
-                    const sComp = canonicalizeCompId(s.competitionType || s.competitionId, remoteComps);
-                    const sPhase = String(s.phase).toLowerCase();
-                    const targetPhase = String(activePhase).toLowerCase();
-
-                    return sComp === canonicalMyComp &&
-                        (sPhase === targetPhase || (sPhase === 'essay 1' && targetPhase === 'essay 1') || (sPhase === 'essay 2' && targetPhase === 'essay 2'));
-                });
-
-                const isDrawn = !!session || hasScoresForPhase;
-
-                // Filter teams for this competition
-                const compTeams = teams.filter((t: any) => canonicalizeCompId(t.competition, remoteComps) === canonicalMyComp);
-
-                // Calculate order
-                let myOrder = null;
-                if (isDrawn) {
-                    // If drawn, we can use the registry index as the default turn number
-                    const myIdx = compTeams.findIndex((t: any) => t.id === myTeam.id);
-                    myOrder = myIdx !== -1 ? myIdx + 1 : null;
-                }
-
-                setTeamData({ ...myTeam, order: myOrder });
-
-                if (session) {
-                    setCurrentPhase(session.phase);
-                    setIsLiveForMyComp(true);
-
-                    const activeTeamId = session.teamId;
-                    const activeTeam = teams.find((t: any) => t.id === activeTeamId);
-
-                    if (activeTeam) {
-                        const currentIdx = compTeams.findIndex((t: any) => t.id === activeTeamId);
-                        if (currentIdx !== -1) {
-                            setCurrentTeam({ ...activeTeam, order: currentIdx + 1 });
-
-                            const nextIdx = (currentIdx + 1) % compTeams.length;
-                            setNextTeam({ ...compTeams[nextIdx], order: nextIdx + 1 });
-
-                            if (currentIdx === compTeams.length - 1) {
-                                setNextPhase('Next Stage');
-                            } else {
-                                setNextPhase(null);
-                            }
-                        }
-                    }
-                } else {
-                    setIsLiveForMyComp(false);
-                }
-            }
-
-            setLoading(false);
-        };
-
         fetchInitialData();
 
         const handleSync = () => {
-            console.log('🔄 Global state update received in useMatchesPage, refreshing...');
-            const state = getCompetitionState();
-            setCompState({ ...state });
+            setCompState({ ...getCompetitionState() });
             fetchInitialData();
         };
 
-        // Initial sync
         syncEventDayStatusFromSupabase().then(handleSync);
-
-        // 1. Listen for Local Events
         window.addEventListener('competition-state-updated', handleSync);
 
-        // 2. Listen for Supabase Realtime Events
-        console.log('🔌 Subscribing to live_sessions changes...');
         const channel = supabase
-            .channel(`live_sessions_tracker_${Math.random()}`)
+            .channel(`matches_realtime_${Math.random()}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'live_sessions' },
-                (payload) => {
-                    console.log('⚡ Realtime Update Received:', payload);
-                    fetchInitialData();
-                }
+                () => fetchInitialData()
             )
-            .subscribe((status) => {
-                console.log(`📡 Subscription status: ${status}`);
-            });
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'scores' },
+                () => fetchInitialData()
+            )
+            .subscribe();
 
         return () => {
-            isMounted = false;
             window.removeEventListener('competition-state-updated', handleSync);
             supabase.removeChannel(channel);
         };
     }, []);
 
+    const selectedComp = competitions.find(c =>
+        c.id === selectedCompId ||
+        c.type === selectedCompId ||
+        canonicalizeCompId(c.id, competitions) === canonicalizeCompId(selectedCompId, competitions)
+    );
+
+    const availableCompetitions = competitions.filter(c =>
+        clubTeams.some(t => {
+            const teamCanon = canonicalizeCompId(t.competition, competitions);
+            const compCanon = canonicalizeCompId(c.id, competitions);
+            return teamCanon === compCanon && teamCanon !== '';
+        })
+    );
+
+    // Turn Logic
+    const clubTeamsInSelection = clubTeams
+        .filter(t => {
+            if (!selectedCompId) return false;
+            return canonicalizeCompId(t.competition, competitions) === canonicalizeCompId(selectedCompId, competitions);
+        })
+        .map(t => {
+            const canonicalComp = canonicalizeCompId(t.competition, competitions);
+            const compTeams = allTeams.filter(ot => canonicalizeCompId(ot.competition, competitions) === canonicalComp);
+            const currentPhase = selectedComp?.current_phase || 'qualifications';
+
+            // Is this a draw-based competition?
+            const isDrawBased = ['all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'].includes(canonicalComp);
+
+            let myTurn = 0;
+            let currentTurn = null;
+
+            if (isDrawBased) {
+                // Find pending scores for this phase to identify groups
+                const phaseMatches = allScores.filter(s =>
+                    s.competitionType === canonicalComp &&
+                    s.phase === currentPhase &&
+                    s.status === 'pending'
+                );
+
+                // Group scores by matchId
+                const matches: Record<string, string[]> = {};
+                phaseMatches.forEach(s => {
+                    if (!matches[s.matchId]) matches[s.matchId] = [];
+                    matches[s.matchId].push(s.teamId);
+                });
+
+                // Unique Match IDs in order (using scores array order which is usually sorted by creation/match_number)
+                const orderedMatchIds = Array.from(new Set(phaseMatches.map(s => s.matchId)));
+
+                // Find which match this team belongs to
+                const myMatchId = Object.keys(matches).find(mId => matches[mId].includes(t.id));
+                const matchIndex = myMatchId ? orderedMatchIds.indexOf(myMatchId) : -1;
+
+                // FIX: If matchIndex is -1 and it's match based, it means draw hasn't happened or team not in draw
+                myTurn = matchIndex !== -1 ? matchIndex + 1 : 0;
+
+                // Calculate current turn from live session
+                const session = liveSessions[canonicalComp];
+                if (session) {
+                    const activeMatchId = Object.keys(matches).find(mId => matches[mId].includes(session.teamId));
+                    const activeMatchIndex = activeMatchId ? orderedMatchIds.indexOf(activeMatchId) : -1;
+                    currentTurn = activeMatchIndex !== -1 ? activeMatchIndex + 1 : null;
+                }
+            } else {
+                // Line Follower style: Incremental indexing
+                myTurn = compTeams.findIndex(ot => ot.id === t.id) + 1;
+
+                const session = liveSessions[canonicalComp];
+                if (session) {
+                    const activeIdx = compTeams.findIndex(ot => ot.id === session.teamId);
+                    currentTurn = activeIdx !== -1 ? activeIdx + 1 : null;
+                }
+            }
+
+            const session = liveSessions[canonicalComp];
+
+            return {
+                ...t,
+                myTurn,
+                currentTurn,
+                isLive: session?.teamId === t.id,
+                currentPhase: session?.phase || currentPhase
+            };
+        });
+
     return {
-        teamData,
+        clubTeams: clubTeamsInSelection,
+        availableCompetitions,
+        selectedCompId,
+        setSelectedCompId,
         compState,
-        currentTeam,
-        nextTeam,
-        nextPhase,
         loading,
-        currentPhase,
-        isLive: isLiveForMyComp,
-        competitions
+        selectedComp,
+        competitions,
+        isCompetitionLive: !!liveSessions[canonicalizeCompId(selectedCompId, competitions)]
     };
 }

@@ -78,7 +78,6 @@ export default function CompetitionsPage() {
         }
 
         // Update local competitions list from DB if we want to sync with other admins
-        // Note: We might want to merge this carefully with localStorage
         const localComps = getAdminCompetitions();
         const updatedComps = localComps.map(lc => {
             const dbMatch = comps.find((dc: any) => dc.type === lc.category);
@@ -107,7 +106,7 @@ export default function CompetitionsPage() {
         // 1. Update local UI state
         setCompetitions(prev => prev.map(c => c.id === updated.id ? updated : c));
 
-        // 2. Persist to LocalStorage (Side Effect - Move outside of state updater)
+        // 2. Persist to memory and trigger dispatch
         const currentComps = getAdminCompetitions();
         const nextComps = currentComps.map(c => c.id === updated.id ? updated : c);
         saveAdminCompetitions(nextComps);

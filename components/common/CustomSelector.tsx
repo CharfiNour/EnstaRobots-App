@@ -21,6 +21,7 @@ interface CustomSelectorProps {
     className?: string;
     variant?: 'inline' | 'block';
     fullWidth?: boolean;
+    size?: 'default' | 'compact';
 }
 
 export default function CustomSelector({
@@ -31,7 +32,8 @@ export default function CustomSelector({
     prefix,
     className = "",
     variant = 'inline',
-    fullWidth = false
+    fullWidth = false,
+    size = 'default'
 }: CustomSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
@@ -84,7 +86,7 @@ export default function CustomSelector({
             {isOpen && (
                 <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 4, scale: 1 }}
+                    animate={{ opacity: 1, y: 8, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.98 }}
                     style={{
                         position: 'absolute',
@@ -93,9 +95,9 @@ export default function CustomSelector({
                         width: coords.width,
                         zIndex: 9999,
                     }}
-                    className="bg-card/80 backdrop-blur-2xl border border-card-border/60 rounded-[1.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden"
+                    className="bg-white/90 backdrop-blur-2xl border border-card-border/60 rounded-[2rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden"
                 >
-                    <div className="p-1.5">
+                    <div className="p-2 max-h-[250px] overflow-y-auto custom-scrollbar">
                         {options.map((option) => {
                             const isSelected = value === option.value;
                             return (
@@ -104,23 +106,17 @@ export default function CustomSelector({
                                     type="button"
                                     disabled={option.disabled}
                                     onClick={() => handleSelect(option)}
-                                    className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between group relative overflow-hidden mb-0.5 last:mb-0 ${isSelected
-                                        ? 'bg-role-primary text-white shadow-md shadow-role-primary/20'
-                                        : 'text-muted-foreground hover:bg-role-primary/10 hover:text-foreground'
+                                    className={`w-full p-3 rounded-[1rem] text-left transition-all flex items-center gap-3 group relative overflow-hidden mb-0.5 last:mb-0 ${isSelected
+                                        ? 'bg-blue-50 text-role-primary'
+                                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                                         } ${option.disabled ? 'opacity-30 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
                                 >
-                                    {isSelected && (
-                                        <motion.div
-                                            layoutId="selector-active"
-                                            className="absolute inset-0 bg-gradient-to-r from-role-primary to-role-secondary opacity-100"
-                                        />
-                                    )}
-                                    <span className={`relative z-10 text-[11px] font-black uppercase tracking-[0.1em] truncate ${option.color || ''} ${isSelected ? 'text-white' : ''}`}>
+                                    {/* Indicator Dot */}
+                                    <div className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-muted-foreground/30'}`} />
+
+                                    <span className={`relative z-10 text-xs font-black uppercase tracking-widest truncate`}>
                                         {option.label}
                                     </span>
-                                    {isSelected && (
-                                        <div className="relative z-10 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />
-                                    )}
                                 </button>
                             );
                         })}
@@ -137,13 +133,16 @@ export default function CustomSelector({
                     ref={buttonRef}
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className={`w-full px-5 py-4 bg-muted/20 border rounded-2xl flex items-center justify-between transition-all duration-300 group ${isOpen
-                        ? 'border-role-primary/50 bg-muted/30 ring-4 ring-role-primary/10 shadow-lg shadow-role-primary/5'
-                        : 'border-card-border hover:border-role-primary/30 hover:bg-muted/30'
+                    className={`w-full ${size === 'compact' ? 'px-4 py-2.5 rounded-xl' : 'px-5 py-3.5 rounded-[2rem]'} bg-white border-2 flex items-center justify-between transition-all duration-300 group ${isOpen
+                        ? 'border-role-primary/40 shadow-xl shadow-role-primary/5'
+                        : 'border-card-border/50 hover:border-role-primary/20 hover:shadow-md'
                         }`}
                 >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                        <span className={`text-sm font-bold truncate tracking-tight ${selectedOption?.color || 'text-foreground'} ${!selectedOption ? 'text-muted-foreground opacity-50' : ''}`}>
+                    <div className="flex items-center gap-4 overflow-hidden">
+                        {selectedOption && (
+                            <div className={`${size === 'compact' ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0`} />
+                        )}
+                        <span className={`${size === 'compact' ? 'text-xs' : 'text-sm'} font-black uppercase tracking-widest truncate ${!selectedOption ? 'text-muted-foreground opacity-50' : 'text-foreground'}`}>
                             {selectedOption ? selectedOption.label : placeholder}
                         </span>
                     </div>

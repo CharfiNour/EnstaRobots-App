@@ -22,7 +22,8 @@ import {
     TeamSelectSection,
     HeaderActions,
     HomologationForm,
-    DrawSystem
+    DrawSystem,
+    LineFollowerScoreDialog
 } from './components';
 import {
     COMPETITION_CATEGORIES,
@@ -111,8 +112,11 @@ export default function ScoreCardPage() {
     const [homologationScores, setHomologationScores] = useState<Record<string, number>>({});
     const [homologationRemarks, setHomologationRemarks] = useState('');
     const [localHomoActive, setLocalHomoActive] = useState(false);
+    const [scoreDialogOpen, setScoreDialogOpen] = useState(false);
+    const [scoringTeamIndex, setScoringTeamIndex] = useState<number | null>(null);
 
     const isLineFollowerMode = ['line_follower', 'junior_line_follower'].includes(competition.id);
+    const isAllTerrainMode = ['all_terrain', 'junior_all_terrain'].includes(competition.id);
     const isHomo = scoringMode === 'homologation';
     const isUnlocked = isHomo ? localHomoActive : isLive;
 
@@ -168,13 +172,10 @@ export default function ScoreCardPage() {
 
         syncState();
         window.addEventListener('competition-state-updated', syncState);
-        window.addEventListener('storage', syncState);
 
         // Initial fetch from supabase - ALWAYS FORCE REFRESH when switching competition
         fetchLiveSessionsFromSupabase(true).then(sessions => {
             if (sessions) {
-                // Filter sessions to only the current one if we want to be strict,
-                // but usually we keep all in localStorage for badges.
                 updateCompetitionState({ liveSessions: sessions }, false);
             }
             setSwitching(false);
@@ -182,7 +183,6 @@ export default function ScoreCardPage() {
 
         return () => {
             window.removeEventListener('competition-state-updated', syncState);
-            window.removeEventListener('storage', syncState);
         };
     }, [competition.id, competition.type]);
 
@@ -239,6 +239,12 @@ export default function ScoreCardPage() {
 
         // 2. Group by matchId and track latest timestamp and participant count
         const matchDataMap = new Map<string, { teamIds: string[], latestTimestamp: number }>();
+
+        // SORTING: Ensure scores are processed in creation order (Draw Order)
+        // This guarantees that teamIds are pushed to the group in a deterministic order (Team 1, Team 2...)
+        // reducing "slot shuffling" and keeping the UI consistent with the sidebar.
+        relevantScores.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
         relevantScores.forEach(s => {
             if (!matchDataMap.has(s.matchId)) {
                 matchDataMap.set(s.matchId, { teamIds: [], latestTimestamp: 0 });
@@ -261,12 +267,9 @@ export default function ScoreCardPage() {
                 return dataB.teamIds.length - dataA.teamIds.length;
             }
 
-            // Secondary: Activity (Ascending timestamp - OLDER matches first)
-            if (dataA.latestTimestamp !== dataB.latestTimestamp) {
-                return dataA.latestTimestamp - dataB.latestTimestamp;
-            }
-
-            // Tertiary: Deterministic Alphabetical ID
+            // STABILITY FIX: Remove timestamp sorting. 
+            // We sort purely by Match ID to ensure "GROUP 1" always refers to the same set of teams,
+            // preventing the UI from "shuffling" groups after a submission updates the timestamp.
             return a[0].localeCompare(b[0]);
         });
 
@@ -611,10 +614,11 @@ export default function ScoreCardPage() {
         }
     };
 
-    const handleTeamChange = (index: number, field: string, value: string) => {
+    const handleTeamChange = (index: number, field: string, value: any) => {
         liveActionLock.current = true;
         const newTeams = [...teams] as TeamScoreEntry[];
-        newTeams[index] = { ...newTeams[index], [field]: value };
+        const val = (field === 'rank' || field === 'timeMs') ? parseInt(value) || 0 : value;
+        newTeams[index] = { ...newTeams[index], [field]: val };
 
         // Maintain global index for next/prev logic
         if (field === 'id' && index === 0) {
@@ -647,6 +651,19 @@ export default function ScoreCardPage() {
         setTimeout(() => {
             liveActionLock.current = false;
         }, 2000);
+    };
+
+    const handleOpenScoreDialog = (index: number) => {
+        setScoringTeamIndex(index);
+        setScoreDialogOpen(true);
+    };
+
+    const handleSaveTeamScores = (scores: Record<string, number>) => {
+        if (scoringTeamIndex === null) return;
+        const total = Object.values(scores).reduce((a, b) => a + b, 0);
+        handleTeamChange(scoringTeamIndex, 'detailedScores', scores);
+        handleTeamChange(scoringTeamIndex, 'totalTaskPoints', total);
+        setScoreDialogOpen(false);
     };
 
 
@@ -765,11 +782,17 @@ export default function ScoreCardPage() {
         setSubmitting(true);
         setSuccess(false);
 
-        // Check for duplicate phase submissions
+        // Check for duplicate phase submissions and ensure team selection
         for (const team of teams) {
+            if (!team.id) {
+                alert("Protocol Violation: One or more units are undefined in the tactical grid.");
+                setSubmitting(false);
+                return;
+            }
+
             const phaseToCheck = scoringMode === 'homologation' ? 'Homologation' : (isLineFollowerMode ? team.phase : globalPhase);
             if (isPhaseSubmitted(team.id, phaseToCheck!)) {
-                alert(`Team ${team.id} has already submitted a score for ${phaseToCheck?.replace(/_/g, ' ')}. Please select a different phase or team.`);
+                alert(`Team identified as ${team.id} has already submitted a score for ${phaseToCheck?.replace(/_/g, ' ')}. Please select a different phase or team.`);
                 setSubmitting(false);
                 return;
             }
@@ -785,13 +808,18 @@ export default function ScoreCardPage() {
             const isHomo = scoringMode === 'homologation';
             const totalHomo = Object.values(homologationScores).reduce((a, b) => a + b, 0);
 
-            const bonuses = isLineFollowerMode && homologationPoints ? parseInt(homologationPoints) : 0;
-            const kos = !isLineFollowerMode && knockouts ? parseInt(knockouts) : 0;
-            const jpts = !isLineFollowerMode && juryPoints ? parseInt(juryPoints) : 0;
-            const dmg = !isLineFollowerMode && damageScore ? parseInt(damageScore) : 0;
+            const teamTimeMs = isAllTerrainMode ?
+                (parseInt(team.timeMinutes || '0') * 60000) + (parseInt(team.timeSeconds || '0') * 1000) + parseInt(team.timeMillis || '0')
+                : (isLineFollowerMode ? totalTimeMs : undefined);
+
+            const isJuniorAT = competition.id === 'junior_all_terrain';
+            const bonuses = (isLineFollowerMode || isJuniorAT) && homologationPoints ? parseInt(homologationPoints) : 0;
+            const kos = !isLineFollowerMode && !isJuniorAT && knockouts ? parseInt(knockouts) : 0;
+            const jpts = !isLineFollowerMode && !isJuniorAT && juryPoints ? parseInt(juryPoints) : 0;
+            const dmg = !isLineFollowerMode && !isJuniorAT && damageScore ? parseInt(damageScore) : 0;
 
             const score = isHomo ? totalHomo : calculateTotalPoints(competition.id, {
-                timeMs: totalTimeMs,
+                timeMs: teamTimeMs,
                 bonusPoints: bonuses,
                 knockouts: kos,
                 juryPoints: jpts,
@@ -806,7 +834,8 @@ export default function ScoreCardPage() {
                 phase: isHomo ? 'Homologation' : (isLineFollowerMode ? team.phase : globalPhase),
                 juryId: session.userId,
                 juryNames: [jury1, jury2, jury3],
-                timeMs: isHomo ? undefined : totalTimeMs,
+                timeMs: isHomo ? undefined : teamTimeMs,
+                rank: team.rank,
                 completedRoad: isLineFollowerMode ? completedRoad : undefined,
                 bonusPoints: isHomo ? totalHomo : bonuses,
                 knockouts: isHomo ? undefined : kos,
@@ -815,7 +844,7 @@ export default function ScoreCardPage() {
                 penalties: 0,
                 timestamp: Date.now(),
                 totalPoints: score,
-                detailedScores: isHomo ? homologationScores : (isLineFollowerMode ? detailedScores : undefined),
+                detailedScores: isHomo ? homologationScores : (isLineFollowerMode || isJuniorAT ? { ...detailedScores, rank: team.rank } : { rank: team.rank }),
                 remarks: isHomo ? homologationRemarks : undefined,
                 isSentToTeam: true,
                 status: isHomo ? 'validated' : (team.status || 'validated')
@@ -827,9 +856,10 @@ export default function ScoreCardPage() {
             await Promise.all(payloads.map(payload => pushScoreToSupabase(payload as any)));
             setSuccess(true);
             handleScoresUpdate(); // Immediate local refresh
-        } catch (err) {
+        } catch (err: any) {
             console.error("Push failed:", err);
-            alert("Failed to save score. Please check your connection.");
+            const errorMsg = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+            alert(`Failed to save score: ${errorMsg}`);
             setSubmitting(false);
             return;
         }
@@ -1012,6 +1042,7 @@ export default function ScoreCardPage() {
 
                                         <TeamSelectSection
                                             isLineFollower={isLineFollowerMode}
+                                            isAllTerrain={isAllTerrainMode}
                                             teams={teams}
                                             handleTeamChange={handleTeamChange}
                                             competitionTeams={competitionTeams}
@@ -1027,6 +1058,8 @@ export default function ScoreCardPage() {
                                             groups={availableGroups}
                                             scoringMode={scoringMode}
                                             teamsOrder={teamsOrder}
+                                            onScoreClick={handleOpenScoreDialog}
+                                            competitionId={competition.id}
                                         />
 
                                         {/* Performance Section */}
@@ -1085,6 +1118,14 @@ export default function ScoreCardPage() {
                                                 </button>
                                             );
                                         })()}
+
+                                        <LineFollowerScoreDialog
+                                            isOpen={scoreDialogOpen}
+                                            onClose={() => setScoreDialogOpen(false)}
+                                            currentScores={scoringTeamIndex !== null ? (teams[scoringTeamIndex]?.detailedScores || {}) : {}}
+                                            onSave={handleSaveTeamScores}
+                                            competitionType={competition.id}
+                                        />
                                     </form>
                                 )
                             ) : (

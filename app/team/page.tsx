@@ -1,12 +1,12 @@
 "use client";
 
-import { Shield } from 'lucide-react';
 import {
     RegistryAlert,
     MissionSchedule,
     DashboardHeader,
     RecentAnnouncements,
-    StatSummary
+    StatSummary,
+    IncompleteRegistryView
 } from './components';
 import { useTeamDashboard } from './hooks/useTeamDashboard';
 
@@ -16,10 +16,12 @@ export default function TeamDashboard() {
         loading,
         profileComplete,
         teamData,
-        isLive,
-        currentTeam,
-        nextTeam,
-        currentPhase,
+        hasLiveTeam,
+        activeTeam,
+        currentTurn,
+        myTurn,
+        phase,
+        competitionName,
         compState
     } = useTeamDashboard();
 
@@ -39,10 +41,10 @@ export default function TeamDashboard() {
                 {!profileComplete && <RegistryAlert />}
 
                 <StatSummary
-                    teamOrder={teamData?.order}
-                    isLive={isLive}
-                    isMyTurn={currentTeam?.id === teamData?.id}
-                    isNext={nextTeam?.id === teamData?.id}
+                    teamOrder={myTurn ?? null}
+                    isLive={hasLiveTeam}
+                    isMyTurn={currentTurn === myTurn}
+                    isNext={!!(currentTurn && myTurn && currentTurn === myTurn - 1)}
                     profileComplete={profileComplete}
                 />
 
@@ -50,11 +52,12 @@ export default function TeamDashboard() {
                     {/* Main: Schedule & Matches */}
                     <div className="lg:col-span-8 space-y-8">
                         <MissionSchedule
-                            isLive={isLive}
-                            currentTeam={currentTeam}
-                            nextTeam={nextTeam}
-                            currentPhase={currentPhase}
-                            myTeamId={teamData?.id}
+                            hasLiveTeam={hasLiveTeam}
+                            activeTeam={activeTeam}
+                            currentTurn={currentTurn}
+                            myTurn={myTurn}
+                            phase={phase}
+                            competitionName={competitionName}
                             profileComplete={profileComplete}
                         />
                     </div>
@@ -63,7 +66,6 @@ export default function TeamDashboard() {
                     <div className="lg:col-span-4 space-y-8">
                         <RecentAnnouncements
                             profileComplete={profileComplete}
-                            eventDayStarted={compState?.eventDayStarted}
                         />
                     </div>
                 </div>

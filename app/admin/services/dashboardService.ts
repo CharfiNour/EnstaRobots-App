@@ -44,7 +44,7 @@ export const getRecentActivity = (): ActivityItemData[] => {
     return [
         {
             icon: Trophy,
-            text: "Competition 'Fight' status changed to Finals",
+            text: "Competition 'All Terrain' status changed to Finals",
             time: "5 minutes ago"
         },
         {

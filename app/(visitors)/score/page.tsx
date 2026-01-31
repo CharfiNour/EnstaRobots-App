@@ -1,9 +1,27 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { History, Activity } from 'lucide-react';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
+import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
+import RestrictionScreen from '@/components/common/RestrictionScreen';
 
 export default function VisitorScorePage() {
+    const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
+
+    useEffect(() => {
+        const handleSync = () => {
+            setEventDayStarted(getCompetitionState().eventDayStarted);
+        };
+        syncEventDayStatusFromSupabase().then(handleSync);
+        window.addEventListener('competition-state-updated', handleSync);
+        return () => window.removeEventListener('competition-state-updated', handleSync);
+    }, []);
+
+    if (!eventDayStarted) {
+        return <RestrictionScreen />;
+    }
+
     return (
         <div className="min-h-screen relative bg-transparent">
             {/* Background Decorative Element */}

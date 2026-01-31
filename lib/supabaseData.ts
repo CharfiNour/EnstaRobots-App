@@ -41,10 +41,16 @@ export async function fetchCompetitionsFromSupabase(fields: 'minimal' | 'full' =
         }
 
         // Store in cache
-        dataCache.set(cacheKey, data as any);
-        console.log('💾 [CACHE SET] Competitions cached');
+        const filteredData = (data || []).filter((c: any) => {
+            const name = String(c.name || '').toUpperCase();
+            const type = String(c.type || '').toUpperCase();
+            return !name.includes('FIGHT') && !type.includes('FIGHT');
+        });
 
-        return data as any;
+        dataCache.set(cacheKey, filteredData);
+        console.log('💾 [CACHE SET] Competitions cached (filtered)');
+
+        return filteredData;
     } catch (e: any) {
         console.error("Critical error in fetchCompetitionsFromSupabase:", e.message || e);
         return [];
@@ -434,7 +440,7 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
     try {
         const [scoresResponse, compsResponse] = await Promise.all([
             supabase.from('scores').select('*').order('created_at', { ascending: false }),
-            supabase.from('competitions').select('id, type')
+            fetchCompetitionsFromSupabase('minimal')
         ]);
 
         if (scoresResponse.error) {
@@ -447,13 +453,8 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
             return [];
         }
 
-        if (compsResponse.error) {
-            console.warn('--- SUPABASE COMPS MAP ERROR ---', compsResponse.error.message);
-            // Continue without mapping if possible, or fallback
-        }
-
         const scores = scoresResponse.data || [];
-        const comps = compsResponse.data || [];
+        const comps = compsResponse || [];
 
         const compMap: Record<string, string> = {};
         (comps as any[]).forEach(c => {
@@ -469,9 +470,6 @@ export async function fetchScoresFromSupabase(forceRefresh: boolean = false): Pr
             timeMs: s.time_ms ?? undefined,
             bonusPoints: s.bonus_points ?? undefined,
             completedRoad: s.completed_road ?? undefined,
-            knockouts: s.knockouts ?? undefined,
-            juryPoints: s.judge_points ?? undefined,
-            damageScore: s.damage_score ?? undefined,
             totalPoints: s.total_points || 0,
             detailedScores: s.detailed_scores as Record<string, number> | undefined,
             juryId: s.judge_id || '',
@@ -510,9 +508,6 @@ export async function pushScoreToSupabase(score: OfflineScore) {
         time_ms: score.timeMs ?? null,
         bonus_points: score.bonusPoints ?? null,
         completed_road: (score as any).completedRoad ?? (score as any).completed_road ?? null,
-        knockouts: score.knockouts ?? null,
-        judge_points: score.juryPoints ?? null,
-        damage_score: score.damageScore ?? null,
         total_points: score.totalPoints || 0,
         detailed_scores: score.detailedScores || null,
         judge_id: score.juryId && score.juryId !== '' ? String(score.juryId) : null,
@@ -529,6 +524,10 @@ export async function pushScoreToSupabase(score: OfflineScore) {
 
     if (error) {
         console.group('--- SUPABASE PUSH ERROR ---');
+        console.error('Message:', error.message);
+        console.error('Code:', error.code);
+        console.error('Details:', error.details);
+        console.error('Hint:', error.hint);
         console.groupEnd();
         throw error;
     }
@@ -757,7 +756,7 @@ export async function fetchLiveSessionsFromSupabase(forceRefresh: boolean = fals
     try {
         const [sessResponse, compsResponse] = await Promise.all([
             supabase.from('live_sessions').select('*'),
-            supabase.from('competitions').select('id, type')
+            fetchCompetitionsFromSupabase('minimal')
         ]);
 
         if (sessResponse.error) {
@@ -770,16 +769,8 @@ export async function fetchLiveSessionsFromSupabase(forceRefresh: boolean = fals
             return {};
         }
 
-        if (compsResponse.error) {
-            console.warn('--- SUPABASE COMPS MAP ERROR (LIVE) ---', {
-                message: compsResponse.error.message,
-                code: compsResponse.error.code,
-                hint: compsResponse.error.hint
-            });
-        }
-
         const sessionsData = sessResponse.data || [];
-        const compsData = compsResponse.data || [];
+        const compsData = compsResponse || [];
 
         const compMap: Record<string, string> = {};
         (compsData as any[]).forEach(c => {

@@ -4,3 +4,4 @@ export { default as DashboardHeader } from './DashboardHeader';
 export { default as RecentAnnouncements } from './RecentAnnouncements';
 export { default as StatSummary } from './StatSummary';
 export { default as RestrictionScreen } from '@/components/common/RestrictionScreen';
+export { default as IncompleteRegistryView } from './IncompleteRegistryView';

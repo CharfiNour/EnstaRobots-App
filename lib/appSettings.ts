@@ -22,21 +22,61 @@ export interface AppSettings {
  */
 export async function updateDashboardStats(stats: Partial<AppSettings>): Promise<boolean> {
     try {
-        const { error } = await (supabase
+        // 1. Check if row exists
+        const { data: existing, error: fetchError } = await (supabase
             .from('app_settings' as any) as any)
-            .upsert({
-                id: 'global',
+            .select('id')
+            .eq('id', 'global')
+            .maybeSingle();
+
+        if (fetchError) {
+            console.warn('[APP SETTINGS] Pre-save fetch error:', fetchError.message);
+        }
+
+        if (!existing) {
+            // 2. Create row if missing
+            const { error: insertError } = await (supabase
+                .from('app_settings' as any) as any)
+                .insert({
+                    id: 'global',
+                    event_day_started: false,
+                    profiles_locked: false,
+                    total_competitions: 0,
+                    total_teams: 0,
+                    total_matches: 0,
+                    event_duration: 'TBD',
+                    ...stats,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (insertError) {
+                console.error('[APP SETTINGS] Row creation failed:', insertError.message);
+                return false;
+            }
+            return true;
+        }
+
+        // 3. Update existing row
+        const { error: updateError } = await (supabase
+            .from('app_settings' as any) as any)
+            .update({
                 ...stats,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
+            })
+            .eq('id', 'global');
 
-        if (error) {
-            console.error('[APP SETTINGS] Stats update error:', error);
+        if (updateError) {
+            if (updateError.message?.includes('column')) {
+                console.error('❌ [APP SETTINGS] SCHEMA MISMATCH: Your database is missing columns. Please run the SQL fix script in: supabase/FIX_APP_SETTINGS_SCHEMA.sql');
+            } else {
+                console.error('[APP SETTINGS] Update error:', updateError.message);
+            }
             return false;
         }
+
         return true;
-    } catch (e) {
-        console.error('[APP SETTINGS] Critical stats update error:', e);
+    } catch (e: any) {
+        console.error('[APP SETTINGS] Exception in updateDashboardStats:', e.message || e);
         return false;
     }
 }
@@ -50,19 +90,26 @@ export async function fetchAppSettings(): Promise<AppSettings | null> {
             .from('app_settings' as any) as any)
             .select('*')
             .eq('id', 'global')
-            .single();
+            .maybeSingle();
 
         if (error) {
-            // PGRST116 means "No rows found" - we treat this as null rather than an error
-            if (error.code === 'PGRST116') return null;
-
-            console.error('[APP SETTINGS] Fetch error details:', {
-                code: error.code,
-                message: error.message,
-                details: error.details,
-                hint: error.hint
-            });
+            console.warn('[APP SETTINGS] Fetch error:', error.message);
             return null;
+        }
+
+        if (!data) {
+            // If row is missing, return a default object but don't assume null is failure
+            return {
+                id: 'global',
+                event_day_started: false,
+                profiles_locked: false,
+                total_competitions: 0,
+                total_teams: 0,
+                total_matches: 0,
+                event_duration: 'TBD',
+                updated_at: new Date().toISOString(),
+                created_at: new Date().toISOString()
+            };
         }
 
         return data as AppSettings;

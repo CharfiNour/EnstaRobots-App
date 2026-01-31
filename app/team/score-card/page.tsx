@@ -7,12 +7,18 @@ import { useRouter } from 'next/navigation';
 import ScoreHistoryView from '@/components/common/ScoreHistoryView';
 import { RestrictionScreen } from '../components';
 import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
+import { fetchTeamsFromSupabase, fetchCompetitionsFromSupabase } from '@/lib/supabaseData';
+import { canonicalizeCompId } from '@/lib/constants';
+import { useProfileStatus } from '../hooks/useProfileStatus';
+import { IncompleteRegistryView } from '../components';
 
 export default function TeamScoreHistoryPage() {
+    const { profileComplete, loading: statusLoading } = useProfileStatus();
     const [loading, setLoading] = useState(true);
     const [eventDayStarted, setEventDayStarted] = useState(getCompetitionState().eventDayStarted);
     const [session, setSession] = useState<any>(null);
-    const [teamCompetition, setTeamCompetition] = useState<string | undefined>(undefined);
+    const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
+    const [availableCompetitions, setAvailableCompetitions] = useState<any[]>([]);
     const router = useRouter();
 
     useEffect(() => {
@@ -23,44 +29,52 @@ export default function TeamScoreHistoryPage() {
         }
         setSession(currentSession);
 
-        // Fetch user's competition directly to ensure accuracy (session might be stale)
-        const loadTeamInfo = async () => {
-            if (currentSession.teamId) {
-                // Try to find the team's assigned competition from the full list or direct query
-                try {
-                    const { fetchTeamsFromSupabase } = await import('@/lib/supabaseData');
-                    const teams = await fetchTeamsFromSupabase();
-                    const myTeam = teams.find(t => t.id === currentSession.teamId);
-                    if (myTeam && myTeam.competition) {
-                        setTeamCompetition(myTeam.competition);
-                    }
-                } catch (e) {
-                    console.error("Failed to load team context", e);
+        const loadClubContext = async () => {
+            try {
+                const [teams, competitions] = await Promise.all([
+                    fetchTeamsFromSupabase('minimal'),
+                    fetchCompetitionsFromSupabase()
+                ]);
+
+                const clubName = currentSession.clubName || teams.find(t => t.id === currentSession.teamId)?.club;
+
+                const myClubTeams = teams.filter((t: any) =>
+                    t.club && clubName && t.club.trim().toLowerCase() === clubName.trim().toLowerCase()
+                );
+
+                const clubComps = competitions.filter(c =>
+                    myClubTeams.some(t => {
+                        const teamCanon = canonicalizeCompId(t.competition, competitions);
+                        const compCanon = canonicalizeCompId(c.id, competitions);
+                        return teamCanon === compCanon && teamCanon !== '';
+                    })
+                );
+
+                setAvailableCompetitions(clubComps);
+
+                if (clubComps.length > 0) {
+                    setSelectedCompId(clubComps[0].id);
                 }
+            } catch (e) {
+                console.error("Failed to load club context", e);
+            } finally {
+                setLoading(false);
             }
         };
-        loadTeamInfo();
 
         const handleSync = () => {
             const state = getCompetitionState();
             setEventDayStarted(state.eventDayStarted);
-            setLoading(false);
         };
 
-        // Initial sync
         syncEventDayStatusFromSupabase().then(handleSync);
+        loadClubContext();
 
-        // Listen for global updates
         window.addEventListener('competition-state-updated', handleSync);
         return () => window.removeEventListener('competition-state-updated', handleSync);
     }, [router]);
 
-    // Event Day Restriction
-    if (!eventDayStarted) {
-        return <RestrictionScreen />;
-    }
-
-    if (loading) {
+    if (loading || statusLoading) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="w-12 h-12 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
@@ -68,7 +82,13 @@ export default function TeamScoreHistoryPage() {
         );
     }
 
-
+    if (!profileComplete) {
+        return (
+            <div className="min-h-screen py-10 px-6 container mx-auto max-w-7xl">
+                <IncompleteRegistryView />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen relative bg-transparent">
@@ -99,8 +119,8 @@ export default function TeamScoreHistoryPage() {
 
                 <ScoreHistoryView
                     isSentToTeamOnly={true}
-                    lockedCompetitionId={teamCompetition || session?.competition}
-
+                    allowedCompetitions={availableCompetitions}
+                    initialCompetition={selectedCompId || undefined}
                 />
             </div>
         </div>

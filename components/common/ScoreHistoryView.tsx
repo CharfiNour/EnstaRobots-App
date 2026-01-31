@@ -26,6 +26,7 @@ interface ScoreHistoryViewProps {
     lockedCompetitionId?: string;
     teamId?: string;
     isJury?: boolean;
+    allowedCompetitions?: any[];
 }
 
 
@@ -62,7 +63,8 @@ export default function ScoreHistoryView({
     showFilter = true,
     lockedCompetitionId,
     teamId,
-    isJury = false
+    isJury = false,
+    allowedCompetitions
 }: ScoreHistoryViewProps) {
     const [loading, setLoading] = useState(true);
     const [isDrawLoading, setIsDrawLoading] = useState(false);
@@ -107,7 +109,7 @@ export default function ScoreHistoryView({
     const selectedCompType = (selectedCompData?.type || selectedCompData?.category || selectedCompetition || '').toLowerCase();
 
     const isMatchBasedComp = useMemo(() => {
-        const matchBasedTypes = ['fight', 'all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'];
+        const matchBasedTypes = ['all_terrain', 'junior_all_terrain', 'line_follower', 'junior_line_follower'];
         return matchBasedTypes.some(t => selectedCompType.includes(t));
     }, [selectedCompType]);
 
@@ -397,10 +399,10 @@ export default function ScoreHistoryView({
             // Line Follower categories are considered "Single Team" based, not "Match" based (which requires multi-participant groups)
             if (['line_follower', 'junior_line_follower', '1', '3'].includes(id)) return false;
 
-            if (['fight', 'all_terrain', 'junior_all_terrain', '5', '4', '2'].includes(id)) return true;
+            if (['all_terrain', 'junior_all_terrain', '4', '2'].includes(id)) return true;
             const comp = compsList.find((c: any) => c.id === compId || c.type === compId || c.id === id || c.type === id);
             const category = (comp?.category || comp?.type || '').toLowerCase();
-            return ['fight', 'all_terrain', 'junior_all_terrain'].includes(category);
+            return ['all_terrain', 'junior_all_terrain'].includes(category);
         };
 
         const groups: Record<string, any> = {};
@@ -606,15 +608,25 @@ export default function ScoreHistoryView({
             }
         });
 
-        // NEW: If match-based and ANY match group exists, remove 'single' entries for this specific competition
-        const hasMatchGroups = filtered.some(g => g.type === 'match');
-        if (hasMatchGroups) {
-            // ALWAYS prioritize match groups over individual teams in the "Matches" tab
-            const matchesOnly = filtered.filter(g => g.type === 'match');
-            if (matchesOnly.length > 0) return matchesOnly;
-        }
+        // NEW: If match-based and ANY match group exists, hide the 'single' entries
+        // ONLY if they are already part of one of the match groups.
+        // This prevents teams without visible scores (e.g. not sent to team) from disappearing.
+        const matchParticipantIds = new Set();
+        filtered.forEach(g => {
+            if (g.type === 'match') {
+                (g.participants || []).forEach((p: any) => matchParticipantIds.add(String(p.teamId)));
+            }
+        });
 
-        return filtered;
+        const refined = filtered.filter(g => {
+            if (g.type === 'single') {
+                // If a match exists for this team, hide the single entry to avoid duplicates
+                return !matchParticipantIds.has(String(g.teamId || g.id));
+            }
+            return true;
+        });
+
+        return refined;
     }, [groupedScores, searchQuery, selectedCompType, selectedPhaseFilter, resolvedCompId, selectedCompetition, teamId, competitions]);
 
     // Synchronize selection when competition changes or filtered registry updates
@@ -1036,7 +1048,6 @@ export default function ScoreHistoryView({
                                 'junior_all_terrain': '2',
                                 'line_follower': '3',
                                 'all_terrain': '4',
-                                'fight': '5'
                             };
                             if (legacyMap[slug]) variants.add(legacyMap[slug]);
 
@@ -1201,7 +1212,7 @@ export default function ScoreHistoryView({
                     {/* Competition Selector */}
                     {showFilter && (
                         <div className="shrink-0">
-                            {lockedCompetitionId && lockedComp ? (
+                            {lockedCompetitionId && lockedComp && (!allowedCompetitions || allowedCompetitions.length <= 1) ? (
                                 <div className="mb-6">
                                     <h2 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
                                         <Radar size={12} className="text-role-primary animate-spin-slow" />
@@ -1216,7 +1227,6 @@ export default function ScoreHistoryView({
                                                 if (type.includes('junior_all')) return 'bg-emerald-500';
                                                 if (type.includes('line_follower')) return 'bg-indigo-500';
                                                 if (type.includes('all_terrain')) return 'bg-orange-500';
-                                                if (type.includes('fight')) return 'bg-rose-500';
                                                 return 'bg-role-primary';
                                             })()}`} />
                                             <div className="flex flex-col">
@@ -1249,7 +1259,6 @@ export default function ScoreHistoryView({
                                                     if (type.includes('junior_all')) return 'bg-emerald-500';
                                                     if (type.includes('line_follower')) return 'bg-indigo-500';
                                                     if (type.includes('all_terrain')) return 'bg-orange-500';
-                                                    if (type.includes('fight')) return 'bg-rose-500';
                                                     return 'bg-role-primary';
                                                 })()}`} />
                                                 <span className="truncate">{selectedCompData?.name || selectedCompetition}</span>
@@ -1266,7 +1275,7 @@ export default function ScoreHistoryView({
                                                     className="absolute top-full left-0 right-0 mt-2 z-[100] bg-card border border-card-border rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden backdrop-blur-xl"
                                                 >
                                                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1.5">
-                                                        {competitions.map((cat) => {
+                                                        {(allowedCompetitions || competitions).map((cat) => {
                                                             const isSelected = selectedCompetition === cat.id;
                                                             const isLive = !!liveSessions[cat.id];
 
@@ -1286,7 +1295,6 @@ export default function ScoreHistoryView({
                                                                             if (cat.type.includes('junior_all')) return 'bg-emerald-500';
                                                                             if (cat.type.includes('line_follower')) return 'bg-indigo-500';
                                                                             if (cat.type.includes('all_terrain')) return 'bg-orange-500';
-                                                                            if (cat.type.includes('fight')) return 'bg-rose-500';
                                                                             return 'bg-role-primary';
                                                                         })()}`} />
                                                                         <span className="text-[10px] font-black uppercase tracking-widest truncate">

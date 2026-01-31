@@ -53,8 +53,11 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
     const styleMeta = getCategoryMetadata(competitionType);
 
     // Determine the layout style:
-    const isLineFollower = competitionType === 'line_follower' || competitionType === 'junior_line_follower' || competitionName.toLowerCase().includes('line follower');
+    const isLineFollower = competitionType === 'line_follower' || competitionType === 'junior_line_follower';
+    const isAllTerrain = competitionType === 'all_terrain' || competitionType === 'junior_all_terrain';
+    const isJuniorAT = competitionType === 'junior_all_terrain';
     const isHomologation = (activePhase || '').toLowerCase() === 'homologation';
+    const shouldShowRank = isAllTerrain;
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<OfflineScore>>({});
@@ -91,22 +94,15 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
         let st = (sub.status || '').toLowerCase();
         let isWinner = st === 'winner';
         let isEliminated = st === 'eliminated';
-        let isDraw = st === 'draw';
-
         const isQualified = st === 'qualified';
+        const rank = sub.detailedScores?.rank;
 
         if (isWinner) {
-            return { label: 'WINNER', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' };
+            return { label: 'WINNER', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600', rank, isWinner: true };
         } else if (isQualified) {
-            return { label: 'QUALIFIED', color: 'bg-blue-500/10 border-blue-500/30 text-blue-600' };
+            return { label: 'QUALIFIED', color: 'bg-blue-500/10 border-blue-500/30 text-blue-600', rank };
         } else if (isEliminated) {
-            return { label: 'ELIMINATED', color: 'bg-red-500/10 border-red-500/30 text-red-600' };
-        } else if (isDraw) {
-            return { label: 'DRAW', color: 'bg-orange-500/10 border-orange-500/30 text-orange-600' };
-        } else if (st === 'validated' || st === 'finished' || st === 'success') {
-            return { label: 'DONE', color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' };
-        } else if (st === 'pending') {
-            return { label: 'PENDING', color: 'bg-orange-500/5 border-orange-500/20 text-orange-500/80' };
+            return { label: 'ELIMINATED', color: 'bg-red-500/10 border-red-500/30 text-red-600', rank };
         }
 
         return null;
@@ -213,7 +209,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                             </div>
 
                             {/* Team Info */}
-                            <div className="flex-1 min-w-0 pr-16">
+                            <div className="flex-1 min-w-0 pr-20">
                                 <div className="text-lg font-black text-foreground uppercase mb-1 leading-tight truncate">
                                     {group.team?.name || group.teamId}
                                 </div>
@@ -235,31 +231,31 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                     const st = (currentScore.status || '').toLowerCase();
                                     let isWinner = st === 'winner';
                                     let isEliminated = st === 'eliminated';
-                                    let isDraw = st === 'draw';
-                                    let isFinalized = ['validated', 'finished', 'winner', 'qualified', 'eliminated', 'draw', 'success'].includes(st);
-
-                                    // Calculate if generic logic REMOVED to respect explicit status submission
-
-
                                     const isQualified = st === 'qualified';
+
                                     const label = isHomologation ? `${currentScore.totalPoints} PTS` :
                                         isWinner ? 'WINNER' :
                                             isQualified ? 'QUALIFIED' :
                                                 isEliminated ? 'ELIMINATED' :
-                                                    isDraw ? 'DRAW' : (isFinalized ? 'DONE' : 'PENDING');
+                                                    (isJuniorAT && currentScore.status !== 'pending') ? `${currentScore.totalPoints} PTS` : null;
 
-                                    if (!label) return null;
+                                    const rank = currentScore.detailedScores?.rank;
 
                                     return (
-                                        <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${isWinner ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
-                                            isEliminated ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                                isQualified ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
-                                                    isDraw ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                                        isFinalized ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
-                                                            'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
-                                            }`}>
-                                            {isWinner && '🏆 '}
-                                            {label}
+                                        <div className="absolute top-4 right-4 flex items-center gap-3">
+                                            {shouldShowRank && rank && (
+                                                <div className="text-[11px] font-black italic text-foreground/40 pr-1 flex items-baseline gap-1">
+                                                    RANK <span className="text-accent text-[18px] leading-none">#{rank}</span>
+                                                </div>
+                                            )}
+                                            <div className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm border ${isWinner ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600' :
+                                                isEliminated ? 'bg-red-500/10 border-red-500/30 text-red-600' :
+                                                    isQualified ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' :
+                                                        'bg-orange-500/5 border-orange-500/20 text-orange-500/80 shadow-none'
+                                                }`}>
+                                                {isWinner && '🏆 '}
+                                                {label}
+                                            </div>
                                         </div>
                                     );
                                 })()
@@ -371,28 +367,29 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                     )}
                                                 </div>
 
-                                                {/* Road Completion Box */}
-                                                <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                                            <Shield size={16} />
+                                                {!isJuniorAT && (
+                                                    <div className="flex items-center justify-between p-4 bg-muted/10 rounded-xl border border-card-border">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-lg ${currentScore.completedRoad ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                                <Shield size={16} />
+                                                            </div>
+                                                            <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
                                                         </div>
-                                                        <span className="text-xs font-black uppercase tracking-wide text-foreground">Road Completion</span>
+                                                        {isEditing ? (
+                                                            <button
+                                                                onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
+                                                                className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
+                                                            >
+                                                                {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                                            </button>
+                                                        ) : (
+                                                            <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    {isEditing ? (
-                                                        <button
-                                                            onClick={() => setEditData({ ...editData, completedRoad: !editData.completedRoad })}
-                                                            className={`text-xs font-black px-3 py-1 rounded-lg border transition-all ${editData.completedRoad ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}`}
-                                                        >
-                                                            {editData.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                                        </button>
-                                                    ) : (
-                                                        <span className={`text-sm font-black uppercase tracking-[0.1em] ${currentScore.completedRoad ? 'text-green-500' : 'text-red-500'}`}>
-                                                            {currentScore.completedRoad ? 'SUCCESS' : 'FAILED'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {/* Total Summary for LF */}
+                                                )}
+                                                {/* Total Summary for LF / Junior AT */}
                                                 <div className="flex items-center justify-between p-4 bg-accent/5 rounded-xl border border-accent/20 mb-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="p-2 bg-accent/20 rounded-lg text-accent">
@@ -401,7 +398,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                         <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
                                                     </div>
                                                     <span className="text-xl font-black italic text-foreground tracking-tighter">
-                                                        {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ 215 PTS</span>
+                                                        {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ {competitionType === 'junior_all_terrain' ? '90' : (competitionType === 'junior_line_follower' ? '140' : '215')} PTS</span>
                                                     </span>
                                                 </div>
 
@@ -415,8 +412,11 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                         </div>
                                                         <div className="grid gap-2">
                                                             {(() => {
-                                                                const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR } = require('@/lib/constants');
-                                                                const sections = competitionType === 'junior_line_follower' ? LINE_FOLLOWER_SECTIONS_JUNIOR : LINE_FOLLOWER_SECTIONS_STANDARD;
+                                                                const { LINE_FOLLOWER_SECTIONS_STANDARD, LINE_FOLLOWER_SECTIONS_JUNIOR, JUNIOR_ALL_TERRAIN_SECTIONS } = require('@/lib/constants');
+                                                                let sections = [];
+                                                                if (competitionType === 'junior_all_terrain') sections = JUNIOR_ALL_TERRAIN_SECTIONS;
+                                                                else if (competitionType === 'junior_line_follower') sections = LINE_FOLLOWER_SECTIONS_JUNIOR;
+                                                                else sections = LINE_FOLLOWER_SECTIONS_STANDARD;
 
                                                                 const segmentCards = Object.entries(currentScore.detailedScores || {}).map(([id, pts]) => {
                                                                     const section = sections.find((s: any) => s.id === id);
@@ -518,7 +518,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                         </div>
 
                                                         {/* Team Info */}
-                                                        <div className="flex-1 min-w-0 pr-16">
+                                                        <div className="flex-1 min-w-0 pr-28">
                                                             <div className="text-sm font-black text-foreground uppercase truncate">
                                                                 {participant.team?.name || participant.teamId}
                                                             </div>
@@ -529,10 +529,18 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                             </div>
                                                         </div>
 
-                                                        {/* Badge */}
+                                                        {/* Badge & Rank */}
                                                         {badge && (
-                                                            <div className={`absolute right-4 px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider border ${badge.color}`}>
-                                                                {badge.label}
+                                                            <div className="absolute right-4 flex flex-col items-end gap-1">
+                                                                <div className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider border ${badge.color}`}>
+                                                                    {badge.isWinner && '🏆 '}
+                                                                    {badge.label}
+                                                                </div>
+                                                                {shouldShowRank && badge.rank && (
+                                                                    <div className="text-[9px] font-black italic text-foreground/40 flex items-baseline gap-1">
+                                                                        RANK <span className="text-accent text-[12px] leading-none">#{badge.rank}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -559,6 +567,34 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                     <div className="h-px flex-1 bg-card-border" />
                                 </div>
 
+                                {isJuniorAT && hasScore && currentScore.status !== 'pending' && currentScore.detailedScores && (
+                                    <div className="grid gap-2 mb-3">
+                                        {(() => {
+                                            const { JUNIOR_ALL_TERRAIN_SECTIONS } = require('@/lib/constants');
+                                            return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
+                                                const section = JUNIOR_ALL_TERRAIN_SECTIONS.find((s: any) => s.id === id);
+                                                if (!section) return null;
+                                                return (
+                                                    <div key={id} className="flex items-center justify-between p-2.5 bg-muted/5 rounded-xl border border-card-border/50">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-7 h-7 rounded-lg bg-card border border-card-border overflow-hidden">
+                                                                <img src={section.image} alt="" className="w-full h-full object-cover opacity-60" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[9px] font-black uppercase tracking-tight text-foreground">{section.label}</div>
+                                                                <div className="text-[7px] font-bold uppercase text-muted-foreground opacity-50">Max {section.maxPoints} Pts</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-xs font-black italic text-accent">
+                                                            {pts} <span className="text-[8px] not-italic opacity-40">PTS</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                )}
+
                                 {homologationScore ? (
                                     <div className="p-2 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
                                         <div className="flex items-center justify-between">
@@ -572,7 +608,6 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                 {homologationScore.totalPoints} <span className="text-[9px] not-italic uppercase opacity-60">/ 40 PTS</span>
                                             </span>
                                         </div>
-
                                     </div>
                                 ) : (
                                     <div className="p-2 bg-orange-500/5 rounded-xl border border-orange-500/10 shadow-sm flex items-center justify-center gap-2">

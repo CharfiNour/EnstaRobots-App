@@ -19,10 +19,6 @@ const INITIAL_COMPS: CompetitionListItem[] = COMPETITION_CATEGORIES.map(c => ({
 }));
 
 export const getAdminCompetitions = (): CompetitionListItem[] => {
-    // Return initial state to force fresh fetch/sync
-    if (typeof window !== 'undefined') {
-        localStorage.removeItem(COMPS_STORAGE_KEY);
-    }
     return INITIAL_COMPS;
 };
 

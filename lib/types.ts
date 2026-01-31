@@ -5,7 +5,7 @@
 export interface Competition {
     id: string;
     title: string;
-    category: 'junior_line_follower' | 'junior_all_terrain' | 'line_follower' | 'all_terrain' | 'fight';
+    category: 'junior_line_follower' | 'junior_all_terrain' | 'line_follower' | 'all_terrain';
     status: 'upcoming' | 'qualifiers' | 'group_stage' | 'knockout' | 'finals' | 'completed';
     description?: string;
     total_teams: number;
@@ -58,11 +58,6 @@ export interface Score {
     time_ms?: number;
     penalties?: number;
     bonus_points?: number;
-
-    // For Fight
-    knockouts?: number;
-    judge_points?: number;
-    damage_score?: number;
 
     // Calculated
     total_points: number;

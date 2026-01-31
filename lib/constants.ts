@@ -116,22 +116,29 @@ export const LINE_FOLLOWER_SECTIONS_STANDARD = [
     { id: '1', label: 'Segment 1', maxPoints: 10, image: '/assets/line-follower/image7.png' },
     { id: '2', label: 'Segment 2', maxPoints: 10, image: '/assets/line-follower/image5.png' },
     { id: '3', label: 'Segment 3', maxPoints: 20, image: '/assets/line-follower/image6.png' },
-    { id: '4', label: 'Segment 4', maxPoints: 30, image: '/assets/line-follower/image3.png' },
-    { id: '5', label: 'Segment 5', maxPoints: 30, image: '/assets/line-follower/image2.png' },
-    { id: '6', label: 'Segment 6', maxPoints: 40, image: '/assets/line-follower/image8.png' },
+    { id: '4', label: 'Segment 4', maxPoints: 30, image: '/assets/line-follower/image3.png', options: [10, 20, 30] },
+    { id: '5', label: 'Segment 5', maxPoints: 30, image: '/assets/line-follower/image2.png', options: [30, 25, 20] },
+    { id: '6', label: 'Segment 6', maxPoints: 40, image: '/assets/line-follower/image8.png', options: [40, 20, 0] },
     { id: '7', label: 'Segment 7', maxPoints: 20, image: '/assets/line-follower/image1.png' },
     { id: '8', label: 'Segment 8', maxPoints: 25, image: '/assets/line-follower/image4.png' },
     { id: '9', label: 'Segment 9', maxPoints: 30, image: '/assets/line-follower/image9.png' },
 ];
 
 export const LINE_FOLLOWER_SECTIONS_JUNIOR = [
-    { id: '1', label: 'Segment 1', maxPoints: 20, image: '/assets/junior-line-follower/image7.png' },
-    { id: '2', label: 'Segment 2', maxPoints: 20, image: '/assets/junior-line-follower/image2.png' },
-    { id: '3', label: 'Segment 3', maxPoints: 30, image: '/assets/junior-line-follower/image6.png' },
+    { id: '1', label: 'Segment 1', maxPoints: 10, image: '/assets/junior-line-follower/image7.png' },
+    { id: '2', label: 'Segment 2', maxPoints: 10, image: '/assets/junior-line-follower/image2.png' },
+    { id: '3', label: 'Segment 3', maxPoints: 30, image: '/assets/junior-line-follower/image6.png', options: [10, 20, 30] },
     { id: '4', label: 'Segment 4', maxPoints: 20, image: '/assets/junior-line-follower/image1.png' },
     { id: '5', label: 'Segment 5', maxPoints: 10, image: '/assets/junior-line-follower/image8.png' },
     { id: '6', label: 'Segment 6', maxPoints: 30, image: '/assets/junior-line-follower/image3.png' },
-    { id: '7', label: 'Segment 7', maxPoints: 30, image: '/assets/junior-line-follower/image5.png' },
+    { id: '7', label: 'Segment 7', maxPoints: 30, image: '/assets/junior-line-follower/image5.png', options: [30, 20] },
+];
+
+export const JUNIOR_ALL_TERRAIN_SECTIONS = [
+    { id: 'flag', label: 'Mission Drapeau', maxPoints: 50, options: [10, 30, 50], hint: 'Sens (10) | Atteindre (30) | Bouger (50)' },
+    { id: 'object', label: 'Placement Objet', maxPoints: 10, options: [10, -10], hint: 'Correct (10) | Incorrect (-10)' },
+    { id: 'zigzag', label: 'Epreuve Zigzag', maxPoints: 20, options: [0, 20], hint: 'Réussi (20)' },
+    { id: 'player', label: 'Gestion Joueur', maxPoints: 10, options: [10, -10], hint: 'Elimine (10) | Tomber (-10)' },
 ];
 export function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): string {
     if (!id) return '';

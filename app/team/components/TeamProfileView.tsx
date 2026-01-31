@@ -23,18 +23,19 @@ const COMPETITION_CONFIG: Record<string, { name: string, color: string, icon: an
 interface TeamProfileViewProps {
     team: Team | null;
     onUpdate: (updatedTeam: Team) => void;
+    isEditing: boolean;
     isAdmin: boolean;
 }
 
-export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfileViewProps) {
+export default function TeamProfileView({ team, onUpdate, isEditing, isAdmin }: TeamProfileViewProps) {
     const [loading, setLoading] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
     const [saved, setSaved] = useState(false);
     const [activeTab, setActiveTab] = useState<'info' | 'crew'>('info');
     const [visualsLocked, setVisualsLocked] = useState(false);
     const [profilesLocked, setProfilesLocked] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
     const robotInputRef = useRef<HTMLInputElement>(null);
+    const prevTeamIdRef = useRef<string | null>(null);
 
     const [availableCompetitions, setAvailableCompetitions] = useState<{ id: string, name: string, profiles_locked?: boolean }[]>([]);
 
@@ -78,7 +79,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
     });
 
     useEffect(() => {
-        if (team) {
+        if (team && (team.id !== prevTeamIdRef.current || !isEditing)) {
             setFormData({
                 robotName: team.robotName || team.name || '',
                 club: team.club || '',
@@ -91,8 +92,28 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                     : [{ name: '', role: 'Member', isLeader: false }]
             });
             setVisualsLocked(!!team.visualsLocked);
+            prevTeamIdRef.current = team.id;
         }
-    }, [team]);
+    }, [team, isEditing]);
+
+    // Broadcast changes to parent
+    const handleChange = (newData: typeof formData) => {
+        setFormData(newData);
+        if (team) {
+            onUpdate({
+                ...team,
+                name: newData.robotName || `Team ${team.id}`,
+                robotName: newData.robotName,
+                club: newData.club,
+                university: newData.university,
+                competition: newData.competition,
+                members: newData.members,
+                photo: newData.photo,
+                logo: newData.logo,
+                isPlaceholder: false
+            });
+        }
+    };
 
     const getCompetitionDisplayColor = (competitionId: string) => {
         // First check if it matches old slugs
@@ -154,7 +175,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
 
             // Upload to Supabase Storage
             const publicUrl = await uploadImageToStorage(compressedFile, 'admin_uploads', path);
-            setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo' : 'photo']: publicUrl }));
+            handleChange({ ...formData, [type === 'logo' ? 'logo' : 'photo']: publicUrl });
         } catch (err) {
             console.error("Failed to upload image:", err);
             alert("Upload failed. Please try again.");
@@ -171,56 +192,15 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
         if (confirm("Are you sure? Once confirmed, you will no longer be able to modify your robot photo or club logo.")) {
             if (team) {
                 const updatedTeam = { ...team, visualsLocked: true };
-                await upsertTeamToSupabase(updatedTeam);
                 setVisualsLocked(true);
-                setSaved(true);
-                setTimeout(() => setSaved(false), 3000);
+                onUpdate(updatedTeam);
             }
         }
     };
 
-    const handleSaveProfile = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        if (!team || (profilesLocked && !isAdmin)) return;
-        setLoading(true);
-
-        try {
-            // Update club logo if it changed
-            if (formData.logo !== team.logo) {
-                await updateClubLogoInSupabase(formData.club, formData.logo);
-            }
-
-            const updatedTeam: Team = {
-                ...team,
-                name: formData.robotName || `Team ${team.id}`, // Maintain robot name as name
-                robotName: formData.robotName,
-                club: formData.club,
-                university: formData.university,
-                competition: formData.competition,
-                members: formData.members,
-                isPlaceholder: false,
-                photo: formData.photo,
-                logo: formData.logo,
-                visualsLocked: visualsLocked
-            };
-
-            const realId = await upsertTeamToSupabase(updatedTeam);
-
-            setIsEditing(false);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
-
-            // Trigger refresh in parent
-            onUpdate({ ...updatedTeam, id: realId });
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const addMember = () => {
-        setFormData({
+        handleChange({
             ...formData,
             members: [...formData.members, { name: '', role: 'Member', isLeader: false }]
         });
@@ -228,7 +208,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
 
     const removeMember = (index: number) => {
         const newMembers = formData.members.filter((_, i) => i !== index);
-        setFormData({ ...formData, members: newMembers });
+        handleChange({ ...formData, members: newMembers });
     };
 
     const updateMember = (index: number, field: string, value: any) => {
@@ -239,7 +219,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
             if (field === 'isLeader' && value === true) return { ...m, isLeader: false };
             return m;
         });
-        setFormData({ ...formData, members: newMembers });
+        handleChange({ ...formData, members: newMembers });
     };
 
     if (!team) {
@@ -271,35 +251,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                     </div>
                 </div>
 
-                {(() => {
-                    if (!isAdmin) {
-                        return null; // Don't show anything for non-owners
-                    }
-
-                    if (profilesLocked) {
-                        return (
-                            <div className="flex items-center gap-3 px-6 py-3 bg-muted/40 border border-card-border rounded-2xl text-muted-foreground">
-                                <Lock size={14} className="opacity-50" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Profiles Locked by Admin</span>
-                            </div>
-                        );
-                    }
-
-                    return (
-                        <button
-                            onClick={() => {
-                                if (isEditing) handleSaveProfile();
-                                else setIsEditing(true);
-                            }}
-                            className={`min-h-[44px] flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg hover:scale-105 active:scale-95 ${isEditing
-                                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20'
-                                : 'bg-gradient-to-r from-role-primary to-role-secondary text-white shadow-role-primary/20'}`}
-                        >
-                            {isEditing ? <CheckCircle size={14} /> : <Settings size={14} />}
-                            {isEditing ? 'Save Changes' : 'Edit Specs'}
-                        </button>
-                    );
-                })()}
+                {/* Save button handled by parent */}
             </div>
 
             {/* Content Grid */}
@@ -427,7 +379,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                             type="text"
                                             readOnly={!isEditing}
                                             value={formData.robotName}
-                                            onChange={(e) => setFormData({ ...formData, robotName: e.target.value })}
+                                            onChange={(e) => handleChange({ ...formData, robotName: e.target.value })}
                                             className={`w-full px-5 py-3 rounded-xl text-lg font-bold transition-all border ${isEditing ? 'bg-muted/30 border-role-primary/30' : 'bg-muted/10 border-muted-foreground/10 cursor-default'}`}
                                         />
                                     </div>
@@ -435,10 +387,9 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                         <label className="text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-60 ml-1">Club Name</label>
                                         <input
                                             type="text"
-                                            readOnly={!isEditing}
+                                            readOnly
                                             value={formData.club}
-                                            onChange={(e) => setFormData({ ...formData, club: e.target.value })}
-                                            className={`w-full px-5 py-3 rounded-xl text-sm font-bold transition-all border ${isEditing ? 'bg-muted/30 border-role-primary/30' : 'bg-muted/10 border-muted-foreground/10 cursor-default'}`}
+                                            className="w-full px-5 py-3 rounded-xl text-sm font-bold bg-muted/10 border border-muted-foreground/10 cursor-not-allowed opacity-70"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -447,7 +398,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                             type="text"
                                             readOnly={!isEditing}
                                             value={formData.university}
-                                            onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                                            onChange={(e) => handleChange({ ...formData, university: e.target.value })}
                                             className={`w-full px-5 py-3 rounded-xl text-sm font-bold transition-all border ${isEditing ? 'bg-muted/30 border-role-primary/30' : 'bg-muted/10 border-muted-foreground/10 cursor-default'}`}
                                         />
                                     </div>
@@ -459,7 +410,7 @@ export default function TeamProfileView({ team, onUpdate, isAdmin }: TeamProfile
                                                 fullWidth
                                                 options={availableCompetitions.map(c => ({ value: c.id, label: c.name }))}
                                                 value={formData.competition}
-                                                onChange={(val) => setFormData({ ...formData, competition: val })}
+                                                onChange={(val) => handleChange({ ...formData, competition: val })}
                                             />
                                         ) : (
                                             <div className={`w-fit px-4 py-2 rounded-xl font-black uppercase text-xs tracking-widest border ${getCompetitionDisplayColor(formData.competition)}`}>

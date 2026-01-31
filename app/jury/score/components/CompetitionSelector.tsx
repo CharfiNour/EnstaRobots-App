@@ -64,7 +64,7 @@ export default function CompetitionSelector({
                             {competition.name || competition.label}
                         </span>
                         <span className={`text-[10px] font-black uppercase tracking-widest block text-left ${scoringMode === 'homologation' ? 'text-role-primary' : 'text-muted-foreground opacity-40'}`}>
-                            {scoringMode === 'homologation' ? 'Technical Registry' : 'Combat Performance'}
+                            {scoringMode === 'homologation' ? 'Technical Registry' : 'Arena Performance'}
                         </span>
                     </div>
                 </div>

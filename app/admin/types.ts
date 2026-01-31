@@ -25,6 +25,7 @@ export interface StatCardProps {
     highlight?: boolean;
     isEditing?: boolean;
     onChange?: (value: string) => void;
+    onSave?: (value: string) => void;
 }
 
 export interface ActionCardProps {

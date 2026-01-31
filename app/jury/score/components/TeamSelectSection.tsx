@@ -1,4 +1,4 @@
-import { Shield, Info } from 'lucide-react';
+import { Shield, Info, Timer, Trophy, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 import { Team } from '@/lib/teams';
 import { TeamScoreEntry } from '../../types';
@@ -6,6 +6,7 @@ import CustomSelector from '@/components/common/CustomSelector';
 
 interface TeamSelectSectionProps {
     isLineFollower: boolean;
+    isAllTerrain?: boolean;
     teams: TeamScoreEntry[];
     handleTeamChange: (index: number, field: string, value: string) => void;
     competitionTeams: Team[];
@@ -21,10 +22,13 @@ interface TeamSelectSectionProps {
     groups?: string[];
     scoringMode?: 'performance' | 'homologation';
     teamsOrder?: Record<string, number>;
+    onScoreClick?: (index: number) => void;
+    competitionId?: string;
 }
 
 export default function TeamSelectSection({
     isLineFollower,
+    isAllTerrain = false,
     teams,
     handleTeamChange,
     competitionTeams,
@@ -39,9 +43,12 @@ export default function TeamSelectSection({
     setSelectedGroup,
     groups = [],
     scoringMode = 'performance',
-    teamsOrder = {}
+    teamsOrder = {},
+    onScoreClick,
+    competitionId = ''
 }: TeamSelectSectionProps) {
     const isHomo = scoringMode === 'homologation';
+    const isJuniorAT = competitionId === 'junior_all_terrain';
 
     // Sort teams based on the provided order
     const sortedTeams = useMemo(() => {
@@ -107,14 +114,15 @@ export default function TeamSelectSection({
                     const hasSubmitted = isPhaseSubmitted(team.id, phaseToCheck!);
 
                     return (
-                        <div key={index} className="flex flex-col md:flex-row gap-4 p-5 rounded-[2rem] bg-muted/20 border border-card-border group transition-all hover:bg-muted/30 shadow-sm relative z-0 focus-within:z-50">
-                            <div className="flex-1">
+                        <div key={index} className="flex flex-col md:flex-row justify-between gap-6 p-4 rounded-[1.5rem] bg-muted/20 border border-card-border group transition-all hover:bg-muted/30 shadow-sm relative z-0 focus-within:z-50">
+                            <div className="flex-1 min-w-0 md:max-w-[200px]">
                                 <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] opacity-60">
                                     {isHomo ? 'Robot Selection' : (isLineFollower ? 'Robot Name' : `Team ${index + 1} Robot`)}
                                 </label>
 
                                 <CustomSelector
                                     variant="block"
+                                    size="compact"
                                     fullWidth
                                     placeholder="Select Robot..."
                                     value={team.id}
@@ -126,15 +134,49 @@ export default function TeamSelectSection({
                                         color: isPhaseSubmitted(t.id, phaseToCheck!) ? 'text-emerald-500' : ''
                                     }))}
                                 />
-
                                 {hasSubmitted && (
                                     <div className="text-[9px] font-bold text-emerald-500 dark:text-emerald-400 mt-2 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                                         <Info size={10} /> Already submitted for {phaseToCheck?.replace(/_/g, ' ')}
                                     </div>
                                 )}
+
+                                {/* Timer (Far Left) */}
+                                {!isLineFollower && !isHomo && isAllTerrain && (
+                                    <div className="mt-3">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <Timer size={10} className="text-accent" />
+                                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Perf Duration</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 bg-background/50 border border-card-border rounded-xl px-3 py-2.5 shadow-inner focus-within:border-accent/50 transition-all max-w-[200px]">
+                                            <input
+                                                type="text"
+                                                placeholder="00"
+                                                value={team.timeMinutes || ''}
+                                                onChange={(e) => handleTeamChange(index, 'timeMinutes', e.target.value)}
+                                                className="w-full bg-transparent text-center text-xs font-mono font-black outline-none placeholder:opacity-20"
+                                            />
+                                            <span className="opacity-30 text-xs font-black">:</span>
+                                            <input
+                                                type="text"
+                                                placeholder="00"
+                                                value={team.timeSeconds || ''}
+                                                onChange={(e) => handleTeamChange(index, 'timeSeconds', e.target.value)}
+                                                className="w-full bg-transparent text-center text-xs font-mono font-black outline-none placeholder:opacity-20"
+                                            />
+                                            <span className="opacity-30 text-xs font-black">:</span>
+                                            <input
+                                                type="text"
+                                                placeholder="000"
+                                                value={team.timeMillis || ''}
+                                                onChange={(e) => handleTeamChange(index, 'timeMillis', e.target.value)}
+                                                className="w-full bg-transparent text-center text-xs font-mono font-black outline-none placeholder:opacity-20"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="md:w-56 shrink-0">
+                            <div className="md:w-56 shrink-0 md:ml-auto">
                                 <label className={`text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-[0.2em] ${isHomo ? 'opacity-0 select-none' : 'opacity-60'}`}>
                                     {isLineFollower ? 'Attempt Phase' : 'Match Outcome'}
                                 </label>
@@ -146,6 +188,7 @@ export default function TeamSelectSection({
                                 ) : isLineFollower ? (
                                     <CustomSelector
                                         variant="block"
+                                        size="compact"
                                         fullWidth
                                         value={team.phase}
                                         onChange={(val) => handleTeamChange(index, 'phase', val)}
@@ -156,17 +199,61 @@ export default function TeamSelectSection({
                                         }))}
                                     />
                                 ) : (
-                                    <CustomSelector
-                                        variant="block"
-                                        fullWidth
-                                        value={team.status}
-                                        onChange={(val) => handleTeamChange(index, 'status', val)}
-                                        options={STATUS_OPTIONS.map(o => ({
-                                            value: o.value,
-                                            label: o.label,
-                                            color: o.color
-                                        }))}
-                                    />
+                                    <div className="space-y-3">
+                                        <CustomSelector
+                                            variant="block"
+                                            size="compact"
+                                            fullWidth
+                                            value={team.status}
+                                            onChange={(val) => handleTeamChange(index, 'status', val)}
+                                            options={STATUS_OPTIONS.map(o => ({
+                                                value: o.value,
+                                                label: o.label,
+                                                color: o.color
+                                            }))}
+                                        />
+
+                                        {/* Score/Rank (Under Match Outcome) */}
+                                        {!isLineFollower && !isHomo && isAllTerrain && (
+                                            <div>
+                                                {isJuniorAT ? (
+                                                    <>
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <Trophy size={10} className="text-accent" />
+                                                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Points</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onScoreClick?.(index)}
+                                                            className="w-full flex items-center justify-between px-3 py-[10px] bg-background/50 border border-card-border rounded-xl group hover:border-accent/30 transition-all shadow-inner"
+                                                        >
+                                                            <span className="text-xs font-black italic text-foreground leading-none">
+                                                                {team.totalTaskPoints || 0} <span className="text-[8px] not-italic opacity-40 uppercase">Pts</span>
+                                                            </span>
+                                                            <ChevronRight size={14} className="text-muted-foreground group-hover:text-accent transition-all" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <Trophy size={10} className="text-amber-500" />
+                                                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Rank</span>
+                                                        </div>
+                                                        <select
+                                                            value={team.rank || ''}
+                                                            onChange={(e) => handleTeamChange(index, 'rank', e.target.value)}
+                                                            className="w-full h-[41px] bg-background/50 border border-card-border rounded-xl text-center text-xs font-black outline-none appearance-none hover:border-accent/50 cursor-pointer shadow-inner"
+                                                        >
+                                                            <option value="">--</option>
+                                                            {[1, 2, 3, 4, 5, 6].map(r => (
+                                                                <option key={r} value={r}>{r}</option>
+                                                            ))}
+                                                        </select>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>

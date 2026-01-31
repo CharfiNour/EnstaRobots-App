@@ -7,12 +7,40 @@ export interface AuthSession {
     teamId?: string;
     teamCode?: string;
     teamName?: string;
+    clubName?: string; // For club-wide login
     competition?: string; // For juries locked to a specific competition
     expiresAt: number;
 }
 
-// Local storage keys
-const SESSION_KEY = 'enstarobots_session';
+// Cookie name
+const SESSION_COOKIE = 'enstarobots_session';
+
+/**
+ * COOKIE HELPERS
+ */
+function setCookie(name: string, value: string, days: number) {
+    if (typeof document === 'undefined') return;
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+}
+
+function getCookie(name: string) {
+    if (typeof document === 'undefined') return null;
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+}
+
+function eraseCookie(name: string) {
+    if (typeof document === 'undefined') return;
+    document.cookie = `${name}=; Max-Age=-99999999;path=/;SameSite=Lax`;
+}
 
 // Team Auth: Login with team code
 import { getTeams } from './teams';
@@ -25,36 +53,33 @@ export async function loginWithStaffCode(code: string): Promise<{ success: boole
 
         const { data, error } = await supabase
             .from('staff_codes')
-            .select('id, role, competition_id')
+            .select('id, role, competition_id, name')
             .eq('code', trimmedCode)
             .maybeSingle();
 
         if (error) {
             console.error('Login Error (Supabase):', error);
-            console.error('Attempted Code:', trimmedCode);
             return { success: false, error: 'Database error' };
         }
 
         if (!data) {
-            console.warn('Login Failed: No match found for code', trimmedCode);
             return { success: false, error: 'Invalid or inactive access code' };
         }
 
-        // Type assertion for staff code data
-        const staffData = data as { id: string; role: string; competition_id: string | null };
+        const staffData = data as any;
 
         const session: AuthSession = {
             userId: staffData.id,
-            role: staffData.role as UserRole,
+            role: (staffData.role === 'team' ? 'team' : staffData.role) as UserRole,
+            clubName: staffData.role === 'team' ? staffData.name : undefined,
             competition: (staffData.role === 'jury' || staffData.role === 'homologation_jury') && staffData.competition_id ? staffData.competition_id : undefined,
-            expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
+            expiresAt: Date.now() + 12 * 60 * 60 * 1000,
         };
 
-        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        setCookie(SESSION_COOKIE, JSON.stringify(session), 1);
         return { success: true, session };
 
     } catch (err) {
-        console.error('Login Exception:', err);
         return { success: false, error: 'Login processing failed' };
     }
 }
@@ -63,18 +88,38 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
     try {
         const trimmedCode = teamCode.trim().toUpperCase();
 
-        // Query team code from Supabase
+        const { data: staffCode } = await supabase
+            .from('staff_codes')
+            .select('id, role, name')
+            .eq('code', trimmedCode)
+            .eq('role', 'team')
+            .maybeSingle();
+
+        if (staffCode) {
+            const sc = staffCode as any;
+            const session: AuthSession = {
+                userId: sc.id,
+                role: 'team',
+                clubName: sc.name,
+                teamCode: trimmedCode,
+                expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            };
+
+            setCookie(SESSION_COOKIE, JSON.stringify(session), 7);
+            return { success: true, session };
+        }
+
         const { data: team, error } = await supabase
             .from('teams')
-            .select('id, name, team_code, competition_id')
+            .select('id, name, team_code, competition_id, club')
             .eq('team_code', trimmedCode)
             .single();
 
         if (error || !team) {
-            return { success: false, error: 'Invalid team code' };
+            return { success: false, error: 'Invalid access code' };
         }
 
-        const teamData = team as any; // Explicit cast
+        const teamData = team as any;
 
         const session: AuthSession = {
             userId: teamData.id,
@@ -82,14 +127,12 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
             teamId: teamData.id,
             teamCode: teamData.team_code,
             teamName: teamData.name,
+            clubName: teamData.club || undefined,
             competition: teamData.competition_id || undefined,
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
 
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        }
-
+        setCookie(SESSION_COOKIE, JSON.stringify(session), 7);
         return { success: true, session };
     } catch (err) {
         return { success: false, error: 'Login failed. Please try again.' };
@@ -100,13 +143,12 @@ export async function loginWithTeamCode(teamCode: string): Promise<{ success: bo
 export function getSession(): AuthSession | null {
     if (typeof window === 'undefined') return null;
 
-    const sessionStr = localStorage.getItem(SESSION_KEY);
+    const sessionStr = getCookie(SESSION_COOKIE);
     if (!sessionStr) return null;
 
     try {
-        const session: AuthSession = JSON.parse(sessionStr);
+        const session: AuthSession = JSON.parse(decodeURIComponent(sessionStr));
 
-        // Check if expired
         if (session.expiresAt < Date.now()) {
             logout();
             return null;
@@ -127,7 +169,7 @@ export function getUserRole(): UserRole {
 // Logout
 export function logout() {
     if (typeof window !== 'undefined') {
-        localStorage.removeItem(SESSION_KEY);
+        eraseCookie(SESSION_COOKIE);
         window.location.href = '/';
     }
 }
@@ -135,10 +177,8 @@ export function logout() {
 // Check if user has access to a route
 export function hasAccess(requiredRole: UserRole): boolean {
     const currentRole = getUserRole();
-
     if (requiredRole === 'visitor') return true;
 
-    // Check role hierarchy
     const roleHierarchy: Record<UserRole, number> = {
         visitor: 0,
         team: 1,
@@ -162,7 +202,6 @@ export async function loginWithEmail(email: string, password: string): Promise<{
             return { success: false, error: 'Invalid credentials' };
         }
 
-        // Get profile
         const { data: profile } = await (supabase
             .from('profiles')
             .select('role')
@@ -179,10 +218,7 @@ export async function loginWithEmail(email: string, password: string): Promise<{
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         };
 
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        }
-
+        setCookie(SESSION_COOKIE, JSON.stringify(session), 7);
         return { success: true, session };
     } catch (err) {
         return { success: false, error: 'Login failed. Please try again.' };

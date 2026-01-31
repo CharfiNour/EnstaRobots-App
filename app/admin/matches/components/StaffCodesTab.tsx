@@ -41,9 +41,6 @@ export default function StaffCodesTab() {
     }, []);
 
     const loadInitialData = async () => {
-        // Cleanup legacy storage
-        if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
-
         // Load real competitions first
         const comps = await fetchCompetitionsFromSupabase();
         setRealCompetitions(comps);

@@ -42,13 +42,18 @@ export const fetchRealCompetitions = async () => {
             return [{ id: 'all', title: 'Global (All Competitions)' }];
         }
 
-        // Map database competitions with proper UUID ids
+        // Map database competitions with proper UUID ids and filter out 'fight'
         const competitions = [
             { id: 'all', title: 'Global (All Competitions)' },
-            ...(data as any[]).map(comp => ({
-                id: comp.id, // This is the UUID
-                title: comp.name
-            }))
+            ...(data as any[])
+                .filter(comp => {
+                    const name = String(comp.name || '').toUpperCase();
+                    return !name.includes('FIGHT');
+                })
+                .map(comp => ({
+                    id: comp.id, // This is the UUID
+                    title: comp.name
+                }))
         ];
 
         return competitions;
@@ -70,6 +75,25 @@ export const publishAnnouncement = async (formData: any) => {
     };
 
     const { error } = await (supabase.from('announcements') as any).insert(insertData);
+
+    if (error) throw error;
+};
+
+export const getAnnouncements = async () => {
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+};
+
+export const deleteAnnouncement = async (id: string) => {
+    const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq('id', id);
 
     if (error) throw error;
 };

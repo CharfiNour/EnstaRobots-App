@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Activity } from 'lucide-react';
-import { COMPETITION_CONFIG } from '../services/teamDashboardService';
-import { getCompetitionName } from '@/lib/constants';
+import { Shield, Activity, Landmark } from 'lucide-react';
 
 interface DashboardHeaderProps {
     teamData: any;
@@ -12,34 +9,6 @@ interface DashboardHeaderProps {
 }
 
 export default function DashboardHeader({ teamData, session }: DashboardHeaderProps) {
-    const [competitionName, setCompetitionName] = useState<string>("");
-
-    useEffect(() => {
-        const resolveComp = async () => {
-            if (!teamData?.competition) return;
-
-            // Check hardcoded config first (slugs)
-            if (COMPETITION_CONFIG[teamData.competition]) {
-                setCompetitionName(COMPETITION_CONFIG[teamData.competition].name);
-                return;
-            }
-
-            // Fallback to DB lookup for UUIDs
-            try {
-                const { fetchCompetitionsFromSupabase } = await import('@/lib/supabaseData');
-                const comps = await fetchCompetitionsFromSupabase();
-                setCompetitionName(getCompetitionName(teamData.competition, comps));
-            } catch (err) {
-                setCompetitionName(getCompetitionName(teamData.competition));
-            }
-        };
-        resolveComp();
-    }, [teamData]);
-
-    const compColor = teamData?.competition && COMPETITION_CONFIG[teamData.competition]
-        ? COMPETITION_CONFIG[teamData.competition].color
-        : 'bg-role-primary/10 text-role-primary border-role-primary/20';
-
     return (
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
             <motion.div
@@ -53,16 +22,15 @@ export default function DashboardHeader({ teamData, session }: DashboardHeaderPr
                     </h1>
                 </div>
                 <div className="flex items-center gap-3 pl-1">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-role-primary/10 rounded-lg border border-role-primary/20">
-                        <Activity size={14} className="text-role-primary" />
+                    {/* Unit Badge */}
+                    <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-lg border border-card-border">
+                        <Activity size={14} className="text-muted-foreground opacity-60" />
                         <span className="text-[10px] font-black uppercase text-foreground">{teamData?.robotName || teamData?.name || 'My Unit'}</span>
                     </div>
-                    {teamData?.competition && (
-                        <div className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border ${compColor}`}>
-                            {competitionName || (COMPETITION_CONFIG[teamData.competition]?.name || teamData.competition.replace(/_/g, ' '))}
-                        </div>
-                    )}
-                    <div className="px-3 py-1 bg-muted/50 rounded-lg border border-card-border text-[10px] font-black text-muted-foreground uppercase">
+
+                    {/* Club Badge (Now Blue/Primary Styled) */}
+                    <div className="flex items-center gap-2 px-3 py-1 bg-role-primary/10 rounded-lg border border-role-primary/20 text-[10px] font-black text-role-primary uppercase tracking-wider">
+                        <Landmark size={12} />
                         {teamData?.club || 'Standalone'}
                     </div>
                 </div>

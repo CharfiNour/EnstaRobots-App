@@ -18,7 +18,7 @@ CREATE TABLE profiles (
 CREATE TABLE competitions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   title TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('junior_line_follower', 'junior_all_terrain', 'line_follower', 'all_terrain', 'fight')),
+  category TEXT NOT NULL CHECK (category IN ('junior_line_follower', 'junior_all_terrain', 'line_follower', 'all_terrain')),
   status TEXT NOT NULL CHECK (status IN ('upcoming', 'qualifiers', 'group_stage', 'knockout', 'finals', 'completed')),
   description TEXT,
   total_teams INTEGER DEFAULT 0,
@@ -77,11 +77,6 @@ CREATE TABLE scores (
   penalties INTEGER DEFAULT 0,
   bonus_points INTEGER DEFAULT 0,
   
-  -- For Fight
-  knockouts INTEGER DEFAULT 0,
-  judge_points INTEGER DEFAULT 0,
-  damage_score INTEGER DEFAULT 0,
-  
   -- Calculated total
   total_points INTEGER NOT NULL,
   
@@ -104,7 +99,7 @@ CREATE TABLE announcements (
 -- Staff Codes (for jury/admin login without email/password)
 CREATE TABLE staff_codes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  role TEXT NOT NULL CHECK (role IN ('admin', 'jury')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'jury', 'team', 'homologation_jury')),
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
   competition_id UUID REFERENCES competitions(id) ON DELETE SET NULL,

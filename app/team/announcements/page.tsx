@@ -7,8 +7,9 @@ import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchTeamsFromSupabase } from '@/lib/supabaseData';
-import { RegistryAlert, RestrictionScreen } from '../components';
+import { RegistryAlert, RestrictionScreen, IncompleteRegistryView } from '../components';
 import { getCompetitionState, syncEventDayStatusFromSupabase } from '@/lib/competitionState';
+import { useProfileStatus } from '../hooks/useProfileStatus';
 
 // Mock data as fallback
 const FALLBACK_ANNOUNCEMENTS = [
@@ -24,6 +25,7 @@ const TYPE_CONFIG = {
 };
 
 export default function TeamAnnouncementsPage() {
+    const { profileComplete, loading: statusLoading } = useProfileStatus();
     const [session, setSession] = useState<any>(null);
     const [teamData, setTeamData] = useState<any>(null);
     const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -145,11 +147,7 @@ export default function TeamAnnouncementsPage() {
     };
 
     // Event Day Restriction
-    if (!eventDayStarted) {
-        return <RestrictionScreen />;
-    }
-
-    if (loading) {
+    if (loading || statusLoading) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="w-12 h-12 border-4 border-role-primary border-t-transparent rounded-full animate-spin"></div>
@@ -158,24 +156,10 @@ export default function TeamAnnouncementsPage() {
     }
 
     // Access Restricted for Incomplete Profiles
-    if (teamData?.isPlaceholder) {
+    if (!profileComplete) {
         return (
-            <div className="min-h-screen py-12 px-6 flex flex-col items-center justify-center">
-                <div className="max-w-md w-full text-center space-y-8">
-                    <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-amber-500/20">
-                        <motion.div
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ repeat: Infinity, duration: 2 }}
-                        >
-                            <Shield className="w-12 h-12 text-amber-500" />
-                        </motion.div>
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-foreground uppercase tracking-tight mb-3">Feed Access Restricted</h1>
-                        <p className="text-muted-foreground font-medium">Intel and announcements are restricted to verified units only. Complete the registry to sync with the global feed.</p>
-                    </div>
-                    <RegistryAlert />
-                </div>
+            <div className="min-h-screen py-10 px-6 container mx-auto max-w-4xl">
+                <IncompleteRegistryView />
             </div>
         );
     }

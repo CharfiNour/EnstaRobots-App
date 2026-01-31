@@ -61,12 +61,6 @@ export default function HeaderActions({
                     finish: 'border-orange-500 text-orange-600 bg-orange-50',
                     dot: 'bg-orange-500'
                 };
-            case 'fight':
-                return {
-                    start: 'from-rose-500 to-rose-600',
-                    finish: 'border-rose-500 text-rose-600 bg-rose-50',
-                    dot: 'bg-rose-500'
-                };
             default:
                 return {
                     start: 'from-green-500 to-green-600',

@@ -14,6 +14,7 @@ export interface Competition {
     totalMatches?: number;
     arena?: string;
     schedule?: string;
+    current_phase?: string | null;
 }
 
 export interface Team {
@@ -35,18 +36,6 @@ export interface Team {
 
 const INITIAL_TEAMS: Team[] = [];
 
-const TEAMS_STORAGE_KEY = 'enstarobots_teams_v1';
-
-// Clean up legacy storage on module load
-if (typeof window !== 'undefined') {
-    try {
-        if (localStorage.getItem(TEAMS_STORAGE_KEY)) {
-            localStorage.removeItem(TEAMS_STORAGE_KEY);
-            console.log('🧹 [TEAMS] Legacy local teams cleared');
-        }
-    } catch { }
-}
-
 export function getTeams(): Team[] {
     // Always return empty/initial (forcing components to fetch from remote/cache)
     return INITIAL_TEAMS;
@@ -55,13 +44,11 @@ export function getTeams(): Team[] {
 
 export function saveTeams(teams: Team[]): void {
     if (typeof window === 'undefined') return;
-    // No-op for persistence (memory only)
-    // localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(teams));
+    // No-op for persistence to comply with No Local Storage policy
     window.dispatchEvent(new Event('teams-updated'));
 }
 
 // Helper to update team order
-// Note: This logic now needs to be handled by the UI + Supabase updates
 export function reorderTeams(teams: Team[], startIndex: number, endIndex: number): Team[] {
     const result = Array.from(teams);
     const [removed] = result.splice(startIndex, 1);
@@ -95,7 +82,7 @@ export function generateEmptyTeams(count: number): Team[] {
  * Adds a specific number of team slots for a given club.
  * Returns the NEW teams only.
  */
-export function generateClubSlots(clubName: string, count: number): Team[] {
+export function generateClubSlots(clubName: string, count: number, competitionId?: string): Team[] {
     const newTeams: Team[] = [];
 
     // Create a clean prefix from club name (e.g. "RoboKnights" -> "ROBO")
@@ -106,14 +93,18 @@ export function generateClubSlots(clubName: string, count: number): Team[] {
         // Generate a 4-char unique suffix
         const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
 
+        // Better default numbering
+        const unitNumber = i + 1;
+
         newTeams.push({
             id,
-            name: `Slot`,
-            robotName: '',
+            name: `${prefix} Unit ${unitNumber}`,
+            robotName: `${prefix} Unit ${unitNumber}`,
             club: clubName,
             university: '',
             logo: `https://api.dicebear.com/7.x/identicon/svg?seed=team-${id}`,
             code: `${prefix}-${suffix}`,
+            competition: competitionId || '',
             members: [],
             isPlaceholder: true
         });

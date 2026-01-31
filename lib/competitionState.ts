@@ -26,8 +26,6 @@ export interface CompetitionState {
     terminationTimestamps: Record<string, number>; // competitionId -> timestamp
 }
 
-const STATE_STORAGE_KEY = 'enstarobots_competition_state_v1';
-
 const INITIAL_STATE: CompetitionState = {
     liveSessions: {},
     orderedCompetitions: [],
@@ -40,13 +38,6 @@ const INITIAL_STATE: CompetitionState = {
 
 // In-memory state storage (resets on page reload)
 let memoryState: CompetitionState = { ...INITIAL_STATE };
-
-// Clean up legacy localStorage on module load
-if (typeof window !== 'undefined') {
-    try {
-        localStorage.removeItem(STATE_STORAGE_KEY);
-    } catch { }
-}
 
 export function getCompetitionState(): CompetitionState {
     return memoryState;

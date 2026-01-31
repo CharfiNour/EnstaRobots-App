@@ -5,7 +5,7 @@ export interface OfflineScore {
     id: string;
     matchId: string;
     teamId: string;
-    competitionType: 'junior_line_follower' | 'line_follower' | 'junior_all_terrain' | 'all_terrain' | 'fight' | 'homologation' | string;
+    competitionType: 'junior_line_follower' | 'line_follower' | 'junior_all_terrain' | 'all_terrain' | 'homologation' | string;
 
     // Common fields
     phase?: string;
@@ -15,8 +15,7 @@ export interface OfflineScore {
     timeMs?: number;
     bonusPoints?: number;
     completedRoad?: boolean;
-
-    // Fight
+    rank?: number;
     knockouts?: number;
     juryPoints?: number;
     damageScore?: number;
@@ -31,7 +30,7 @@ export interface OfflineScore {
     remarks?: string;
 }
 
-// IMPORTANT: Offline score storage and local persistence have been DISABLED as per request.
+// IMPORTANT: Offline score storage and local persistence have been DISABLED to comply with the "No Local Storage" policy.
 // This module now acts as a pass-through and utility provider only.
 
 let memoryScores: OfflineScore[] = [];
@@ -48,10 +47,7 @@ export function getOfflineScores(): OfflineScore[] {
 
 // Clear ALL offline scores - NO-OP
 export function clearAllOfflineScores(): void {
-    if (typeof window !== 'undefined') {
-        localStorage.removeItem('enstarobots_offline_scores_v3');
-        localStorage.removeItem('enstarobots_offline_scores_v2');
-    }
+    // No-op - LocalStorage is disabled
 }
 
 // Clear offline scores for a specific category - NO-OP
@@ -82,13 +78,12 @@ export function calculateTotalPoints(
     competitionType: string,
     data: Partial<OfflineScore>
 ): number {
-    if (competitionType === 'fight') {
-        // Fight: Sum of knockouts, judge points, and damage score
-        const knockouts = data.knockouts || 0;
-        const juryPoints = data.juryPoints || 0;
-        const damageScore = data.damageScore || 0;
-        return knockouts * 10 + juryPoints + damageScore;
-    } else if (competitionType.includes('line_follower') || competitionType === 'homologation') {
+    if (competitionType === 'junior_all_terrain') {
+        // Junior All Terrain: Points are sums of missions (Drapeau, Objet, etc.)
+        return data.bonusPoints || 0;
+    }
+
+    if (competitionType.includes('line_follower') || competitionType === 'homologation') {
         // Line Follower: The total points are purely the sum of the tactical segments 
         // (homologationPoints). Time is recorded separately for ranking but not added to the score.
         return data.bonusPoints || 0;

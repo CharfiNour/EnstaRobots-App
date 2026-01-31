@@ -22,10 +22,9 @@ export function useAdminDashboard() {
         setSession(currentSession);
 
         const loadDashboard = async () => {
-            const [fetchedStats, fetchedActivities] = await Promise.all([
-                getAdminStats(),
-                getRecentActivity()
-            ]);
+            const fetchedStats = await getAdminStats();
+            const fetchedActivities = getRecentActivity();
+
             setStats(fetchedStats);
             setActivities(fetchedActivities);
             setLoading(false);
@@ -33,11 +32,21 @@ export function useAdminDashboard() {
         loadDashboard();
     }, [router]);
 
-    const updateStat = async (key: keyof AdminStats, value: string | number) => {
+    /**
+     * Local update for immediate UI feedback
+     */
+    const updateStat = (key: keyof AdminStats, value: string | number) => {
         if (!stats) return;
-        const newStats = { ...stats, [key]: value };
-        setStats(newStats);
-        await saveAdminStats(newStats);
+        setStats({ ...stats, [key]: value });
+    };
+
+    /**
+     * Remote save for persistence
+     */
+    const persistStats = async () => {
+        if (!stats) return;
+        console.log('[DASHBOARD] Persisting stats to DB...', stats);
+        await saveAdminStats(stats);
     };
 
     return {
@@ -46,6 +55,7 @@ export function useAdminDashboard() {
         stats,
         activities,
         router,
-        updateStat
+        updateStat,
+        persistStats
     };
 }
