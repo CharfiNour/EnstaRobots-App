@@ -121,6 +121,7 @@ export default function TeamMatchesPage() {
                                         onCompChange={setSelectedCompId}
                                         clubTeams={clubTeams}
                                         isLive={isCompetitionLive}
+                                        isEventDayStarted={compState?.eventDayStarted ?? false}
                                     />
                                 </div>
                             </div>

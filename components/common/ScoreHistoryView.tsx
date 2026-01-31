@@ -76,6 +76,7 @@ export default function ScoreHistoryView({
     const [selectedCompetition, setSelectedCompetition] = useState(lockedCompetitionId || initialCompetition);
     const [rawSelectedPhaseFilter, setSelectedPhaseFilter] = useState('');
     const [liveSessions, setLiveSessions] = useState<Record<string, any>>({});
+    const [eventDayStarted, setEventDayStarted] = useState(false);
     const [drawTeamsCount, setDrawTeamsCount] = useState(2);
     const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
     const [isCompMenuOpen, setIsCompMenuOpen] = useState(false);
@@ -238,6 +239,7 @@ export default function ScoreHistoryView({
         const sync = () => {
             const state = getCompetitionState();
             setLiveSessions(state.liveSessions || {});
+            setEventDayStarted(state.eventDayStarted || false);
         };
         sync();
         window.addEventListener('competition-state-updated', sync);
@@ -1302,7 +1304,7 @@ export default function ScoreHistoryView({
                                                                         </span>
                                                                     </div>
 
-                                                                    {isLive && (
+                                                                    {isLive && eventDayStarted && (
                                                                         <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
                                                                             <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
                                                                             <span className="text-[8px] font-black text-red-500 uppercase">Live</span>
@@ -1548,7 +1550,7 @@ export default function ScoreHistoryView({
                                                                         </div>
                                                                         <div className="flex items-center gap-1.5 mt-0.5">
 
-                                                                            {mounted && liveSessions[resolvedCompId]?.teamId === participant.teamId && (
+                                                                            {mounted && eventDayStarted && liveSessions[resolvedCompId]?.teamId === participant.teamId && (
                                                                                 <div className="flex items-center gap-1.5">
                                                                                     <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
                                                                                     <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Live Now</span>

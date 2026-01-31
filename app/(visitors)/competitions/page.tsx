@@ -23,7 +23,7 @@ import { dataCache, cacheKeys } from '@/lib/dataCache';
 // Memoized Card Component to prevent re-render storms
 const CompetitionCard = React.memo(({ comp, compState, allTeams, dbComps }: any) => {
     const liveSess = compState.liveSessions[comp.category];
-    const isActuallyLive = !!liveSess;
+    const isActuallyLive = compState.eventDayStarted && !!liveSess;
     const displayPhase = isActuallyLive ? (liveSess.phase || comp.status) : comp.status;
 
     // Memoize stats calculation per card

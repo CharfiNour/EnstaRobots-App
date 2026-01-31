@@ -121,7 +121,7 @@ export async function updateCompetitionState(
 
     // Synthesize legacy properties for backward compatibility during transition
     const liveKeys = Object.keys(newState.liveSessions);
-    newState.isLive = liveKeys.length > 0;
+    newState.isLive = newState.eventDayStarted && liveKeys.length > 0;
 
     memoryState = newState;
 

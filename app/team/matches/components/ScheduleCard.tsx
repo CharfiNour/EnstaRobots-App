@@ -25,6 +25,7 @@ interface ScheduleCardProps {
     onCompChange: (id: string) => void;
     clubTeams: ClubTeamWithTurn[];
     isLive: boolean; // General live status for selected comp
+    isEventDayStarted?: boolean;
 }
 
 export default function ScheduleCard({
@@ -32,7 +33,8 @@ export default function ScheduleCard({
     selectedCompId,
     onCompChange,
     clubTeams,
-    isLive
+    isLive,
+    isEventDayStarted = false
 }: ScheduleCardProps) {
     const [pulse, setPulse] = useState(false);
 
@@ -104,7 +106,7 @@ export default function ScheduleCard({
                             clubTeams.map(team => (
                                 <div
                                     key={team.id}
-                                    className={`p-4 rounded-2xl border transition-all duration-300 ${team.isLive ? 'bg-role-primary/10 border-role-primary/40 shadow-lg' : 'bg-muted/10 border-card-border hover:bg-muted/20'}`}
+                                    className={`p-4 rounded-2xl border transition-all duration-300 ${team.isLive && isEventDayStarted ? 'bg-role-primary/10 border-role-primary/40 shadow-lg' : 'bg-muted/10 border-card-border hover:bg-muted/20'}`}
                                 >
                                     <div className="flex flex-col gap-4">
                                         <div className="flex items-center justify-between">
@@ -115,18 +117,18 @@ export default function ScheduleCard({
                                                     ) : (
                                                         <Users size={16} className="text-muted-foreground/40" />
                                                     )}
-                                                    {team.isLive && (
+                                                    {team.isLive && isEventDayStarted && (
                                                         <div className="absolute inset-0 bg-role-primary/20 animate-pulse" />
                                                     )}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <h5 className={`text-xs font-black uppercase italic truncate ${team.isLive ? 'text-role-primary' : 'text-foreground'}`}>
+                                                    <h5 className={`text-xs font-black uppercase italic truncate ${team.isLive && isEventDayStarted ? 'text-role-primary' : 'text-foreground'}`}>
                                                         {team.robotName || team.name}
                                                     </h5>
                                                     <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">Unit #{team.myTurn}</p>
                                                 </div>
                                             </div>
-                                            {team.isLive && (
+                                            {team.isLive && isEventDayStarted && (
                                                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
                                                     <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
                                                     <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Live Now</span>

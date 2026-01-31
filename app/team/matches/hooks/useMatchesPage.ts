@@ -170,7 +170,7 @@ export function useMatchesPage() {
                 ...t,
                 myTurn,
                 currentTurn,
-                isLive: session?.teamId === t.id,
+                isLive: (compState?.eventDayStarted ?? false) && session?.teamId === t.id,
                 currentPhase: session?.phase || currentPhase
             };
         });
@@ -184,6 +184,6 @@ export function useMatchesPage() {
         loading,
         selectedComp,
         competitions,
-        isCompetitionLive: !!liveSessions[canonicalizeCompId(selectedCompId, competitions)]
+        isCompetitionLive: (compState?.eventDayStarted ?? false) && !!liveSessions[canonicalizeCompId(selectedCompId, competitions)]
     };
 }

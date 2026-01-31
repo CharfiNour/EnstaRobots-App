@@ -53,7 +53,7 @@ export default function CompetitionDetailPage() {
 
     // Live session auto-selection
     const liveSession = compState.liveSessions[resolvedCategory];
-    const isActuallyLive = !!liveSession;
+    const isActuallyLive = compState.eventDayStarted && !!liveSession;
 
     const handleLiveFocus = () => {
         const liveTeam = teams.find(t => t.id === liveSession?.teamId);

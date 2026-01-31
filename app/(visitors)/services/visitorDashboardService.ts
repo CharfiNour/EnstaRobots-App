@@ -17,7 +17,7 @@ export const getVisitorDashboardData = async (): Promise<VisitorDashboardData> =
     // Map admin competitions to dashboard display format
     const dashboardCompetitions: (import('../types').HomeCompetitionCardProps)[] = competitions.map((comp, index) => {
         const liveSession = competitionState.liveSessions[comp.category];
-        const isLive = !!liveSession;
+        const isLive = !!liveSession && !!competitionState.eventDayStarted;
         let displayStatus = comp.status;
 
         if (isLive) {
