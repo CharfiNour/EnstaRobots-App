@@ -225,6 +225,7 @@ export default function TeamsProfilesTab({ teams, setTeams }: TeamsProfilesTabPr
                             }
                         }}
                         isAdmin={true}
+                        isEditing={true}
                     />
                 ) : (
                     <div className="h-full min-h-[500px] flex flex-col items-center justify-center opacity-30 text-center space-y-4">
