@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Trophy, Users, Calendar, Bell, Shield, History, Key } from 'lucide-react';
+import { Trophy, Users, Calendar, Bell, Shield, History, Key, Trash2, AlertTriangle } from 'lucide-react';
 import { StatCard, ActionCard, ActivityItem } from './components';
 import { useAdminDashboard } from './hooks/useAdminDashboard';
+import { clearAllScoresFromSupabase, clearAllLiveSessionsFromSupabase } from '@/lib/supabaseData';
 
 export default function AdminDashboard() {
     const { loading, stats, activities, updateStat, persistStats } = useAdminDashboard();
@@ -15,6 +16,24 @@ export default function AdminDashboard() {
             </div>
         );
     }
+
+    const handleGlobalReset = async () => {
+        if (confirm("DANGER: This will delete ALL score records, matches, and live sessions for ALL competitions. This cannot be undone. Area you sure you want to end the test phase and clear everything?")) {
+            if (confirm("FINAL WARNING: All history and results will be permanently erased. Proceed with cleanup?")) {
+                try {
+                    await Promise.all([
+                        clearAllScoresFromSupabase(),
+                        clearAllLiveSessionsFromSupabase()
+                    ]);
+                    alert("System Cleaned: All test data has been erased.");
+                    window.location.reload();
+                } catch (e) {
+                    console.error("Cleanup failed", e);
+                    alert("Failed to clear data. Check console for details.");
+                }
+            }
+        }
+    };
 
     return (
         <div className="min-h-screen py-8">
@@ -116,6 +135,37 @@ export default function AdminDashboard() {
                             description="Master data & deletions"
                             color="from-orange-500/20"
                         />
+                    </div>
+                </motion.div>
+
+                {/* Danger Zone */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.35 }}
+                    className="mb-8 p-6 rounded-2xl border border-red-500/20 bg-red-500/5 relative overflow-hidden group"
+                >
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <AlertTriangle className="w-32 h-32 text-red-500" />
+                    </div>
+
+                    <div className="flex items-start gap-4 relative z-10">
+                        <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+                            <Trash2 className="w-6 h-6 text-red-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black uppercase text-red-500 mb-1">Danger Zone</h3>
+                            <p className="text-sm text-red-500/70 mb-4 max-w-xl">
+                                Test Phase Complete? Use this action to permanently purge all accumulated score data, match history, and active sessions from the database. This action is irreversible.
+                            </p>
+                            <button
+                                onClick={handleGlobalReset}
+                                className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-red-500/20 active:scale-95 transition-all flex items-center gap-2"
+                            >
+                                <Trash2 size={14} />
+                                Global Factory Reset
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
 
