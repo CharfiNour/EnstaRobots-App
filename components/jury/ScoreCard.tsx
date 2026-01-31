@@ -398,7 +398,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                         <span className="text-xs font-black uppercase tracking-wide text-accent">total score</span>
                                                     </div>
                                                     <span className="text-xl font-black italic text-foreground tracking-tighter">
-                                                        {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ {competitionType === 'junior_all_terrain' ? '90' : (competitionType === 'junior_line_follower' ? '140' : '215')} PTS</span>
+                                                        {currentScore.totalPoints} <span className="text-xs not-italic opacity-40 uppercase">/ {competitionType === 'junior_all_terrain' ? '190' : (competitionType === 'junior_line_follower' ? '140' : '215')} PTS</span>
                                                     </span>
                                                 </div>
 
@@ -572,8 +572,21 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                         {(() => {
                                             const { JUNIOR_ALL_TERRAIN_SECTIONS } = require('@/lib/constants');
                                             return Object.entries(currentScore.detailedScores).map(([id, pts]) => {
-                                                const section = JUNIOR_ALL_TERRAIN_SECTIONS.find((s: any) => s.id === id);
+                                                // Handle split keys (e.g. object_pos, object_neg)
+                                                // If id has suffix, map to base id
+                                                let baseId = id;
+                                                let typeLabel = "";
+                                                if (id.endsWith('_pos')) {
+                                                    baseId = id.replace('_pos', '');
+                                                    typeLabel = " (Bonus)";
+                                                } else if (id.endsWith('_neg')) {
+                                                    baseId = id.replace('_neg', '');
+                                                    typeLabel = " (Penalty)";
+                                                }
+
+                                                const section = JUNIOR_ALL_TERRAIN_SECTIONS.find((s: any) => s.id === baseId || s.id === id);
                                                 if (!section) return null;
+
                                                 return (
                                                     <div key={id} className="flex items-center justify-between p-2.5 bg-muted/5 rounded-xl border border-card-border/50">
                                                         <div className="flex items-center gap-2.5">
@@ -581,11 +594,15 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                                                 <img src={section.image} alt="" className="w-full h-full object-cover opacity-60" />
                                                             </div>
                                                             <div>
-                                                                <div className="text-[9px] font-black uppercase tracking-tight text-foreground">{section.label}</div>
-                                                                <div className="text-[7px] font-bold uppercase text-muted-foreground opacity-50">Max {section.maxPoints} Pts</div>
+                                                                <div className="text-[9px] font-black uppercase tracking-tight text-foreground">
+                                                                    {section.label}{typeLabel}
+                                                                </div>
+                                                                <div className="text-[7px] font-bold uppercase text-muted-foreground opacity-50">
+                                                                    Max {section.maxPoints} Pts
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="text-xs font-black italic text-accent">
+                                                        <div className={`text-xs font-black italic ${id.endsWith('_neg') ? 'text-red-500' : 'text-accent'}`}>
                                                             {pts} <span className="text-[8px] not-italic opacity-40">PTS</span>
                                                         </div>
                                                     </div>
@@ -595,7 +612,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                     </div>
                                 )}
 
-                                {homologationScore ? (
+                                {!isJuniorAT && (homologationScore ? (
                                     <div className="p-2 bg-role-primary/5 rounded-xl border border-role-primary/20 shadow-sm">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2.5">
@@ -614,7 +631,7 @@ export default function ScoreCard({ group, activePhase, onPhaseChange, isAdmin, 
                                         <Shield size={12} className="text-orange-500/60" />
                                         <div className="text-[9px] font-black text-orange-600 uppercase tracking-widest">Technical Registration Missing</div>
                                     </div>
-                                )}
+                                ))}
                             </div>
                         )}
                     </div>

@@ -136,9 +136,10 @@ export const LINE_FOLLOWER_SECTIONS_JUNIOR = [
 
 export const JUNIOR_ALL_TERRAIN_SECTIONS = [
     { id: 'flag', label: 'Mission Drapeau', maxPoints: 50, options: [10, 30, 50], hint: 'Sens (10) | Atteindre (30) | Bouger (50)' },
-    { id: 'object', label: 'Placement Objet', maxPoints: 10, options: [10, -10], hint: 'Correct (10) | Incorrect (-10)' },
+    { id: 'object', label: 'Placement Objet', maxPoints: 50, options: [10, -10], hint: 'Correct (10) | Incorrect (-10) (Accumulative)' },
     { id: 'zigzag', label: 'Epreuve Zigzag', maxPoints: 20, options: [0, 20], hint: 'Réussi (20)' },
-    { id: 'player', label: 'Gestion Joueur', maxPoints: 10, options: [10, -10], hint: 'Elimine (10) | Tomber (-10)' },
+    { id: 'player', label: 'Gestion Joueur', maxPoints: 50, options: [10, -10], hint: 'Elimine (10) | Tomber (-10) (Accumulative)' },
+    { id: 'finish', label: 'Finish', maxPoints: 20, options: [0, 20], hint: 'Terminé (20)' },
 ];
 export function canonicalizeCompId(id: string | any | undefined, dbComps: any[] = []): string {
     if (!id) return '';
